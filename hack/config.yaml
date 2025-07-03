@@ -1,0 +1,16 @@
+
+# CLI tool, only in development environment.
+# https://goframe.org/pages/viewpage.action?pageId=3673173
+gfcli:
+  docker:
+    build: "-a amd64 -s linux -p temp -ew"
+    tagPrefixes:
+      - my.image.pub/my-app
+  gen:
+    dao:
+      - link:            mysql:root:hasd721ba9@tcp(192.168.31.93:39507)/github.com/ciclebyte/template_starter?charset=utf8mb4&parseTime=true&loc=Local
+        tables:          "bili-users"
+        removePrefix:    ""
+        descriptionTag:  true
+        noModelComment:  true
+        path: "./internal"
