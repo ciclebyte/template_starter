@@ -16,6 +16,7 @@ func (router *Router) BindController(ctx context.Context, group *ghttp.RouterGro
 		group.Middleware(service.Middleware().MiddlewareCORS)
 		group.Bind(
 			controller.Languages,
+			controller.Categories,
 		)
 
 		//自动绑定定义的控制器

@@ -10,7 +10,7 @@ import (
 
 // Categories is the golang structure for table categories.
 type Categories struct {
-	Id          int64       `json:"id"          description:"分类ID，自增主键"`
+	Id          int         `json:"id"          description:"分类ID，自增主键"`
 	Name        string      `json:"name"        description:"分类名称，唯一"`
 	Description string      `json:"description" description:"分类描述"`
 	Icon        string      `json:"icon"        description:"分类图标标识或URL"`
