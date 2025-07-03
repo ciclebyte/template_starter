@@ -17,6 +17,6 @@ type TemplateVariables struct {
 	DefaultValue    string      `json:"defaultValue"    description:"变量默认值"`
 	IsRequired      int         `json:"isRequired"      description:"是否为必填变量"`
 	ValidationRegex string      `json:"validationRegex" description:"变量值验证正则表达式"`
-	DisplayOrder    int         `json:"displayOrder"    description:"显示顺序，数字越小排序越靠前"`
+	Sort            int         `json:"sort"            description:"排序"`
 	CreatedAt       *gtime.Time `json:"createdAt"       description:"创建时间"`
 }

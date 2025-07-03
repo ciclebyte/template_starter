@@ -27,7 +27,7 @@ type TemplateVariablesColumns struct {
 	DefaultValue    string // 变量默认值
 	IsRequired      string // 是否为必填变量
 	ValidationRegex string // 变量值验证正则表达式
-	DisplayOrder    string // 显示顺序，数字越小排序越靠前
+	Sort            string // 排序
 	CreatedAt       string // 创建时间
 }
 
@@ -40,7 +40,7 @@ var templateVariablesColumns = TemplateVariablesColumns{
 	DefaultValue:    "default_value",
 	IsRequired:      "is_required",
 	ValidationRegex: "validation_regex",
-	DisplayOrder:    "display_order",
+	Sort:            "sort",
 	CreatedAt:       "created_at",
 }
 

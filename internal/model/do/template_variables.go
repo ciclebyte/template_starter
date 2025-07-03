@@ -19,6 +19,6 @@ type TemplateVariables struct {
 	DefaultValue    interface{} // 变量默认值
 	IsRequired      interface{} // 是否为必填变量
 	ValidationRegex interface{} // 变量值验证正则表达式
-	DisplayOrder    interface{} // 显示顺序，数字越小排序越靠前
+	Sort            interface{} // 排序
 	CreatedAt       *gtime.Time // 创建时间
 }
