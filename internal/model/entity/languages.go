@@ -10,7 +10,7 @@ import (
 
 // Languages is the golang structure for table languages.
 type Languages struct {
-	Id          uint        `json:"id"          description:"语言ID，自增主键"`
+	Id          int         `json:"id"          description:"语言ID，自增主键"`
 	Name        string      `json:"name"        description:"语言名称（如JavaScript、Python）"`
 	DisplayName string      `json:"displayName" description:"语言显示名称"`
 	Code        string      `json:"code"        description:"语言代码（如js、py）"`

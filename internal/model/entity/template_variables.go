@@ -11,7 +11,7 @@ import (
 // TemplateVariables is the golang structure for table template_variables.
 type TemplateVariables struct {
 	Id              int64       `json:"id"              description:"变量ID，自增主键"`
-	TemplateId      uint64      `json:"templateId"      description:"所属模板ID"`
+	TemplateId      int64       `json:"templateId"      description:"所属模板ID"`
 	Name            string      `json:"name"            description:"变量名称"`
 	Description     string      `json:"description"     description:"变量描述"`
 	DefaultValue    string      `json:"defaultValue"    description:"变量默认值"`
