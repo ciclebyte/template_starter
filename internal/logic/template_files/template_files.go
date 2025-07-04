@@ -141,3 +141,13 @@ func (s *sTemplateFiles) FileTree(ctx context.Context, req *api.TemplatesFileTre
 	}
 	return
 }
+
+func (s *sTemplateFiles) GetFileContent(ctx context.Context, id int64) (fileContent string, err error) {
+	err = g.Try(ctx, func(ctx context.Context) {
+		var entityFile entity.TemplateFiles
+		err = dao.TemplateFiles.Ctx(ctx).Where(dao.TemplateFiles.Columns().Id+"=?", id).Fields("file_content").Scan(&entityFile)
+		liberr.ErrIsNil(ctx, err, "获取文件内容失败")
+		fileContent = entityFile.FileContent
+	})
+	return
+}

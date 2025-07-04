@@ -15,6 +15,7 @@ type ITemplateFiles interface {
 	BatchDelete(ctx context.Context, ids []int64) (err error)
 	GetById(ctx context.Context, id int64) (res *model.TemplateFilesInfo, err error)
 	FileTree(ctx context.Context, req *api.TemplatesFileTreeReq) (res *api.TemplatesFileTreeRes, err error)
+	GetFileContent(ctx context.Context, id int64) (fileContent string, err error)
 }
 
 var localTemplateFiles ITemplateFiles

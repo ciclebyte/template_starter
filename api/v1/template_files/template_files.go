@@ -105,3 +105,15 @@ type TemplatesFileTreeRes struct {
 	g.Meta `mime:"application/json"`
 	Tree   []*FileTreeNode `json:"tree"`
 }
+
+// 仅获取文件内容
+// GET /templateFiles/content?id=xxx
+// 返回 { fileContent: "..." }
+type TemplateFilesContentReq struct {
+	g.Meta `path:"/templateFiles/content" method:"get" tags:"模板文件" summary:"模板文件-仅获取内容"`
+	Id     interface{} `json:"id" v:"required#id不能为空"`
+}
+type TemplateFilesContentRes struct {
+	g.Meta      `mime:"application/json" example:"string"`
+	FileContent string `json:"fileContent"`
+}

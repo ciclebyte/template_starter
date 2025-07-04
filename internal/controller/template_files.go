@@ -63,3 +63,13 @@ func (c *templateFilesController) BatchDelete(ctx context.Context, req *api.Temp
 func (c *templateFilesController) FileTree(ctx context.Context, req *api.TemplatesFileTreeReq) (res *api.TemplatesFileTreeRes, err error) {
 	return service.TemplateFiles().FileTree(ctx, req)
 }
+
+func (c *templateFilesController) GetFileContent(ctx context.Context, req *api.TemplateFilesContentReq) (res *api.TemplateFilesContentRes, err error) {
+	res = new(api.TemplateFilesContentRes)
+	fileContent, err := service.TemplateFiles().GetFileContent(ctx, gconv.Int64(req.Id))
+	if err != nil {
+		return nil, err
+	}
+	res.FileContent = fileContent
+	return
+}
