@@ -31,7 +31,8 @@
 
 <script setup>
 import { ref, watch, h } from 'vue'
-import { NTree, useMessage } from 'naive-ui'
+import { NTree, useMessage, NIcon } from 'naive-ui'
+import { FileTrayFullOutline, Folder, FolderOpenOutline } from '@vicons/ionicons5'
 
 const props = defineProps({
   treeData: {
@@ -68,7 +69,6 @@ watch(() => props.treeData, (val) => {
 
 function treeToNaive(tree) {
   if (!Array.isArray(tree)) return []
-  // 新排序：文件夹在前，a开头在前，名称升序，忽略sort
   const customSort = (a, b) => {
     // 1. 文件夹在前
     if ((b.isDirectory || 0) - (a.isDirectory || 0) !== 0) {
@@ -90,6 +90,9 @@ function treeToNaive(tree) {
     isLeaf: node.isDirectory === 0,
     isEditing: node.isEditing === true,
     filePath: node.filePath,
+    prefix: node.isDirectory
+      ? () => h(NIcon, null, { default: () => h(Folder) })
+      : () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }),
     children: node.children ? treeToNaive(node.children) : []
   }))
 }
@@ -282,6 +285,18 @@ function deleteNode() {
   localTreeData.value = newTree
   showMenu.value = false
   emit('reload', { type: 'delete', id })
+}
+
+function updatePrefixWithExpaned(_keys, _option, meta) {
+  if (!meta.node) return;
+  switch (meta.action) {
+    case 'expand':
+      meta.node.prefix = () => h(NIcon, null, { default: () => h(FolderOpenOutline) });
+      break;
+    case 'collapse':
+      meta.node.prefix = () => h(NIcon, null, { default: () => h(Folder) });
+      break;
+  }
 }
 </script>
 

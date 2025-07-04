@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@vicons/ionicons5": "^0.13.0",
     "axios": "^1.10.0",
     "monaco-editor": "^0.52.2",
     "naive-ui": "^2.42.0",
