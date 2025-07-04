@@ -10,12 +10,12 @@ type TemplateFilesAddReq struct {
 	g.Meta      `path:"/templateFiles/add" method:"post" tags:"模板文件" summary:"模板文件-新增"`
 	TemplateId  interface{} `json:"templateId" v:"required#所属模板ID不能为空"`
 	FilePath    string      `json:"filePath" v:"required#文件路径（相对路径）不能为空"`
-	FileContent string      `json:"fileContent" v:"required#文件内容不能为空"`
-	FileSize    int         `json:"fileSize" v:"required#文件大小（字节）不能为空"`
+	FileContent string      `json:"fileContent"`
+	FileSize    int         `json:"fileSize"`
 	IsDirectory int         `json:"isDirectory" v:"required#是否为目录不能为空"`
-	Md5         string      `json:"md5" v:"required#md5不能为空"`
-	Sort        int         `json:"sort" v:"required#排序不能为空"`
-	ParentId    int         `json:"parentId" v:"required#父目录ID，如果是文件则指向所属目录不能为空"`
+	Md5         string      `json:"md5"`
+	Sort        int         `json:"sort"`
+	ParentId    int         `json:"parentId"`
 }
 
 type TemplateFilesAddRes struct {
@@ -45,12 +45,12 @@ type TemplateFilesEditReq struct {
 	Id          interface{} `json:"id" v:"required#文件ID，自增主键不能为空"`
 	TemplateId  interface{} `json:"templateId" v:"required#所属模板ID不能为空"`
 	FilePath    string      `json:"filePath" v:"required#文件路径（相对路径）不能为空"`
-	FileContent string      `json:"fileContent" v:"required#文件内容不能为空"`
-	FileSize    int         `json:"fileSize" v:"required#文件大小（字节）不能为空"`
+	FileContent string      `json:"fileContent"`
+	FileSize    int         `json:"fileSize"`
 	IsDirectory int         `json:"isDirectory" v:"required#是否为目录不能为空"`
-	Md5         string      `json:"md5" v:"required#md5不能为空"`
-	Sort        int         `json:"sort" v:"required#排序不能为空"`
-	ParentId    int         `json:"parentId" v:"required#父目录ID，如果是文件则指向所属目录不能为空"`
+	Md5         string      `json:"md5"`
+	Sort        int         `json:"sort"`
+	ParentId    int         `json:"parentId"`
 }
 
 type TemplateFilesEditRes struct {
