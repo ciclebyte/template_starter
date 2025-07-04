@@ -19,6 +19,7 @@ type TemplateFiles struct {
 	FileSize    interface{} // 文件大小（字节）
 	IsDirectory interface{} // 是否为目录
 	Md5         interface{} // md5
+	Sort        interface{} // 排序
 	ParentId    interface{} // 父目录ID，如果是文件则指向所属目录
 	CreatedAt   *gtime.Time // 记录创建时间
 	UpdatedAt   *gtime.Time //

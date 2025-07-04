@@ -11,7 +11,14 @@
     <div class="edit-main">
       <div class="edit-tree">
         <div class="tree-title">文件树</div>
-        <n-tree :data="treeData" :default-expand-all="true" block-line :selected-keys="[currentFile]" @update:selected-keys="onSelectFile" />
+        <n-spin :show="loadingTree">
+          <template v-if="noTreeData">
+            <div style="padding: 32px; color: #888; text-align: center;">暂无数据</div>
+          </template>
+          <template v-else>
+            <n-tree :data="treeData" :default-expand-all="true" block-line :selected-keys="[currentFile]" @update:selected-keys="onSelectFile" />
+          </template>
+        </n-spin>
       </div>
       <div class="edit-editor">
         <div class="editor-tabs">
@@ -29,42 +36,49 @@
 </template>
 
 <script setup>
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { NIcon } from 'naive-ui'
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { getTemplateFileTree } from '@/api/templates'
+
 const router = useRouter()
+const route = useRoute()
 const closeEdit = () => {
   router.push('/templates')
 }
 
-const treeData = ref([
-  {
-    label: 'src',
-    key: 'src',
-    children: [
-      { label: 'App.vue', key: 'src/App.vue' },
-      { label: 'main.js', key: 'src/main.js' },
-      {
-        label: 'components',
-        key: 'src/components',
-        children: [
-          { label: 'HelloWorld.vue', key: 'src/components/HelloWorld.vue' }
-        ]
-      },
-      {
-        label: 'assets',
-        key: 'src/assets',
-        children: [
-          { label: 'logo.png', key: 'src/assets/logo.png' }
-        ]
-      }
-    ]
-  },
-  { label: 'public', key: 'public', children: [ { label: 'index.html', key: 'public/index.html' } ] },
-  { label: 'package.json', key: 'package.json' },
-  { label: 'vite.config.js', key: 'vite.config.js' },
-  { label: 'README.md', key: 'README.md' }
-])
+const treeData = ref([])
+const loadingTree = ref(true)
+const noTreeData = ref(false)
+
+onMounted(async () => {
+  const templateId = route.params.id
+  loadingTree.value = true
+  try {
+    const res = await getTemplateFileTree(templateId)
+    if (res.data && res.data.tree && res.data.tree.length > 0) {
+      treeData.value = treeToNaive(res.data.tree)
+      noTreeData.value = false
+    } else {
+      treeData.value = []
+      noTreeData.value = true
+    }
+  } catch (e) {
+    treeData.value = []
+    noTreeData.value = true
+  }
+  loadingTree.value = false
+})
+
+function treeToNaive(tree) {
+  // 转换为naive-ui n-tree格式
+  return tree.map(node => ({
+    label: node.filePath.split('/').pop(),
+    key: node.id,
+    isLeaf: !node.isDirectory,
+    children: node.children ? treeToNaive(node.children) : []
+  }))
+}
 
 // 文件内容映射
 const fileMap = ref({

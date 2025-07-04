@@ -17,6 +17,7 @@ type TemplateFiles struct {
 	FileSize    uint        `json:"fileSize"    description:"文件大小（字节）"`
 	IsDirectory int         `json:"isDirectory" description:"是否为目录"`
 	Md5         string      `json:"md5"         description:"md5"`
+	Sort        int         `json:"sort"        description:"排序"`
 	ParentId    int64       `json:"parentId"    description:"父目录ID，如果是文件则指向所属目录"`
 	CreatedAt   *gtime.Time `json:"createdAt"   description:"记录创建时间"`
 	UpdatedAt   *gtime.Time `json:"updatedAt"   description:""`

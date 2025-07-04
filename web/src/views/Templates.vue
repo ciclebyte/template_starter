@@ -397,7 +397,7 @@ const handleDropdownSelect = (key, template) => {
   if (key === 'editInfo') {
     openEditModal(template)
   } else if (key === 'editContent') {
-    router.push(`/templates/content/${template.id}`)
+    router.push(`/templates/edit/${template.id}`)
   }
   dropdownShow.value = false
 }

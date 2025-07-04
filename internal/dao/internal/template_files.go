@@ -27,6 +27,7 @@ type TemplateFilesColumns struct {
 	FileSize    string // 文件大小（字节）
 	IsDirectory string // 是否为目录
 	Md5         string // md5
+	Sort        string // 排序
 	ParentId    string // 父目录ID，如果是文件则指向所属目录
 	CreatedAt   string // 记录创建时间
 	UpdatedAt   string //
@@ -41,6 +42,7 @@ var templateFilesColumns = TemplateFilesColumns{
 	FileSize:    "file_size",
 	IsDirectory: "is_directory",
 	Md5:         "md5",
+	Sort:        "sort",
 	ParentId:    "parent_id",
 	CreatedAt:   "created_at",
 	UpdatedAt:   "updated_at",

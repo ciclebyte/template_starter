@@ -60,3 +60,7 @@ func (c *templatesController) BatchDelete(ctx context.Context, req *api.Template
 	err = service.Templates().BatchDelete(ctx, int64Ids)
 	return
 }
+
+func (c *templatesController) FileTree(ctx context.Context, req *api.TemplatesFileTreeReq) (res *api.TemplatesFileTreeRes, err error) {
+	return service.Templates().FileTree(ctx, req)
+}
