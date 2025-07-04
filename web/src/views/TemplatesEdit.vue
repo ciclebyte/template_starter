@@ -11,17 +11,13 @@
     <div class="edit-main">
       <TemplateFileTree
         v-model:treeData="treeData"
-        :currentFile="currentFile.value || ''"
+        :currentFile="currentFile"
         @select="onSelectFile"
         @reload="onTreeReload"
       />
       <TemplateEditor
-        :openedTabs="openedTabs.value || []"
-        :activeTab="activeTab.value || ''"
-        :fileMap="fileMap.value || {}"
-        @tabChange="onTabChange"
-        @tabClose="onTabClose"
-        @contentChange="onEditorContentChange"
+        :filePath="currentFilePath"
+        :fileContent="currentFileContent"
       />
     </div>
   </div>
@@ -30,7 +26,7 @@
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
 import { ref, onMounted, watch } from 'vue'
-import { getTemplateFileTree, addTemplateFile, delTemplateFile } from '@/api/templateFiles'
+import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileDetail } from '@/api/templateFiles'
 import TemplateFileTree from '@/components/TemplateFileTree.vue'
 import TemplateEditor from '@/components/TemplateEditor.vue'
 
@@ -44,6 +40,8 @@ const treeData = ref([])
 const loadingTree = ref(true)
 const noTreeData = ref(false)
 const currentFile = ref('')
+const currentFilePath = ref('')
+const currentFileContent = ref('')
 const openedTabs = ref([])
 const activeTab = ref('')
 const fileMap = ref({})
@@ -71,16 +69,35 @@ async function loadTree() {
   loadingTree.value = false
 }
 
-function onSelectFile(key) {
-  if (!key) return
-  const keyStr = String(key)
-  // 打开新标签或切换
-  const exist = openedTabs.value.find(tab => tab.key === keyStr)
-  if (!exist) {
-    openedTabs.value.push({ key: keyStr, name: keyStr.split('/').pop(), content: fileMap.value[keyStr] || '' })
+function findNodeByKey(list, key) {
+  for (const item of list) {
+    if (String(item.key || item.id) === String(key)) return item
+    if (item.children) {
+      const found = findNodeByKey(item.children, key)
+      if (found) return found
+    }
   }
-  activeTab.value = keyStr
-  currentFile.value = keyStr
+  return null
+}
+
+async function onSelectFile(key) {
+  currentFile.value = key
+  const node = findNodeByKey(treeData.value, key)
+  if (node && node.isDirectory === 0) {
+    // 是文件节点，请求接口
+    try {
+      const res = await getTemplateFileDetail(key)
+      currentFilePath.value = res.data.data.filePath
+      currentFileContent.value = res.data.data.content
+    } catch (e) {
+      currentFilePath.value = ''
+      currentFileContent.value = ''
+    }
+  } else {
+    // 文件夹节点，清空编辑区
+    currentFilePath.value = ''
+    currentFileContent.value = ''
+  }
 }
 
 function onTabChange(key) {
