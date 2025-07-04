@@ -13,11 +13,6 @@ import { useRoute } from 'vue-router'
 import { computed, watchEffect } from 'vue'
 const route = useRoute()
 const isEditPage = computed(() => route.path.startsWith('/templates/edit'))
-
-watchEffect(() => {
-  console.log('当前 path:', route.path)
-  console.log('isEditPage:', isEditPage.value)
-})
 </script>
 
 <style>

@@ -18,6 +18,9 @@
       <TemplateEditor
         :filePath="currentFilePath"
         :fileContent="currentFileContent"
+        :openedTabs="openedTabs"
+        :activeTab="activeTab"
+        :fileMap="fileMap"
       />
     </div>
   </div>
@@ -29,6 +32,7 @@ import { ref, onMounted, watch } from 'vue'
 import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileDetail,getTemplateFileContent } from '@/api/templateFiles'
 import TemplateFileTree from '@/components/TemplateFileTree.vue'
 import TemplateEditor from '@/components/TemplateEditor.vue'
+import { useTemplateFileStore } from '@/stores/templateFileStore'
 
 const router = useRouter()
 const route = useRoute()
@@ -45,6 +49,7 @@ const currentFileContent = ref('')
 const openedTabs = ref([])
 const activeTab = ref('')
 const fileMap = ref({})
+const templateFileStore = useTemplateFileStore()
 
 onMounted(async () => {
   await loadTree()
@@ -81,32 +86,48 @@ function findNodeByKey(list, key) {
 }
 
 async function onSelectFile(key) {
+  console.log('点击的 key:', key)
   currentFile.value = key
   const node = findNodeByKey(treeData.value, key)
+  console.log('找到的 node:', node)
   if (node && node.isDirectory === 0) {
-    // 是文件节点，请求接口
     try {
       const res = await getTemplateFileContent(key)
-      currentFilePath.value = res.data.data.filePath
-      currentFileContent.value = res.data.data.content
+      console.log('接口返回:', res)
+      console.log('接口返回的 fileContent:', res.data?.data?.fileContent)
+      const content = res.data.data.fileContent
+      currentFileContent.value = content
+      templateFileStore.setCurrentFileContent(content)
+
+      // 自动打开tab
+      let tab = openedTabs.value.find(t => t.key === String(key))
+      if (!tab) {
+        openedTabs.value.push({
+          key: String(key),
+          name: node.filePath || node.label || String(key),
+          content
+        })
+      } else {
+        tab.content = content
+      }
+      activeTab.value = String(key)
     } catch (e) {
-      currentFilePath.value = ''
       currentFileContent.value = ''
+      templateFileStore.setCurrentFileContent('')
     }
   } else {
-    // 文件夹节点，清空编辑区
-    currentFilePath.value = ''
     currentFileContent.value = ''
+    templateFileStore.setCurrentFileContent('')
   }
 }
 
 function onTabChange(key) {
-  activeTab.value = key
-  currentFile.value = key
+  activeTab.value = String(key)
+  currentFile.value = String(key)
 }
 
 function onTabClose(key) {
-  const idx = openedTabs.value.findIndex(tab => tab.key === key)
+  const idx = openedTabs.value.findIndex(tab => tab.key === String(key))
   if (idx !== -1) {
     openedTabs.value.splice(idx, 1)
     if (openedTabs.value.length > 0) {

@@ -16,6 +16,8 @@
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { NTabs, NTab } from 'naive-ui'
 import * as monaco from 'monaco-editor'
+import { useTemplateFileStore } from '@/stores/templateFileStore'
+import { storeToRefs } from 'pinia'
 
 const props = defineProps({
   openedTabs: {
@@ -36,7 +38,11 @@ const emit = defineEmits(['tabChange', 'tabClose', 'contentChange'])
 const monacoContainer = ref(null)
 let editorInstance = null
 
+const templateFileStore = useTemplateFileStore()
+const { currentFileContent } = storeToRefs(templateFileStore)
+
 function getLanguage(file) {
+  if (typeof file !== 'string') file = String(file)
   if (file.endsWith('.vue')) return 'vue'
   if (file.endsWith('.js')) return 'javascript'
   if (file.endsWith('.json')) return 'json'
@@ -52,7 +58,7 @@ function onTabClose(key) {
   emit('tabClose', key)
 }
 
-watch(() => [props.activeTab, props.openedTabs], () => {
+watch(() => [props.activeTab, props.openedTabs, currentFileContent.value], () => {
   const tab = props.openedTabs.find(t => t.key === props.activeTab)
   if (tab && editorInstance) {
     const lang = getLanguage(tab.key)
@@ -60,7 +66,20 @@ watch(() => [props.activeTab, props.openedTabs], () => {
     if (!model) {
       model = monaco.editor.createModel(tab.content, lang, monaco.Uri.parse(`file:///${tab.key}`))
     }
+    if (model.getValue() !== currentFileContent.value) {
+      model.setValue(currentFileContent.value || '')
+    }
     editorInstance.setModel(model)
+  }
+})
+
+watch(currentFileContent, (val) => {
+  const tab = props.openedTabs.find(t => t.key === props.activeTab)
+  if (tab && tab.content !== val) {
+    tab.content = val
+    if (editorInstance) {
+      editorInstance.setValue(val || '')
+    }
   }
 })
 
