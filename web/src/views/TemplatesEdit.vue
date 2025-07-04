@@ -21,6 +21,9 @@
         :openedTabs="openedTabs"
         :activeTab="activeTab"
         :fileMap="fileMap"
+        @tabChange="onTabChange"
+        @tabClose="onTabClose"
+        @contentChange="onEditorContentChange"
       />
     </div>
   </div>

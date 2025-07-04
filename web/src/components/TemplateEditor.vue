@@ -7,7 +7,6 @@
         </n-tab>
       </n-tabs>
     </div>
-    <div class="editor-title">{{ activeTab }}</div>
     <div class="monaco-editor-container" ref="monacoContainer"></div>
   </div>
 </template>
