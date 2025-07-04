@@ -13,13 +13,12 @@
 
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { NTabs, NTab, useMessage, useNotification } from 'naive-ui'
+import { NTabs, NTab, useNotification } from 'naive-ui'
 import * as monaco from 'monaco-editor'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
 import { storeToRefs } from 'pinia'
 import { editTemplateFile } from '@/api/templateFiles'
 import { useRoute } from 'vue-router'
-// shiki + shikiToMonaco
 import { createHighlighter } from 'shiki'
 import { shikiToMonaco } from '@shikijs/monaco'
 
@@ -42,6 +41,7 @@ const emit = defineEmits(['tabChange', 'tabClose', 'contentChange'])
 const monacoContainer = ref(null)
 let editorInstance = null
 let highlighter = null
+let shikiInjected = false
 
 const templateFileStore = useTemplateFileStore()
 const { currentFileContent } = storeToRefs(templateFileStore)
@@ -50,7 +50,25 @@ const route = useRoute()
 const notification = useNotification()
 
 function getLanguage(file) {
-  return 'vue'
+  if (typeof file !== 'string') file = String(file)
+  if (file.endsWith('.vue')) return 'vue'
+  if (file.endsWith('.js')) return 'javascript'
+  if (file.endsWith('.ts')) return 'typescript'
+  if (file.endsWith('.json')) return 'json'
+  if (file.endsWith('.md')) return 'markdown'
+  if (file.endsWith('.html')) return 'html'
+  if (file.endsWith('.go')) return 'go'
+  if (file.endsWith('.java')) return 'java'
+  if (file.endsWith('.py')) return 'python'
+  if (file.endsWith('.c')) return 'c'
+  if (file.endsWith('.cpp')) return 'cpp'
+  if (file.endsWith('.cs')) return 'csharp'
+  if (file.endsWith('.php')) return 'php'
+  if (file.endsWith('.rb')) return 'ruby'
+  if (file.endsWith('.sh')) return 'shell'
+  if (file.endsWith('.xml')) return 'xml'
+  if (file.endsWith('.yml') || file.endsWith('.yaml')) return 'yaml'
+  return 'plaintext'
 }
 
 function onTabChange(key) {
@@ -71,6 +89,7 @@ watch(() => [props.activeTab, props.openedTabs, currentFileContent.value], () =>
     if (model.getValue() !== currentFileContent.value) {
       model.setValue(currentFileContent.value || '')
     }
+    monaco.editor.setModelLanguage(model, lang)
     editorInstance.setModel(model)
   }
 })
@@ -119,6 +138,7 @@ function handleKeydown(e) {
 }
 
 onMounted(async () => {
+  // 1. 初始化 shiki 高亮器和主题，只做一次
   highlighter = await createHighlighter({
     themes: ['github-dark', 'nord', 'github-light'],
     langs: [
@@ -126,15 +146,14 @@ onMounted(async () => {
       'go', 'java', 'python', 'c', 'cpp', 'csharp', 'php', 'ruby', 'shell', 'xml', 'yaml'
     ]
   })
-  console.log('shiki highlighter:', highlighter)
-  await shikiToMonaco(highlighter, monaco)
-  console.log('shikiToMonaco 注入完成')
+  if (!shikiInjected) {
+    await shikiToMonaco(highlighter, monaco)
+    shikiInjected = true
+  }
   monaco.editor.setTheme('github-dark')
-  console.log('monaco theme set:', 'github-dark')
 
   const tab = props.openedTabs.find(t => t.key === props.activeTab)
   const lang = tab ? getLanguage(tab.name) : 'plaintext'
-  console.log('monaco create language:', lang)
   editorInstance = monaco.editor.create(monacoContainer.value, {
     value: tab ? tab.content : '',
     language: lang,
