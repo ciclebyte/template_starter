@@ -116,103 +116,29 @@
       </div>
     </div>
 
-    <!-- 添加模板弹窗 -->
-    <n-modal v-model:show="showAddModal" preset="dialog" title="添加模板" :mask-closable="false">
-      <n-form :model="addForm" :rules="addRules" ref="addFormRef" label-width="80">
-        <n-form-item label="名称" path="name">
-          <n-input v-model:value="addForm.name" placeholder="请输入模板名称" />
-        </n-form-item>
-        <n-form-item label="描述" path="description">
-          <n-input v-model:value="addForm.description" placeholder="请输入模板描述" />
-        </n-form-item>
-        <n-form-item label="分类" path="category_id">
-          <n-select v-model:value="addForm.category_id" :options="categorySelectOptions" placeholder="请选择分类" />
-        </n-form-item>
-        <n-form-item label="支持语言" path="languages">
-          <n-select
-            v-model:value="addForm.languages"
-            :options="languageSelectOptions"
-            multiple
-            placeholder="请选择支持的语言"
-            @update:value="onLanguagesChange"
-          />
-        </n-form-item>
-        <n-form-item label="主语言" path="primary_language">
-          <n-select
-            v-model:value="addForm.primary_language"
-            :options="primaryLanguageOptions"
-            placeholder="请选择主语言"
-          />
-        </n-form-item>
-        <n-form-item label="Logo">
-          <n-input v-model:value="addForm.logo" placeholder="Logo图片URL，可选" />
-        </n-form-item>
-        <!-- 语言列表展示 -->
-        <div v-if="addForm.languages.length > 0" style="margin-bottom: 12px;">
-          <n-tag
-            v-for="langId in addForm.languages"
-            :key="langId"
-            :type="langId === addForm.primary_language ? 'primary' : 'default'"
-            style="margin-right: 8px;"
-          >
-            {{ getLanguageName(langId) }}<template v-if="langId === addForm.primary_language">（主语言）</template>
-          </n-tag>
-        </div>
-      </n-form>
-      <template #action>
-        <n-button @click="showAddModal = false">取消</n-button>
-        <n-button type="primary" @click="handleAddTemplate">确定</n-button>
-      </template>
-    </n-modal>
+    <!-- 新增弹窗 -->
+    <TemplateForm
+      :show="showAddModal"
+      title="添加模板"
+      :form="addForm"
+      :rules="addRules"
+      :categorySelectOptions="categorySelectOptions"
+      @update:show="val => showAddModal = val"
+      @submit="handleAddTemplate"
+      @cancel="showAddModal = false"
+    />
 
-    <!-- 编辑模板弹窗 -->
-    <n-modal v-model:show="showEditModal" preset="dialog" title="编辑模板" :mask-closable="false">
-      <n-form :model="editForm" :rules="addRules" ref="editFormRef" label-width="80">
-        <n-form-item label="名称" path="name">
-          <n-input v-model:value="editForm.name" placeholder="请输入模板名称" />
-        </n-form-item>
-        <n-form-item label="描述" path="description">
-          <n-input v-model:value="editForm.description" placeholder="请输入模板描述" />
-        </n-form-item>
-        <n-form-item label="分类" path="category_id">
-          <n-select v-model:value="editForm.category_id" :options="categorySelectOptions" placeholder="请选择分类" />
-        </n-form-item>
-        <n-form-item label="支持语言" path="languages">
-          <n-select
-            v-model:value="editForm.languages"
-            :options="languageSelectOptions"
-            multiple
-            placeholder="请选择支持的语言"
-            @update:value="val => { if (!val.includes(editForm.primary_language)) editForm.primary_language = null }"
-          />
-        </n-form-item>
-        <n-form-item label="主语言" path="primary_language">
-          <n-select
-            v-model:value="editForm.primary_language"
-            :options="primaryLanguageOptions"
-            :render-label="option => option.label"
-            placeholder="请选择主语言"
-          />
-        </n-form-item>
-        <n-form-item label="Logo">
-          <n-input v-model:value="editForm.logo" placeholder="Logo图片URL，可选" />
-        </n-form-item>
-        <div v-if="editForm.languages.length > 0" style="margin-bottom: 12px;">
-          <n-tag
-            v-for="langId in editForm.languages"
-            :key="langId"
-            :type="langId === editForm.primary_language ? 'primary' : 'default'"
-            style="margin-right: 8px;"
-          >
-            {{ getLanguageName(langId) }}<template v-if="langId === editForm.primary_language">（主语言）</template>
-          </n-tag>
-        </div>
-      </n-form>
-      <template #action>
-        <n-button @click="showEditModal = false">取消</n-button>
-        <n-button type="primary" @click="handleEditTemplate">确定</n-button>
-      </template>
-    </n-modal>
+    <!-- 编辑弹窗 -->
+    <TemplateForm
+      :show="showEditModal"
+      title="编辑模板"
+      :form="editForm"
+      :rules="addRules"
+      :categorySelectOptions="categorySelectOptions"
+      @update:show="val => showEditModal = val"
+      @submit="handleEditTemplate"
+      @cancel="showEditModal = false"
+    />
   </div>
 </template>
 
@@ -225,6 +151,7 @@ import { storeToRefs } from 'pinia'
 import { useCategoryStore } from '@/stores/categoryStore'
 import { addTemplate, listTemplates, editTemplate } from '@/api/templates'
 import { addTemplateLanguage } from '@/api/templateLanguages'
+import TemplateForm from './components/TemplateForm.vue'
 
 const router = useRouter()
 
