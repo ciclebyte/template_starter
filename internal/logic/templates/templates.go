@@ -10,6 +10,8 @@ import (
 	do "github.com/ciclebyte/template_starter/internal/model/do"
 	service "github.com/ciclebyte/template_starter/internal/service"
 	liberr "github.com/ciclebyte/template_starter/library/liberr"
+	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/util/gconv"
 )
@@ -47,16 +49,30 @@ func (s sTemplates) List(ctx context.Context, req *api.TemplatesListReq) (total 
 		}
 		err = m.Page(req.PageNum, req.PageSize).Order(orderBy).Scan(&templatesList)
 		liberr.ErrIsNil(ctx, err, "获取模板列表失败")
+
+		// 查询并填充每个模板的Languages字段
+		for _, tpl := range templatesList {
+			var langs []model.TemplateLanguagesInfo
+			err = dao.TemplateLanguages.Ctx(ctx).Where("template_id = ?", tpl.Id).Scan(&langs)
+			if err == nil {
+				tpl.Languages = langs
+			}
+		}
 	})
 	return
 }
 
 func (s sTemplates) Add(ctx context.Context, req *api.TemplatesAddReq) (err error) {
-	err = g.Try(ctx, func(ctx context.Context) {
-		// TODO 查询是否已经存在
+	err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+		// 判重：名称不能重复
+		count, err := dao.Templates.Ctx(ctx).TX(tx).Where("name = ?", req.Name).Count()
+		liberr.ErrIsNil(ctx, err, "模板名称判重失败")
+		if count > 0 {
+			return gerror.New("模板名称已存在")
+		}
 
 		// add
-		_, err = dao.Templates.Ctx(ctx).Insert(do.Templates{
+		result, err := dao.Templates.Ctx(ctx).TX(tx).Insert(do.Templates{
 			Name:        req.Name,        // 模板名称
 			Description: req.Description, // 模板详细描述
 			CategoryId:  req.CategoryId,  // 所属分类ID
@@ -64,18 +80,36 @@ func (s sTemplates) Add(ctx context.Context, req *api.TemplatesAddReq) (err erro
 			Logo:        req.Logo,        // 模板logo图片URL
 		})
 		liberr.ErrIsNil(ctx, err, "新增模板失败")
+		templateId, err := result.LastInsertId()
+		liberr.ErrIsNil(ctx, err, "获取模板ID失败")
+
+		// 新增模板语言
+		for _, lang := range req.Languages {
+			_, err := dao.TemplateLanguages.Ctx(ctx).TX(tx).Insert(do.TemplateLanguages{
+				TemplateId: templateId,
+				LanguageId: lang.LanguageId,
+				IsPrimary:  lang.IsPrimary,
+			})
+			liberr.ErrIsNil(ctx, err, "新增模板语言失败")
+		}
+		return nil
 	})
 	return
 }
 
 func (s sTemplates) Edit(ctx context.Context, req *api.TemplatesEditReq) (err error) {
-	err = g.Try(ctx, func(ctx context.Context) {
+	err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
 		_, err = s.GetById(ctx, gconv.Int64(req.Id))
 		liberr.ErrIsNil(ctx, err, "获取模板失败")
-		//TODO 根据名称等查询是否存在
+		// 判重：名称不能与其他模板重复
+		count, err := dao.Templates.Ctx(ctx).TX(tx).Where("name = ? AND id <> ?", req.Name, req.Id).Count()
+		liberr.ErrIsNil(ctx, err, "模板名称判重失败")
+		if count > 0 {
+			return gerror.New("模板名称已存在")
+		}
 
-		//编辑
-		_, err = dao.Templates.Ctx(ctx).WherePri(req.Id).Update(do.Templates{
+		// 编辑模板主表
+		_, err = dao.Templates.Ctx(ctx).TX(tx).WherePri(req.Id).Update(do.Templates{
 			Id:          req.Id,          // 模板ID，自增主键
 			Name:        req.Name,        // 模板名称
 			Description: req.Description, // 模板详细描述
@@ -84,6 +118,21 @@ func (s sTemplates) Edit(ctx context.Context, req *api.TemplatesEditReq) (err er
 			Logo:        req.Logo,        // 模板logo图片URL
 		})
 		liberr.ErrIsNil(ctx, err, "修改模板失败")
+
+		// 删除原有模板语言
+		_, err = dao.TemplateLanguages.Ctx(ctx).TX(tx).Where("template_id = ?", req.Id).Delete()
+		liberr.ErrIsNil(ctx, err, "删除原有模板语言失败")
+
+		// 批量插入新模板语言
+		for _, lang := range req.Languages {
+			_, err := dao.TemplateLanguages.Ctx(ctx).TX(tx).Insert(do.TemplateLanguages{
+				TemplateId: gconv.Int64(req.Id),
+				LanguageId: lang.LanguageId,
+				IsPrimary:  lang.IsPrimary,
+			})
+			liberr.ErrIsNil(ctx, err, "新增模板语言失败")
+		}
+		return nil
 	})
 	return
 }
@@ -108,6 +157,12 @@ func (s sTemplates) GetById(ctx context.Context, id int64) (res *model.Templates
 	err = g.Try(ctx, func(ctx context.Context) {
 		err = dao.Templates.Ctx(ctx).Where(fmt.Sprintf("%s=?", dao.Templates.Columns().Id), id).Scan(&res)
 		liberr.ErrIsNil(ctx, err, "获取模板失败")
+		// 查询并填充Languages字段
+		var langs []model.TemplateLanguagesInfo
+		err = dao.TemplateLanguages.Ctx(ctx).Where("template_id = ?", id).Scan(&langs)
+		if err == nil && res != nil {
+			res.Languages = langs
+		}
 	})
 	return
 }

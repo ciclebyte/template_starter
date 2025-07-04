@@ -64,7 +64,7 @@
             @contextmenu.prevent.stop="showDropdown(template, $event)"
           >
             <div class="template-logo">
-              <img :src="template.logo" :alt="template.name" />
+              <img :src="template.logo || DEFAULT_LOGO" :alt="template.name" />
             </div>
             <div class="template-info">
               <h3>{{ template.name }}</h3>
@@ -128,16 +128,89 @@
         <n-form-item label="分类" path="category_id">
           <n-select v-model:value="addForm.category_id" :options="categorySelectOptions" placeholder="请选择分类" />
         </n-form-item>
-        <n-form-item label="标签" path="tags">
-          <n-select v-model:value="addForm.tags" :options="tagSelectOptions" multiple placeholder="请选择标签" />
+        <n-form-item label="支持语言" path="languages">
+          <n-select
+            v-model:value="addForm.languages"
+            :options="languageSelectOptions"
+            multiple
+            placeholder="请选择支持的语言"
+            @update:value="onLanguagesChange"
+          />
+        </n-form-item>
+        <n-form-item label="主语言" path="primary_language">
+          <n-select
+            v-model:value="addForm.primary_language"
+            :options="primaryLanguageOptions"
+            placeholder="请选择主语言"
+          />
         </n-form-item>
         <n-form-item label="Logo">
           <n-input v-model:value="addForm.logo" placeholder="Logo图片URL，可选" />
         </n-form-item>
+        <!-- 语言列表展示 -->
+        <div v-if="addForm.languages.length > 0" style="margin-bottom: 12px;">
+          <n-tag
+            v-for="langId in addForm.languages"
+            :key="langId"
+            :type="langId === addForm.primary_language ? 'primary' : 'default'"
+            style="margin-right: 8px;"
+          >
+            {{ getLanguageName(langId) }}<template v-if="langId === addForm.primary_language">（主语言）</template>
+          </n-tag>
+        </div>
       </n-form>
       <template #action>
         <n-button @click="showAddModal = false">取消</n-button>
         <n-button type="primary" @click="handleAddTemplate">确定</n-button>
+      </template>
+    </n-modal>
+
+    <!-- 编辑模板弹窗 -->
+    <n-modal v-model:show="showEditModal" preset="dialog" title="编辑模板" :mask-closable="false">
+      <n-form :model="editForm" :rules="addRules" ref="editFormRef" label-width="80">
+        <n-form-item label="名称" path="name">
+          <n-input v-model:value="editForm.name" placeholder="请输入模板名称" />
+        </n-form-item>
+        <n-form-item label="描述" path="description">
+          <n-input v-model:value="editForm.description" placeholder="请输入模板描述" />
+        </n-form-item>
+        <n-form-item label="分类" path="category_id">
+          <n-select v-model:value="editForm.category_id" :options="categorySelectOptions" placeholder="请选择分类" />
+        </n-form-item>
+        <n-form-item label="支持语言" path="languages">
+          <n-select
+            v-model:value="editForm.languages"
+            :options="languageSelectOptions"
+            multiple
+            placeholder="请选择支持的语言"
+            @update:value="val => { if (!val.includes(editForm.primary_language)) editForm.primary_language = null }"
+          />
+        </n-form-item>
+        <n-form-item label="主语言" path="primary_language">
+          <n-select
+            v-model:value="editForm.primary_language"
+            :options="primaryLanguageOptions"
+            :render-label="option => option.label"
+            placeholder="请选择主语言"
+          />
+        </n-form-item>
+        <n-form-item label="Logo">
+          <n-input v-model:value="editForm.logo" placeholder="Logo图片URL，可选" />
+        </n-form-item>
+        <div v-if="editForm.languages.length > 0" style="margin-bottom: 12px;">
+          <n-tag
+            v-for="langId in editForm.languages"
+            :key="langId"
+            :type="langId === editForm.primary_language ? 'primary' : 'default'"
+            style="margin-right: 8px;"
+          >
+            {{ getLanguageName(langId) }}<template v-if="langId === editForm.primary_language">（主语言）</template>
+          </n-tag>
+        </div>
+      </n-form>
+      <template #action>
+        <n-button @click="showEditModal = false">取消</n-button>
+        <n-button type="primary" @click="handleEditTemplate">确定</n-button>
       </template>
     </n-modal>
   </div>
@@ -150,6 +223,8 @@ import { NIcon } from 'naive-ui'
 import { useLanguageStore } from '@/stores/languageStore'
 import { storeToRefs } from 'pinia'
 import { useCategoryStore } from '@/stores/categoryStore'
+import { addTemplate, listTemplates, editTemplate } from '@/api/templates'
+import { addTemplateLanguage } from '@/api/templateLanguages'
 
 const router = useRouter()
 
@@ -183,54 +258,7 @@ const tags = computed(() => {
 })
 
 // 模拟数据 - 模板
-const allTemplates = ref([
-  {
-    id: 1,
-    name: 'Vue全栈应用',
-    description: '基于Vue3 + Node.js的完整全栈应用模板',
-    category_id: 1,
-    tags: ['vue', 'nodejs', 'typescript'],
-    logo: '/vite.svg',
-    languages: [
-      { id: 1, name: 'JavaScript', display_name: 'JS', color: '#f7df1e' },
-      { id: 2, name: 'Vue', display_name: 'Vue', color: '#42b883' }
-    ]
-  },
-  {
-    id: 2,
-    name: 'React管理后台',
-    description: '企业级React管理后台模板',
-    category_id: 1,
-    tags: ['react', 'typescript'],
-    logo: '/vite.svg',
-    languages: [
-      { id: 1, name: 'JavaScript', display_name: 'JS', color: '#f7df1e' },
-      { id: 3, name: 'React', display_name: 'React', color: '#61dafb' }
-    ]
-  },
-  {
-    id: 3,
-    name: 'SpringBoot微服务',
-    description: '基于SpringBoot的微服务架构模板',
-    category_id: 5,
-    tags: ['java', 'springboot'],
-    logo: '/vite.svg',
-    languages: [
-      { id: 4, name: 'Java', display_name: 'Java', color: '#007396' }
-    ]
-  },
-  {
-    id: 4,
-    name: 'Gin Web框架',
-    description: '基于Gin的Web应用模板',
-    category_id: 6,
-    tags: ['go', 'gin'],
-    logo: '/vite.svg',
-    languages: [
-      { id: 5, name: 'Go', display_name: 'Go', color: '#00ADD8' }
-    ]
-  }
-])
+const allTemplates = ref([])
 
 // 计算属性
 const filteredTemplates = computed(() => {
@@ -266,31 +294,68 @@ const addForm = ref({
   name: '',
   description: '',
   category_id: null,
-  tags: [],
+  languages: [],
+  primary_language: null,
   logo: ''
 })
 const addRules = {
   name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
   description: [{ required: true, message: '请输入模板描述', trigger: 'blur' }],
-  category_id: [{ required: true, message: '请选择分类', trigger: 'change' }],
+  category_id: [{ required: true, type: 'number', message: '请选择分类', trigger: 'change' }],
+  languages: [{ required: true, type: 'array', min: 1, message: '请选择支持的语言', trigger: 'change' }],
+  primary_language: [{ required: true, type: 'number', message: '请选择主语言', trigger: 'change' }]
 }
-const categorySelectOptions = categoryTags.value.filter(c => c.id !== 'all').map(c => ({ label: c.name, value: c.id }))
-const tagSelectOptions = tags.value.filter(t => t.id !== 'all').map(t => ({ label: t.name, value: t.id }))
+const categorySelectOptions = computed(() =>
+  categoriesList.value.map(c => ({ label: c.name, value: Number(c.id) }))
+)
+const languageSelectOptions = computed(() =>
+  languagesList.value.map(lang => ({ label: lang.name, value: Number(lang.id) }))
+)
+const primaryLanguageOptions = computed(() =>
+  languagesList.value
+    .filter(lang => editForm.value.languages.includes(Number(lang.id)))
+    .map(lang => ({
+      label: lang.name,
+      value: Number(lang.id)
+    }))
+)
+const onLanguagesChange = (val) => {
+  if (!val.includes(addForm.value.primary_language)) {
+    addForm.value.primary_language = null
+  }
+}
+
+// 工具方法：获取语言名称
+const getLanguageName = (id) => {
+  const lang = languagesList.value.find(l => Number(l.id) === Number(id))
+  return lang ? lang.name : id
+}
+
+const DEFAULT_LOGO = '/vite.svg'
 
 const handleAddTemplate = async () => {
+  // 类型转换
+  addForm.value.category_id = Number(addForm.value.category_id)
+  addForm.value.primary_language = Number(addForm.value.primary_language)
+  addForm.value.languages = addForm.value.languages.map(Number)
   await addFormRef.value?.validate()
-  // 简单模拟添加
-  allTemplates.value.unshift({
-    id: Date.now(),
+  // 组装languages结构体
+  const languagesArr = addForm.value.languages.map(langId => ({
+    languageId: langId,
+    isPrimary: langId === addForm.value.primary_language ? 1 : 0
+  }))
+  // 1. 添加模板（一次性提交所有信息）
+  await addTemplate({
     name: addForm.value.name,
     description: addForm.value.description,
-    category_id: addForm.value.category_id,
-    tags: addForm.value.tags,
-    logo: addForm.value.logo || '/vite.svg',
-    languages: []
+    categoryId: addForm.value.category_id,
+    isFeatured: 0,
+    logo: addForm.value.logo || DEFAULT_LOGO,
+    languages: languagesArr
   })
   showAddModal.value = false
-  addForm.value = { name: '', description: '', category_id: null, tags: [], logo: '' }
+  addForm.value = { name: '', description: '', category_id: null, languages: [], primary_language: null, logo: '' }
+  // TODO: 刷新模板列表
 }
 
 // 方法
@@ -335,11 +400,77 @@ const showDropdown = (template, e) => {
   dropdownY.value = e.clientY
 }
 const dropdownOptions = [
-  { label: '编辑', key: 'edit', icon: () => h('span', { style: 'color:#18a058' }, '✏️') }
+  { label: '编辑模板信息', key: 'editInfo', icon: () => h('span', { style: 'color:#18a058' }, '✏️') },
+  { label: '编辑模板内容', key: 'editContent', icon: () => h('span', { style: 'color:#2080f0' }, '📄') }
 ]
+const showEditModal = ref(false)
+const editFormRef = ref(null)
+const editForm = ref({
+  id: null,
+  name: '',
+  description: '',
+  category_id: null,
+  languages: [],
+  primary_language: null,
+  logo: ''
+})
+
+const openEditModal = (template) => {
+  editForm.value.id = template.id
+  editForm.value.name = template.name
+  editForm.value.description = template.description
+  editForm.value.category_id = template.categoryId || template.category_id
+  // 语言回显
+  if (template.languages && template.languages.length > 0) {
+    editForm.value.languages = template.languages.map(l => Number(l.languageId || l.id))
+    // 赋值主语言
+    const primary = template.languages.find(l => l.isPrimary === 1 || l.is_primary === 1)
+    editForm.value.primary_language = primary ? Number(primary.languageId || primary.id) : null
+  } else {
+    editForm.value.languages = []
+    editForm.value.primary_language = null
+  }
+  editForm.value.logo = template.logo
+  showEditModal.value = true
+}
+
+watch(
+  () => editForm.value.languages,
+  (langs) => {
+    if (!langs.includes(editForm.value.primary_language)) {
+      editForm.value.primary_language = null
+    }
+  }
+)
+
+const handleEditTemplate = async () => {
+  // 类型转换
+  editForm.value.category_id = Number(editForm.value.category_id)
+  editForm.value.primary_language = Number(editForm.value.primary_language)
+  editForm.value.languages = editForm.value.languages.map(Number)
+  await editFormRef.value?.validate()
+  const languagesArr = editForm.value.languages.map(langId => ({
+    languageId: langId,
+    isPrimary: langId === editForm.value.primary_language ? 1 : 0
+  }))
+  await editTemplate({
+    id: editForm.value.id,
+    name: editForm.value.name,
+    description: editForm.value.description,
+    categoryId: editForm.value.category_id,
+    isFeatured: 0,
+    logo: editForm.value.logo || DEFAULT_LOGO,
+    languages: languagesArr
+  })
+  showEditModal.value = false
+  // TODO: 刷新模板列表
+}
+
 const handleDropdownSelect = (key, template) => {
-  if (key === 'edit') {
-    router.push(`/templates/edit/${template.id}`)
+  if (key === 'editInfo') {
+    openEditModal(template)
+  } else if (key === 'editContent') {
+    router.push(`/templates/content/${template.id}`)
   }
   dropdownShow.value = false
 }
@@ -352,6 +483,9 @@ watch(languagesList, (val) => {
 onMounted(async () => {
   await languageStore.getLanguages()
   await categoryStore.getCategories()
+  // 获取真实模板数据
+  const res = await listTemplates({})
+  allTemplates.value = res.data.data.templatesList || []
   console.log('onMounted languagesList:', languagesList.value)
   // 可以在这里加载数据
 })
