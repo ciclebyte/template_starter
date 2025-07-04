@@ -110,10 +110,38 @@ async function onSelectFile(key) {
           name: node.filePath || node.label || String(key),
           content
         })
+        tab = openedTabs.value[openedTabs.value.length - 1]
       } else {
         tab.content = content
       }
       activeTab.value = String(key)
+      // 调试：打印tab信息
+      console.log('新建/切换 tab:', tab)
+      console.log('tab.name:', tab?.name)
+      // 这里 getLanguage 需要和 TemplateEditor.vue 保持一致
+      // 你可以在这里 import getLanguage 或直接写一份
+      // 这里只做演示
+      if (typeof tab?.name === 'string') {
+        let lang = 'plaintext'
+        if (tab.name.endsWith('.vue')) lang = 'vue'
+        else if (tab.name.endsWith('.js')) lang = 'javascript'
+        else if (tab.name.endsWith('.ts')) lang = 'typescript'
+        else if (tab.name.endsWith('.json')) lang = 'json'
+        else if (tab.name.endsWith('.md')) lang = 'markdown'
+        else if (tab.name.endsWith('.html')) lang = 'html'
+        else if (tab.name.endsWith('.go')) lang = 'go'
+        else if (tab.name.endsWith('.java')) lang = 'java'
+        else if (tab.name.endsWith('.py')) lang = 'python'
+        else if (tab.name.endsWith('.c')) lang = 'c'
+        else if (tab.name.endsWith('.cpp')) lang = 'cpp'
+        else if (tab.name.endsWith('.cs')) lang = 'csharp'
+        else if (tab.name.endsWith('.php')) lang = 'php'
+        else if (tab.name.endsWith('.rb')) lang = 'ruby'
+        else if (tab.name.endsWith('.sh')) lang = 'shell'
+        else if (tab.name.endsWith('.xml')) lang = 'xml'
+        else if (tab.name.endsWith('.yml') || tab.name.endsWith('.yaml')) lang = 'yaml'
+        console.log('getLanguage(tab.name):', lang)
+      }
     } catch (e) {
       currentFileContent.value = ''
       templateFileStore.setCurrentFileContent('')

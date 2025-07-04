@@ -19,6 +19,9 @@ import { useTemplateFileStore } from '@/stores/templateFileStore'
 import { storeToRefs } from 'pinia'
 import { editTemplateFile } from '@/api/templateFiles'
 import { useRoute } from 'vue-router'
+// shiki + shikiToMonaco
+import { createHighlighter } from 'shiki'
+import { shikiToMonaco } from '@shikijs/monaco'
 
 const props = defineProps({
   openedTabs: {
@@ -38,23 +41,16 @@ const emit = defineEmits(['tabChange', 'tabClose', 'contentChange'])
 
 const monacoContainer = ref(null)
 let editorInstance = null
+let highlighter = null
 
 const templateFileStore = useTemplateFileStore()
 const { currentFileContent } = storeToRefs(templateFileStore)
 
 const route = useRoute()
-
-const message = useMessage()
 const notification = useNotification()
 
 function getLanguage(file) {
-  if (typeof file !== 'string') file = String(file)
-  if (file.endsWith('.vue')) return 'vue'
-  if (file.endsWith('.js')) return 'javascript'
-  if (file.endsWith('.json')) return 'json'
-  if (file.endsWith('.md')) return 'markdown'
-  if (file.endsWith('.html')) return 'html'
-  return 'plaintext'
+  return 'vue'
 }
 
 function onTabChange(key) {
@@ -66,9 +62,8 @@ function onTabClose(key) {
 
 watch(() => [props.activeTab, props.openedTabs, currentFileContent.value], () => {
   const tab = props.openedTabs.find(t => t.key === props.activeTab)
-  console.log('切换 tab:', tab)
   if (tab && editorInstance) {
-    const lang = getLanguage(tab.key)
+    const lang = tab ? getLanguage(tab.name) : 'plaintext'
     let model = monaco.editor.getModels().find(m => m.uri.path.endsWith(tab.key))
     if (!model) {
       model = monaco.editor.createModel(tab.content, lang, monaco.Uri.parse(`file:///${tab.key}`))
@@ -123,13 +118,27 @@ function handleKeydown(e) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  highlighter = await createHighlighter({
+    themes: ['github-dark', 'nord', 'github-light'],
+    langs: [
+      'vue', 'javascript', 'typescript', 'json', 'markdown', 'html',
+      'go', 'java', 'python', 'c', 'cpp', 'csharp', 'php', 'ruby', 'shell', 'xml', 'yaml'
+    ]
+  })
+  console.log('shiki highlighter:', highlighter)
+  await shikiToMonaco(highlighter, monaco)
+  console.log('shikiToMonaco 注入完成')
+  monaco.editor.setTheme('github-dark')
+  console.log('monaco theme set:', 'github-dark')
+
   const tab = props.openedTabs.find(t => t.key === props.activeTab)
-  console.log('monaco 初始化 tab:', tab)
+  const lang = tab ? getLanguage(tab.name) : 'plaintext'
+  console.log('monaco create language:', lang)
   editorInstance = monaco.editor.create(monacoContainer.value, {
     value: tab ? tab.content : '',
-    language: tab ? getLanguage(tab.key) : 'plaintext',
-    theme: 'vs-dark',
+    language: lang,
+    theme: 'github-dark',
     automaticLayout: true,
     fontSize: 15,
     minimap: { enabled: false }

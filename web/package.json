@@ -9,12 +9,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@shikijs/monaco": "^3.7.0",
     "@vicons/ionicons5": "^0.13.0",
     "axios": "^1.10.0",
     "monaco-editor": "^0.52.2",
+    "monaco-themes": "^0.4.5",
     "naive-ui": "^2.42.0",
     "pinia": "^3.0.3",
     "qs": "^6.14.0",
+    "shiki": "^3.7.0",
     "vfonts": "^0.0.3",
     "vue": "^3.5.17",
     "vue-router": "^4.5.1"
