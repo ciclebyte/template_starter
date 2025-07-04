@@ -26,7 +26,7 @@
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
 import { ref, onMounted, watch } from 'vue'
-import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileDetail } from '@/api/templateFiles'
+import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileDetail,getTemplateFileContent } from '@/api/templateFiles'
 import TemplateFileTree from '@/components/TemplateFileTree.vue'
 import TemplateEditor from '@/components/TemplateEditor.vue'
 
@@ -86,7 +86,7 @@ async function onSelectFile(key) {
   if (node && node.isDirectory === 0) {
     // 是文件节点，请求接口
     try {
-      const res = await getTemplateFileDetail(key)
+      const res = await getTemplateFileContent(key)
       currentFilePath.value = res.data.data.filePath
       currentFileContent.value = res.data.data.content
     } catch (e) {
