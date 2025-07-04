@@ -99,6 +99,20 @@ function nodeProps({ option }) {
     onContextmenu(e) {
       e.preventDefault();
       dropdownNode.value = option
+      if (option.isLeaf) {
+        dropdownOptions.value = [
+          { label: '删除节点', key: 'deleteNode', icon: () => h(NIcon, null, { default: () => h(Trash) }) }
+        ]
+      } else {
+        dropdownOptions.value = [
+          { label: '新增文件', key: 'addFile', icon: () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }) },
+          { label: '新增文件夹', key: 'addFolder', icon: () => h(NIcon, null, { default: () => h(Folder) }) },
+          { type: 'divider', key: 'divider1' },
+          { label: '删除节点', key: 'deleteNode', icon: () => h(NIcon, null, { default: () => h(Trash) }) },
+          { type: 'divider', key: 'divider2' },
+          { label: '上传代码文件', key: 'uploadFile', icon: () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }) }
+        ]
+      }
       showDropdown.value = true
       dropdownX.value = e.clientX
       dropdownY.value = e.clientY
@@ -110,6 +124,13 @@ function onTreeAreaContextMenu(event) {
   event.preventDefault()
   event.stopPropagation()
   dropdownNode.value = null
+  dropdownOptions.value = [
+    { label: '新增文件', key: 'addFile', icon: () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }) },
+    { label: '新增文件夹', key: 'addFolder', icon: () => h(NIcon, null, { default: () => h(Folder) }) },
+    { type: 'divider', key: 'divider1' },
+    { label: '上传代码文件', key: 'uploadFile', icon: () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }) },
+    { label: '上传zip包', key: 'uploadZip', icon: () => h(NIcon, null, { default: () => h(Folder) }) }
+  ]
   showDropdown.value = true
   dropdownX.value = event.clientX
   dropdownY.value = event.clientY
