@@ -10,7 +10,7 @@
     </div>
     <div class="edit-main">
       <TemplateFileTree
-        :treeData="treeData.value || []"
+        v-model:treeData="treeData"
         :currentFile="currentFile.value || ''"
         @select="onSelectFile"
         @reload="onTreeReload"
@@ -73,13 +73,14 @@ async function loadTree() {
 
 function onSelectFile(key) {
   if (!key) return
+  const keyStr = String(key)
   // 打开新标签或切换
-  const exist = openedTabs.value.find(tab => tab.key === key)
+  const exist = openedTabs.value.find(tab => tab.key === keyStr)
   if (!exist) {
-    openedTabs.value.push({ key, name: key.split('/').pop(), content: fileMap.value[key] || '' })
+    openedTabs.value.push({ key: keyStr, name: keyStr.split('/').pop(), content: fileMap.value[keyStr] || '' })
   }
-  activeTab.value = key
-  currentFile.value = key
+  activeTab.value = keyStr
+  currentFile.value = keyStr
 }
 
 function onTabChange(key) {
@@ -105,9 +106,21 @@ function onEditorContentChange({ key, content }) {
 
 function onTreeReload(payload) {
   // 这里处理新增文件/文件夹逻辑，后续可接接口
-  // 你可以在这里调用 addTemplateFile 或其它接口，然后刷新 treeData
-  // 目前仅console.log
-  console.log('onTreeReload', payload)
+  // 调用真实接口
+  const templateId = route.params.id
+  const isDirectory = payload.type === 'folder' ? 1 : 0
+  addTemplateFile({
+    templateId,
+    filePath: payload.name,
+    fileContent: '',
+    fileSize: 0,
+    isDirectory,
+    md5: '',
+    sort: 0,
+    parentId: payload.parentId
+  }).then(() => {
+    loadTree()
+  })
 }
 </script>
 
