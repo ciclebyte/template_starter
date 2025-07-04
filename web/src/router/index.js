@@ -18,14 +18,14 @@ const routes = [
         path: '/templates',
         name: 'Templates',
         component: Templates
-      },
-      {
-        path: '/templates/edit/:id',
-        name: 'TemplatesEdit',
-        component: TemplatesEdit
       }
-      // 其他路由可以在这里添加
+      // 其他普通页面
     ]
+  },
+  {
+    path: '/templates/edit/:id',
+    name: 'TemplatesEdit',
+    component: TemplatesEdit
   }
 ]
 

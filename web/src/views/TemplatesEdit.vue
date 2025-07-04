@@ -141,7 +141,6 @@ watch(treeData, (val) => {
   position: fixed;
   inset: 0;
   background: #f5f5f5;
-  z-index: 9999;
   display: flex;
   flex-direction: column;
 }
