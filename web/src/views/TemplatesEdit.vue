@@ -29,7 +29,7 @@
 
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { getTemplateFileTree, addTemplateFile } from '@/api/templateFiles'
 import TemplateFileTree from '@/components/TemplateFileTree.vue'
 import TemplateEditor from '@/components/TemplateEditor.vue'
@@ -122,6 +122,11 @@ function onTreeReload(payload) {
     loadTree()
   })
 }
+
+// 调试：打印treeData变化
+watch(treeData, (val) => {
+  console.log('父组件 treeData 变化:', val)
+}, { deep: true })
 </script>
 
 <style scoped>

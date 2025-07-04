@@ -2,13 +2,12 @@
   <div class="edit-tree" @contextmenu="onTreeAreaContextMenu">
     <div class="tree-title">文件树</div>
     <NTree
-      :data="treeToNaive(treeData)"
+      :data="treeToNaive(localTreeData)"
       :default-expand-all="true"
       :selected-keys="[currentFile]"
-      @update:selected-keys="onSelectFile"
-      @node-contextmenu="onTreeNodeRightClick"
-      @contextmenu.stop
       :render-label="renderLabel"
+      :node-props="nodeProps"
+      @update:selected-keys="onSelectFile"
     >
     </NTree>
     <div v-if="!treeData || treeData.length === 0" style="padding: 32px; color: #888; text-align: center; user-select: none; cursor: context-menu;" @contextmenu="onTreeAreaContextMenu">暂无数据（右键新建）</div>
@@ -48,21 +47,22 @@ const addType = ref('file')
 const editingNode = ref(null)
 const newName = ref('')
 const message = useMessage()
+const localTreeData = ref(JSON.parse(JSON.stringify(props.treeData)))
+
+watch(() => props.treeData, (val) => {
+  localTreeData.value = JSON.parse(JSON.stringify(val))
+}, { deep: true })
 
 function treeToNaive(tree) {
   if (!Array.isArray(tree)) return []
-  const result = tree.map(node => {
-    return {
-      label: node.isEditing === true ? undefined : (node.filePath ? node.filePath.split('/').pop() : node.label),
-      key: node.key || node.id,
-      isLeaf: node.isDirectory === 0,
-      isEditing: node.isEditing === true,
-      filePath: node.filePath,
-      children: node.children ? treeToNaive(node.children) : []
-    }
-  })
-  console.log('treeToNaive result:', JSON.stringify(result, null, 2))
-  return result
+  return tree.map(node => ({
+    label: node.isEditing === true ? undefined : (node.filePath ? node.filePath.split('/').pop() : node.label),
+    key: node.key || node.id,
+    isLeaf: node.isDirectory === 0,
+    isEditing: node.isEditing === true,
+    filePath: node.filePath,
+    children: node.children ? treeToNaive(node.children) : []
+  }))
 }
 
 function onSelectFile(keys) {
@@ -98,11 +98,10 @@ function addFolder() {
   insertEditingNode('folder')
 }
 function insertEditingNode(type) {
-  console.log("@@@@insertEditingNode@@@",type)
-  const newTreeData = JSON.parse(JSON.stringify(props.treeData))
+  const newTreeData = JSON.parse(JSON.stringify(localTreeData.value))
   removeEditingNode(newTreeData)
   newName.value = ''
-  const newKey = '__new__' + Date.now()
+  const newKey = '__new__' + Date.now() + Math.random().toString(36).slice(2)
   const newNode = {
     key: newKey,
     id: newKey,
@@ -111,28 +110,31 @@ function insertEditingNode(type) {
     isEditing: true,
     isLeaf: type === 'file',
     isDirectory: type === 'folder' ? 1 : 0,
-    parentId: menuNode.value ? (menuNode.value.key || menuNode.value.id) : 0,
+    parentId: menuNode.value ? String(menuNode.value.id || menuNode.value.key) : '0',
     children: []
   }
   editingNode.value = newNode
-  console.log("newNode@@@",newNode)
-  if (newNode.parentId === 0) {
+  if (newNode.parentId === '0') {
     newTreeData.unshift(newNode)
   } else {
     insertToParent(newTreeData, newNode.parentId, newNode)
   }
-  console.log("newTreeData@@@",newTreeData)
-  emit('update:treeData', newTreeData)
+  localTreeData.value = newTreeData
+  console.log('localTreeData after insert:', JSON.stringify(localTreeData.value, null, 2))
+  console.log('treeToNaive after insert:', JSON.stringify(treeToNaive(localTreeData.value), null, 2))
 }
 function insertToParent(list, parentId, node) {
   for (const item of list) {
-    if (item.key === parentId) {
+    console.log('insertToParent check', item.id, parentId, typeof item.id, typeof parentId)
+    if (String(item.id) === String(parentId)) {
       if (!item.children) item.children = []
       item.children.unshift(node)
+      console.log('inserted to parent', parentId)
       return true
     }
     if (item.children && insertToParent(item.children, parentId, node)) return true
   }
+  console.log('parent not found for', parentId)
   return false
 }
 function removeEditingNode(list) {
@@ -156,6 +158,17 @@ function confirmAddNode() {
 function cancelAddNode() {
   editingNode.value = null
   removeEditingNode(props.treeData)
+}
+function nodeProps({ option }) {
+  return {
+    onContextmenu(e) {
+      e.preventDefault();
+      showMenu.value = true;
+      menuX.value = e.clientX;
+      menuY.value = e.clientY;
+      menuNode.value = option;
+    }
+  }
 }
 function renderLabel({ option }) {
   if (option.isEditing === true) {
