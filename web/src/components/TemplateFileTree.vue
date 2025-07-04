@@ -7,6 +7,7 @@
       :selected-keys="[currentFile]"
       :render-label="renderLabel"
       :node-props="nodeProps"
+      :render-switcher-icon="renderSwitcherIcon"
       @update:selected-keys="onSelectFile"
     >
     </NTree>
@@ -32,7 +33,7 @@
 <script setup>
 import { ref, watch, h } from 'vue'
 import { NTree, useMessage, NIcon } from 'naive-ui'
-import { FileTrayFullOutline, Folder, FolderOpenOutline } from '@vicons/ionicons5'
+import { ChevronForward, FileTrayFullOutline, Folder, FolderOpenOutline } from '@vicons/ionicons5'
 
 const props = defineProps({
   treeData: {
@@ -298,6 +299,9 @@ function updatePrefixWithExpaned(_keys, _option, meta) {
       break;
   }
 }
+
+const renderSwitcherIcon = () =>
+  h(NIcon, null, { default: () => h(ChevronForward) })
 </script>
 
 <style scoped>
