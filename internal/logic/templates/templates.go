@@ -8,7 +8,6 @@ import (
 	dao "github.com/ciclebyte/template_starter/internal/dao"
 	model "github.com/ciclebyte/template_starter/internal/model"
 	do "github.com/ciclebyte/template_starter/internal/model/do"
-	entity "github.com/ciclebyte/template_starter/internal/model/entity"
 	service "github.com/ciclebyte/template_starter/internal/service"
 	liberr "github.com/ciclebyte/template_starter/library/liberr"
 	"github.com/gogf/gf/v2/database/gdb"
@@ -165,34 +164,5 @@ func (s sTemplates) GetById(ctx context.Context, id int64) (res *model.Templates
 			res.Languages = langs
 		}
 	})
-	return
-}
-
-func (s *sTemplates) FileTree(ctx context.Context, req *api.TemplatesFileTreeReq) (res *api.TemplatesFileTreeRes, err error) {
-	res = &api.TemplatesFileTreeRes{}
-	templateId := gconv.Int64(req.TemplateId)
-	var files []*entity.TemplateFiles
-	err = dao.TemplateFiles.Ctx(ctx).Where("template_id = ?", templateId).
-		Fields("id, file_path, is_directory, parent_id, file_size, md5").
-		Scan(&files)
-	if err != nil {
-		return
-	}
-	// 构建树
-	idMap := make(map[int64]*api.FileTreeNode)
-	for _, f := range files {
-		node := &api.FileTreeNode{
-			Id: f.Id, FilePath: f.FilePath, IsDirectory: f.IsDirectory,
-			ParentId: f.ParentId, FileSize: f.FileSize, Md5: f.Md5,
-		}
-		idMap[f.Id] = node
-	}
-	for _, node := range idMap {
-		if node.ParentId == 0 {
-			res.Tree = append(res.Tree, node)
-		} else if parent, ok := idMap[node.ParentId]; ok {
-			parent.Children = append(parent.Children, node)
-		}
-	}
 	return
 }

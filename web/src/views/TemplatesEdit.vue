@@ -39,7 +39,7 @@
 import { useRouter, useRoute } from 'vue-router'
 import { NIcon } from 'naive-ui'
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
-import { getTemplateFileTree } from '@/api/templates'
+import { getTemplateFileTree } from '@/api/templateFiles'
 
 const router = useRouter()
 const route = useRoute()

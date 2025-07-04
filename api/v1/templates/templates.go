@@ -83,23 +83,3 @@ type TemplatesDetailRes struct {
 	g.Meta `mime:"application/json" example:"string"`
 	*model.TemplatesInfo
 }
-
-type TemplatesFileTreeReq struct {
-	g.Meta     `path:"/templates/fileTree" method:"get" tags:"模板" summary:"模板-文件树"`
-	TemplateId interface{} `json:"templateId" v:"required#模板ID不能为空"`
-}
-
-type FileTreeNode struct {
-	Id          int64           `json:"id"`
-	FilePath    string          `json:"filePath"`
-	IsDirectory int             `json:"isDirectory"`
-	ParentId    int64           `json:"parentId"`
-	FileSize    uint            `json:"fileSize"`
-	Md5         string          `json:"md5"`
-	Children    []*FileTreeNode `json:"children,omitempty"`
-}
-
-type TemplatesFileTreeRes struct {
-	g.Meta `mime:"application/json"`
-	Tree   []*FileTreeNode `json:"tree"`
-}

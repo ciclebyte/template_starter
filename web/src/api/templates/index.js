@@ -53,12 +53,3 @@ export function listTemplates(params) {
     params
   })
 }
-
-// 获取模板文件树
-export function getTemplateFileTree(templateId) {
-  return request({
-    url: '/api/v1/templates/fileTree',
-    method: 'get',
-    params: { templateId }
-  })
-}
