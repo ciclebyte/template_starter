@@ -52,7 +52,9 @@ const dropdownOptions = ref([
 const dropdownX = ref(0)
 const dropdownY = ref(0)
 const dropdownNode = ref(null)
-
+const addType = ref('file')
+const editingNode = ref(null)
+const newName = ref('')
 const message = useMessage()
 const localTreeData = ref(JSON.parse(JSON.stringify(props.treeData)))
 
@@ -112,14 +114,154 @@ function onTreeAreaContextMenu(event) {
   dropdownX.value = event.clientX
   dropdownY.value = event.clientY
 }
+function addFile() {
+  showDropdown.value = false
+  addType.value = 'file'
+  insertEditingNode('file')
+}
+function addFolder() {
+  showDropdown.value = false
+  addType.value = 'folder'
+  insertEditingNode('folder')
+}
+function insertEditingNode(type) {
+  const newTreeData = JSON.parse(JSON.stringify(localTreeData.value))
+  removeEditingNode(newTreeData)
+  newName.value = ''
+  const newKey = '__new__' + Date.now() + Math.random().toString(36).slice(2)
+  let siblings = []
+  const parentId = dropdownNode.value ? String(dropdownNode.value.id || dropdownNode.value.key) : '0'
+  if (parentId === '0') {
+    siblings = newTreeData
+  } else {
+    function findParent(list, pid) {
+      for (const item of list) {
+        if (String(item.id) === pid || String(item.key) === pid) return item
+        if (item.children) {
+          const found = findParent(item.children, pid)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    const parent = findParent(newTreeData, parentId)
+    siblings = parent && parent.children ? parent.children : []
+  }
+  let maxSort = 0
+  siblings.forEach(n => {
+    const s = Number(n.sort)
+    if (!isNaN(s) && s > maxSort) maxSort = s
+  })
+  const newNode = {
+    key: newKey,
+    id: newKey,
+    label: '',
+    filePath: '',
+    isEditing: true,
+    isLeaf: type === 'file',
+    isDirectory: type === 'folder' ? 1 : 0,
+    parentId,
+    sort: maxSort + 1,
+    children: []
+  }
+  editingNode.value = newNode
+  if (parentId === '0') {
+    newTreeData.unshift(newNode)
+  } else {
+    insertToParent(newTreeData, parentId, newNode)
+  }
+  localTreeData.value = newTreeData
+}
+function insertToParent(list, parentId, node) {
+  for (const item of list) {
+    if (String(item.id) === String(parentId)) {
+      if (!item.children) item.children = []
+      item.children.unshift(node)
+      return true
+    }
+    if (item.children && insertToParent(item.children, parentId, node)) return true
+  }
+  return false
+}
+function removeEditingNode(list) {
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (list[i].isEditing) {
+      list.splice(i, 1)
+    } else if (list[i].children) {
+      removeEditingNode(list[i].children)
+    }
+  }
+}
+function confirmAddNode() {
+  if (!newName.value) {
+    message.warning('请输入名称')
+    return
+  }
+  emit('reload', { name: newName.value, type: addType.value, parentId: editingNode.value.parentId, sort: editingNode.value.sort })
+  editingNode.value = null
+  removeEditingNode(localTreeData.value)
+}
+function cancelAddNode() {
+  editingNode.value = null
+  removeEditingNode(localTreeData.value)
+}
 function handleDropdownSelect(key) {
   showDropdown.value = false
-  if (key === 'addFile') message.info('新增文件')
-  else if (key === 'addFolder') message.info('新增文件夹')
-  else if (key === 'deleteNode') message.info('删除节点')
+  if (key === 'addFile') addFile()
+  else if (key === 'addFolder') addFolder()
+  else if (key === 'deleteNode') deleteNode()
 }
 function handleDropdownClickoutside() {
   showDropdown.value = false
+}
+function deleteNode() {
+  if (!dropdownNode.value) return
+  const id = String(dropdownNode.value.id || dropdownNode.value.key)
+  function recursiveDelete(list) {
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (String(list[i].id || list[i].key) === id) {
+        list.splice(i, 1)
+      } else if (list[i].children) {
+        recursiveDelete(list[i].children)
+      }
+    }
+  }
+  const newTree = JSON.parse(JSON.stringify(localTreeData.value))
+  recursiveDelete(newTree)
+  localTreeData.value = newTree
+  emit('reload', { type: 'delete', id })
+}
+function renderLabel({ option }) {
+  if (option.isEditing === true) {
+    return h(
+      'div',
+      { style: 'display:flex;align-items:center;gap:4px;' },
+      [
+        h('input', {
+          style: 'width:120px;background: #ffe0e0; border: 1px solid #f00;',
+          value: newName.value,
+          autofocus: true,
+          placeholder: '请输入名称',
+          onInput: e => (newName.value = e.target.value),
+          onKeydown: e => {
+            if (e.key === 'Enter') confirmAddNode()
+            if (e.key === 'Escape') cancelAddNode()
+          }
+        }),
+        h(
+          'button',
+          { style: 'padding:0 4px;', onClick: () => confirmAddNode() },
+          '✔'
+        ),
+        h(
+          'button',
+          { style: 'padding:0 4px;', onClick: () => cancelAddNode() },
+          '✖'
+        )
+      ]
+    )
+  }
+  return option.filePath ? option.filePath.split('/').pop() : option.label
 }
 const renderSwitcherIcon = () =>
   h(NIcon, null, { default: () => h(ChevronForward) })
