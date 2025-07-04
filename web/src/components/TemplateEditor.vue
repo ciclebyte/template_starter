@@ -13,10 +13,12 @@
 
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { NTabs, NTab } from 'naive-ui'
+import { NTabs, NTab, useMessage, useNotification } from 'naive-ui'
 import * as monaco from 'monaco-editor'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
 import { storeToRefs } from 'pinia'
+import { editTemplateFile } from '@/api/templateFiles'
+import { useRoute } from 'vue-router'
 
 const props = defineProps({
   openedTabs: {
@@ -40,6 +42,11 @@ let editorInstance = null
 const templateFileStore = useTemplateFileStore()
 const { currentFileContent } = storeToRefs(templateFileStore)
 
+const route = useRoute()
+
+const message = useMessage()
+const notification = useNotification()
+
 function getLanguage(file) {
   if (typeof file !== 'string') file = String(file)
   if (file.endsWith('.vue')) return 'vue'
@@ -59,6 +66,7 @@ function onTabClose(key) {
 
 watch(() => [props.activeTab, props.openedTabs, currentFileContent.value], () => {
   const tab = props.openedTabs.find(t => t.key === props.activeTab)
+  console.log('切换 tab:', tab)
   if (tab && editorInstance) {
     const lang = getLanguage(tab.key)
     let model = monaco.editor.getModels().find(m => m.uri.path.endsWith(tab.key))
@@ -82,8 +90,42 @@ watch(currentFileContent, (val) => {
   }
 })
 
+async function saveCurrentFile() {
+  const tab = props.openedTabs.find(t => t.key === props.activeTab)
+  if (!tab) return
+  const templateId = route.params.id
+  try {
+    await editTemplateFile({
+      id: tab.key,
+      templateId,
+      filePath: tab.name,
+      fileContent: tab.content,
+      isDirectory: 0
+    })
+    notification.success({
+      title: '保存成功',
+      content: '文件已成功保存',
+      duration: 2500
+    })
+  } catch (e) {
+    notification.error({
+      title: '保存失败',
+      content: '请检查网络或稍后重试',
+      duration: 2500
+    })
+  }
+}
+
+function handleKeydown(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault()
+    saveCurrentFile()
+  }
+}
+
 onMounted(() => {
   const tab = props.openedTabs.find(t => t.key === props.activeTab)
+  console.log('monaco 初始化 tab:', tab)
   editorInstance = monaco.editor.create(monacoContainer.value, {
     value: tab ? tab.content : '',
     language: tab ? getLanguage(tab.key) : 'plaintext',
@@ -99,12 +141,32 @@ onMounted(() => {
       emit('contentChange', { key: tab.key, content: tab.content })
     }
   })
+  window.addEventListener('keydown', handleKeydown)
+
+  // 注册右键菜单保存命令
+  if (editorInstance) {
+    editorInstance.addAction({
+      id: 'save-file',
+      label: '保存 (Ctrl+S)',
+      keybindings: [
+        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS
+      ],
+      precondition: null,
+      keybindingContext: null,
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1.5,
+      run: function(ed) {
+        saveCurrentFile()
+      }
+    })
+  }
 })
 
 onBeforeUnmount(() => {
   if (editorInstance) {
     editorInstance.dispose()
   }
+  window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
