@@ -30,7 +30,7 @@
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
 import { ref, onMounted, watch } from 'vue'
-import { getTemplateFileTree, addTemplateFile } from '@/api/templateFiles'
+import { getTemplateFileTree, addTemplateFile, delTemplateFile } from '@/api/templateFiles'
 import TemplateFileTree from '@/components/TemplateFileTree.vue'
 import TemplateEditor from '@/components/TemplateEditor.vue'
 
@@ -105,6 +105,13 @@ function onEditorContentChange({ key, content }) {
 }
 
 function onTreeReload(payload) {
+  if (payload && payload.type === 'delete') {
+    // 调用真实删除接口
+    delTemplateFile(payload.id).then(() => {
+      loadTree()
+    })
+    return
+  }
   // 这里处理新增文件/文件夹逻辑，后续可接接口
   // 调用真实接口
   const templateId = route.params.id
