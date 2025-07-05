@@ -14,6 +14,12 @@
           {{ templateInfo?.description }}
         </div>
         
+        <!-- 详细介绍 -->
+        <div v-if="templateInfo?.introduction" class="template-introduction">
+          <h3 class="intro-title">详细介绍</h3>
+          <div class="markdown-content" v-html="renderedIntroduction"></div>
+        </div>
+        
         <div class="template-stats">
           <div class="stat-item">
             <n-icon size="20" color="#18a058">
@@ -88,6 +94,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { 
   DocumentText, 
   Bulb, 
@@ -96,6 +103,7 @@ import {
   InformationCircle,
   ArrowForward 
 } from '@vicons/ionicons5'
+import { marked } from 'marked'
 
 const props = defineProps({
   templateInfo: {
@@ -105,6 +113,12 @@ const props = defineProps({
 })
 
 defineEmits(['next'])
+
+// 渲染 Markdown 内容
+const renderedIntroduction = computed(() => {
+  if (!props.templateInfo?.introduction) return ''
+  return marked(props.templateInfo.introduction)
+})
 
 // 获取分类标签类型
 const getCategoryType = (category) => {
@@ -154,6 +168,76 @@ const getCategoryType = (category) => {
   color: #666;
   line-height: 1.6;
   margin-bottom: 24px;
+}
+
+.template-introduction {
+  margin-bottom: 24px;
+}
+
+.intro-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.markdown-content {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  line-height: 1.6;
+}
+
+.markdown-content :deep(h1),
+.markdown-content :deep(h2),
+.markdown-content :deep(h3),
+.markdown-content :deep(h4),
+.markdown-content :deep(h5),
+.markdown-content :deep(h6) {
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: #333;
+}
+
+.markdown-content :deep(p) {
+  margin-bottom: 12px;
+  color: #666;
+}
+
+.markdown-content :deep(code) {
+  background: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.9em;
+}
+
+.markdown-content :deep(pre) {
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin-bottom: 16px;
+}
+
+.markdown-content :deep(ul),
+.markdown-content :deep(ol) {
+  margin-bottom: 12px;
+  padding-left: 20px;
+}
+
+.markdown-content :deep(li) {
+  margin-bottom: 4px;
+  color: #666;
+}
+
+.markdown-content :deep(blockquote) {
+  border-left: 4px solid #18a058;
+  padding-left: 16px;
+  margin: 16px 0;
+  color: #666;
+  font-style: italic;
 }
 
 .template-stats {

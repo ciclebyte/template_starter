@@ -223,7 +223,8 @@ const addForm = ref({
   category_id: null,
   languages: [],
   primary_language: null,
-  logo: ''
+  logo: '',
+  introduction: ''
 })
 const addRules = {
   name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
@@ -275,13 +276,14 @@ const handleAddTemplate = async () => {
   await addTemplate({
     name: addForm.value.name,
     description: addForm.value.description,
+    introduction: addForm.value.introduction,
     categoryId: addForm.value.category_id,
     isFeatured: 0,
     logo: addForm.value.logo || DEFAULT_LOGO,
     languages: languagesArr
   })
   showAddModal.value = false
-  addForm.value = { name: '', description: '', category_id: null, languages: [], primary_language: null, logo: '' }
+  addForm.value = { name: '', description: '', category_id: null, languages: [], primary_language: null, logo: '', introduction: '' }
   // TODO: 刷新模板列表
 }
 
@@ -339,7 +341,8 @@ const editForm = ref({
   category_id: null,
   languages: [],
   primary_language: null,
-  logo: ''
+  logo: '',
+  introduction: ''
 })
 
 const openEditModal = (template) => {
@@ -347,6 +350,7 @@ const openEditModal = (template) => {
   editForm.value.name = template.name
   editForm.value.description = template.description
   editForm.value.category_id = template.categoryId || template.category_id
+  editForm.value.introduction = template.introduction || ''
   // 语言回显
   if (template.languages && template.languages.length > 0) {
     editForm.value.languages = template.languages.map(l => Number(l.languageId || l.id))
@@ -384,6 +388,7 @@ const handleEditTemplate = async () => {
     id: editForm.value.id,
     name: editForm.value.name,
     description: editForm.value.description,
+    introduction: editForm.value.introduction,
     categoryId: editForm.value.category_id,
     isFeatured: 0,
     logo: editForm.value.logo || DEFAULT_LOGO,
