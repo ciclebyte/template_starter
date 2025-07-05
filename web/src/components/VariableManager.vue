@@ -479,7 +479,7 @@ async function saveVariable() {
 
 // 插入变量
 function insertVariable(variable) {
-  const template = `{{${variable.name}}}`
+  const template = `{{.${variable.name}}}`
   emit('insert', template)
 }
 

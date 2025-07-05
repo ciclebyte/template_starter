@@ -589,14 +589,14 @@ function onPreview({ fileId, fileName }) {
   // 设置预览文件ID
   previewFileId.value = fileId
   
-  // 获取当前文件的测试变量值
+  // 从 localStorage 获取测试数据
   const templateId = route.params.id
-  const testDataKey = `template_${templateId}_test_data`
+  const testDataKey = `template_test_data_${templateId}`
   const savedTestData = localStorage.getItem(testDataKey)
   if (savedTestData) {
     try {
       variableValues.value = JSON.parse(savedTestData)
-      console.log('加载测试数据:', variableValues.value)
+      console.log('从 localStorage 加载测试数据:', variableValues.value)
     } catch (e) {
       console.error('解析测试数据失败:', e)
       variableValues.value = {}
@@ -616,20 +616,15 @@ function onPreview({ fileId, fileName }) {
 
 // 快速插入变量
 function insertQuickVariable(quickVar) {
-  onInsertVariable(quickVar.template)
+  const goTemplateVar = `{{.${quickVar.name}}}`
+  onInsertVariable(goTemplateVar)
 }
 
 // 插入自定义变量
 function insertVariable(variableName) {
-  const goTemplateVar = `.${variableName}`
+  const goTemplateVar = `{{.${variableName}}}`
   if (templateEditorRef.value) {
-    const editor = templateEditorRef.value.getEditor()
-    const position = editor.getPosition()
-    editor.executeEdits('insert-variable', [{
-      range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
-      text: goTemplateVar
-    }])
-    editor.focus()
+    templateEditorRef.value.insertVariable(goTemplateVar)
   }
 }
 
@@ -689,10 +684,9 @@ function addVariable() {
 
 // 应用测试数据
 function onApplyTestData(testData) {
-  // 将测试数据传递给预览组件
-  if (templateEditorRef.value) {
-    templateEditorRef.value.updateTestData(testData)
-  }
+  // 测试数据已经保存到 localStorage，这里只需要通知用户
+  console.log('测试数据已应用:', testData)
+  message.success('测试数据已应用并保存')
 }
 </script>
 
