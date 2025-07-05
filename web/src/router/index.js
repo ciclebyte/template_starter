@@ -26,6 +26,11 @@ const routes = [
     path: '/templates/edit/:id',
     name: 'TemplatesEdit',
     component: TemplatesEdit
+  },
+  {
+    path: '/templates/generate/:id',
+    name: 'TemplateGenerator',
+    component: () => import('@/views/TemplateGenerator.vue')
   }
 ]
 

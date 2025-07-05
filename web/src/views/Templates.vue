@@ -307,7 +307,7 @@ const handlePageSizeChange = (size) => {
 
 const useTemplate = (template) => {
   console.log('使用模板:', template.name)
-  // TODO: 跳转到模板使用页面
+  router.push(`/templates/generate/${template.id}`)
 }
 
 const previewTemplate = (template) => {
