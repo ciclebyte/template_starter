@@ -25,7 +25,7 @@ func New() *sTemplateVariables {
 type sTemplateVariables struct {
 }
 
-func (s sTemplateVariables) List(ctx context.Context, req *api.TemplateVariablesListReq) (total interface{}, templateVariablesList []*model.TemplateVariablesInfo, err error) {
+func (s sTemplateVariables) List(ctx context.Context, req *api.TemplateVariablesListReq) (templateVariablesList []*model.TemplateVariablesInfo, err error) {
 	err = g.Try(ctx, func(ctx context.Context) {
 		m := dao.TemplateVariables.Ctx(ctx)
 		columns := dao.TemplateVariables.Columns()
@@ -36,18 +36,15 @@ func (s sTemplateVariables) List(ctx context.Context, req *api.TemplateVariables
 		if req.Name != "" {
 			m = m.Where(fmt.Sprintf("%s like ?", columns.Name), "%"+req.Name+"%")
 		}
+		if req.VariableType != "" {
+			m = m.Where(columns.VariableType+" = ?", req.VariableType)
+		}
 		if req.IsRequired != 0 {
 			m = m.Where(columns.IsRequired+" = ?", req.IsRequired)
 		}
 
-		total, err = m.Count()
-		liberr.ErrIsNil(ctx, err, "获取分类列表失败")
-		orderBy := req.OrderBy
-		if orderBy == "" {
-			orderBy = "created_at desc"
-		}
-		err = m.Page(req.PageNum, req.PageSize).Order(orderBy).Scan(&templateVariablesList)
-		liberr.ErrIsNil(ctx, err, "获取分类列表失败")
+		err = m.Order("sort asc, created_at desc").Scan(&templateVariablesList)
+		liberr.ErrIsNil(ctx, err, "获取变量列表失败")
 	})
 	return
 }
@@ -60,6 +57,7 @@ func (s sTemplateVariables) Add(ctx context.Context, req *api.TemplateVariablesA
 		_, err = dao.TemplateVariables.Ctx(ctx).Insert(do.TemplateVariables{
 			TemplateId:      req.TemplateId,      // 所属模板ID
 			Name:            req.Name,            // 变量名称
+			VariableType:    req.VariableType,    // 变量类型
 			Description:     req.Description,     // 变量描述
 			DefaultValue:    req.DefaultValue,    // 变量默认值
 			IsRequired:      req.IsRequired,      // 是否为必填变量
@@ -83,6 +81,7 @@ func (s sTemplateVariables) Edit(ctx context.Context, req *api.TemplateVariables
 			Id:              req.Id,              // 变量ID，自增主键
 			TemplateId:      req.TemplateId,      // 所属模板ID
 			Name:            req.Name,            // 变量名称
+			VariableType:    req.VariableType,    // 变量类型
 			Description:     req.Description,     // 变量描述
 			DefaultValue:    req.DefaultValue,    // 变量默认值
 			IsRequired:      req.IsRequired,      // 是否为必填变量

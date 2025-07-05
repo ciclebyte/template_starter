@@ -8,7 +8,7 @@ import (
 )
 
 type ITemplateVariables interface {
-	List(ctx context.Context, req *api.TemplateVariablesListReq) (total interface{}, res []*model.TemplateVariablesInfo, err error)
+	List(ctx context.Context, req *api.TemplateVariablesListReq) (res []*model.TemplateVariablesInfo, err error)
 	Add(ctx context.Context, req *api.TemplateVariablesAddReq) (err error)
 	Edit(ctx context.Context, req *api.TemplateVariablesEditReq) (err error)
 	Delete(ctx context.Context, id int64) (err error)

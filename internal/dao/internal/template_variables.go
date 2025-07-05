@@ -23,6 +23,7 @@ type TemplateVariablesColumns struct {
 	Id              string // 变量ID，自增主键
 	TemplateId      string // 所属模板ID
 	Name            string // 变量名称
+	VariableType    string // 变量类型
 	Description     string // 变量描述
 	DefaultValue    string // 变量默认值
 	IsRequired      string // 是否为必填变量
@@ -36,6 +37,7 @@ var templateVariablesColumns = TemplateVariablesColumns{
 	Id:              "id",
 	TemplateId:      "template_id",
 	Name:            "name",
+	VariableType:    "variable_type",
 	Description:     "description",
 	DefaultValue:    "default_value",
 	IsRequired:      "is_required",

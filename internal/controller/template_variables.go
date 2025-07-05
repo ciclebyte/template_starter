@@ -4,7 +4,6 @@ import (
 	"context"
 
 	api "github.com/ciclebyte/template_starter/api/v1/template_variables"
-	consts "github.com/ciclebyte/template_starter/internal/consts"
 	service "github.com/ciclebyte/template_starter/internal/service"
 	"github.com/gogf/gf/v2/util/gconv"
 )
@@ -23,15 +22,7 @@ func (c *templateVariablesController) Add(ctx context.Context, req *api.Template
 
 func (c *templateVariablesController) List(ctx context.Context, req *api.TemplateVariablesListReq) (res *api.TemplateVariablesListRes, err error) {
 	res = new(api.TemplateVariablesListRes)
-	if req.PageSize == 0 {
-		req.PageSize = consts.PageSize
-	}
-	if req.PageNum == 0 {
-		req.PageNum = 1
-	}
-	total, templateVariabless, err := service.TemplateVariables().List(ctx, req)
-	res.Total = total
-	res.CurrentPage = req.PageNum
+	templateVariabless, err := service.TemplateVariables().List(ctx, req)
 	res.TemplateVariablesList = templateVariabless
 	return
 }

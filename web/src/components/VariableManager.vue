@@ -59,8 +59,8 @@
         <n-form-item label="变量描述" path="description">
           <n-input v-model:value="editForm.description" placeholder="请输入变量描述" />
         </n-form-item>
-        <n-form-item label="变量类型" path="type">
-          <n-select v-model:value="editForm.type" :options="typeOptions" />
+        <n-form-item label="变量类型" path="variableType">
+          <n-select v-model:value="editForm.variableType" :options="typeOptions" />
         </n-form-item>
         <n-form-item label="默认值" path="defaultValue">
           <n-input v-model:value="editForm.defaultValue" placeholder="请输入默认值" />
@@ -115,11 +115,11 @@ const quickVariables = [
 
 // 计算属性：按类型分组变量
 const textVariables = computed(() => {
-  return props.variables.filter(v => v.type === 'text' || !v.type)
+  return props.variables.filter(v => v.variableType === 'text' || !v.variableType)
 })
 
 const conditionalVariables = computed(() => {
-  return props.variables.filter(v => v.type === 'conditional')
+  return props.variables.filter(v => v.variableType === 'conditional')
 })
 
 const templateVariables = computed(() => {
@@ -132,7 +132,7 @@ const editForm = ref({
   id: null,
   name: '',
   description: '',
-  type: 'text',
+  variableType: 'text',
   defaultValue: '',
   isRequired: true,
   validationRegex: ''
@@ -141,7 +141,7 @@ const editForm = ref({
 const rules = {
   name: { required: true, message: '请输入变量名称' },
   description: { required: true, message: '请输入变量描述' },
-  type: { required: true, message: '请选择变量类型' }
+  variableType: { required: true, message: '请选择变量类型' }
 }
 
 // 新增变量
@@ -150,7 +150,7 @@ function addVariable() {
     id: null,
     name: '',
     description: '',
-    type: 'text',
+    variableType: 'text',
     defaultValue: '',
     isRequired: true,
     validationRegex: ''
