@@ -19,11 +19,32 @@ import { storeToRefs } from 'pinia'
 import { editTemplateFile } from '@/api/templateFiles'
 import { useRoute } from 'vue-router'
 
-// CodeMirror 核心模块
-import { EditorView } from '@codemirror/view'
+// CodeMirror 核心模块 - 按照官方示例导入
+import { EditorView, keymap, highlightSpecialChars, drawSelection, 
+         highlightActiveLine, dropCursor, rectangularSelection, 
+         crosshairCursor, lineNumbers, highlightActiveLineGutter } from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
-import { keymap } from '@codemirror/view'
-import { defaultKeymap, indentWithTab } from '@codemirror/commands'
+import { defaultKeymap, indentWithTab, history, historyKeymap } from '@codemirror/commands'
+import { defaultHighlightStyle, syntaxHighlighting, indentOnInput, 
+         bracketMatching, foldGutter, foldKeymap } from '@codemirror/language'
+import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
+import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
+
+// 语言支持
+import { javascript } from '@codemirror/lang-javascript'
+import { html } from '@codemirror/lang-html'
+import { css } from '@codemirror/lang-css'
+import { json } from '@codemirror/lang-json'
+import { markdown } from '@codemirror/lang-markdown'
+import { python } from '@codemirror/lang-python'
+import { java } from '@codemirror/lang-java'
+import { cpp } from '@codemirror/lang-cpp'
+import { rust } from '@codemirror/lang-rust'
+import { go } from '@codemirror/lang-go'
+import { php } from '@codemirror/lang-php'
+import { sql } from '@codemirror/lang-sql'
+import { xml } from '@codemirror/lang-xml'
+import { yaml } from '@codemirror/lang-yaml'
 
 const props = defineProps({
   openedTabs: {
@@ -49,6 +70,45 @@ const { currentFileContent } = storeToRefs(templateFileStore)
 
 const route = useRoute()
 const notification = useNotification()
+
+// 语言映射
+const languageMap = {
+  'js': javascript(),
+  'javascript': javascript(),
+  'ts': javascript({typescript: true}),
+  'typescript': javascript({typescript: true}),
+  'jsx': javascript({jsx: true}),
+  'tsx': javascript({typescript: true, jsx: true}),
+  'html': html(),
+  'htm': html(),
+  'css': css(),
+  'scss': css(),
+  'sass': css(),
+  'less': css(),
+  'json': json(),
+  'md': markdown(),
+  'markdown': markdown(),
+  'py': python(),
+  'python': python(),
+  'java': java(),
+  'cpp': cpp(),
+  'cc': cpp(),
+  'cxx': cpp(),
+  'c': cpp(),
+  'rs': rust(),
+  'rust': rust(),
+  'go': go(),
+  'php': php(),
+  'sql': sql(),
+  'xml': xml(),
+  'yaml': yaml(),
+  'yml': yaml()
+}
+
+function getLanguageExtension(filename) {
+  const ext = filename.split('.').pop()?.toLowerCase()
+  return languageMap[ext] || null
+}
 
 function onTabChange(key) {
   emit('tabChange', key)
@@ -91,30 +151,73 @@ function handleKeydown(e) {
   }
 }
 
-function updateEditorContent(content) {
+function updateEditorContent(content, filename = '') {
   if (!editorView) return
 
+  const languageExt = getLanguageExtension(filename)
+  
   const newState = EditorState.create({
     doc: content || '',
-    extensions: createEditorExtensions()
+    extensions: createEditorExtensions(languageExt)
   })
 
   editorView.setState(newState)
 }
 
-function createEditorExtensions() {
-  return [
-    // 基础快捷键
+function createEditorExtensions(languageExtension = null) {
+  const extensions = [
+    // 行号
+    lineNumbers(),
+    // 代码折叠标记
+    foldGutter(),
+    // 高亮特殊字符
+    highlightSpecialChars(),
+    // 撤销历史
+    history(),
+    // 自定义光标/选择
+    drawSelection(),
+    // 拖拽时的光标
+    dropCursor(),
+    // 输入时自动缩进
+    indentOnInput(),
+    // 语法高亮
+    syntaxHighlighting(defaultHighlightStyle),
+    // 括号匹配高亮
+    bracketMatching(),
+    // 自动关闭括号
+    closeBrackets(),
+    // 自动完成
+    autocompletion(),
+    // 矩形选择
+    rectangularSelection(),
+    // Alt+拖拽时显示十字光标
+    crosshairCursor(),
+    // 当前行高亮
+    highlightActiveLine(),
+    // 当前行行号高亮
+    highlightActiveLineGutter(),
+    // 高亮匹配的选中文本
+    highlightSelectionMatches(),
+    
+    // 快捷键配置
     keymap.of([
-      ...defaultKeymap,
-      indentWithTab,
+      // 保存快捷键
       {
         key: 'Ctrl-s',
         run: () => {
           saveCurrentFile()
           return true
         }
-      }
+      },
+      // 基础快捷键
+      ...closeBracketsKeymap,
+      ...defaultKeymap,
+      ...searchKeymap,
+      ...historyKeymap,
+      ...foldKeymap,
+      ...completionKeymap,
+      // Tab 缩进
+      indentWithTab
     ]),
     
     // 右键菜单
@@ -123,6 +226,11 @@ function createEditorExtensions() {
         event.preventDefault()
         showContextMenu(event, view)
         return true
+      },
+      mousedown: (event, view) => {
+        // 确保点击时编辑器获得焦点
+        view.focus()
+        return false
       }
     }),
     
@@ -138,6 +246,13 @@ function createEditorExtensions() {
       }
     })
   ]
+  
+  // 添加语言支持
+  if (languageExtension) {
+    extensions.push(languageExtension)
+  }
+  
+  return extensions
 }
 
 function showContextMenu(event, view) {
@@ -161,6 +276,9 @@ function showContextMenu(event, view) {
   
   const menuItems = [
     { label: '保存 (Ctrl+S)', action: () => saveCurrentFile() },
+    { type: 'separator' },
+    { label: '撤销 (Ctrl+Z)', action: () => document.execCommand('undo') },
+    { label: '重做 (Ctrl+Y)', action: () => document.execCommand('redo') },
     { type: 'separator' },
     { label: '剪切 (Ctrl+X)', action: () => document.execCommand('cut') },
     { label: '复制 (Ctrl+C)', action: () => document.execCommand('copy') },
@@ -237,7 +355,7 @@ watch(() => [props.activeTab, props.openedTabs, currentFileContent.value], async
   if (tab && editorView) {
     const currentContent = editorView.state.doc.toString()
     if (currentContent !== tab.content) {
-      updateEditorContent(tab.content)
+      updateEditorContent(tab.content, tab.name)
     }
   }
 })
@@ -249,7 +367,7 @@ watch(currentFileContent, (val) => {
     if (editorView) {
       const currentContent = editorView.state.doc.toString()
       if (currentContent !== val) {
-        updateEditorContent(val)
+        updateEditorContent(val, tab.name)
       }
     }
   }
@@ -260,16 +378,24 @@ onMounted(async () => {
 
   // 创建 CodeMirror 编辑器
   const tab = props.openedTabs.find(t => t.key === props.activeTab)
+  const languageExt = tab ? getLanguageExtension(tab.name) : null
   
   const state = EditorState.create({
     doc: tab ? tab.content : '',
-    extensions: createEditorExtensions()
+    extensions: createEditorExtensions(languageExt)
   })
 
   editorView = new EditorView({
     state,
     parent: editorContainer.value
   })
+
+  // 自动聚焦编辑器
+  setTimeout(() => {
+    if (editorView) {
+      editorView.focus()
+    }
+  }, 100)
 
   window.addEventListener('keydown', handleKeydown)
 })
@@ -302,13 +428,15 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.03);
   overflow: hidden;
+  position: relative;
 }
 
 /* CodeMirror 基础样式 */
 :deep(.cm-editor) {
-  height: 100%;
+  height: 100% !important;
   font-size: 15px;
   color: #cccccc;
+  outline: none !important;
 }
 
 :deep(.cm-editor .cm-scroller) {
@@ -318,18 +446,42 @@ onBeforeUnmount(() => {
 :deep(.cm-editor .cm-content) {
   padding: 16px;
   background: #1e1e1e;
+  caret-color: #007acc !important;
 }
 
 :deep(.cm-editor .cm-line) {
   padding: 0;
 }
 
-:deep(.cm-editor .cm-cursor) {
-  border-left: 2px solid #007acc;
+:deep(.cm-editor .cm-selectionBackground) {
+  background: rgba(0, 122, 204, 0.3) !important;
 }
 
-:deep(.cm-editor .cm-selectionBackground) {
-  background: rgba(0, 122, 204, 0.3);
+:deep(.cm-editor .cm-selectionMatch) {
+  background: rgba(0, 122, 204, 0.2) !important;
+}
+
+:deep(.cm-editor .cm-activeLine) {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+:deep(.cm-editor .cm-activeLineGutter) {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* 确保光标可见 */
+:deep(.cm-editor .cm-cursor) {
+  border-left: 2px solid #007acc !important;
+  border-right: none !important;
+  width: 2px !important;
+  background: transparent !important;
+}
+
+:deep(.cm-editor .cm-cursor-primary) {
+  border-left: 2px solid #007acc !important;
+  border-right: none !important;
+  width: 2px !important;
+  background: transparent !important;
 }
 
 /* 右键菜单样式 */
