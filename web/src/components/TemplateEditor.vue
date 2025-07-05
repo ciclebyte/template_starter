@@ -44,7 +44,6 @@ import { java } from '@codemirror/lang-java'
 import { cpp } from '@codemirror/lang-cpp'
 import { rust } from '@codemirror/lang-rust'
 import { go } from '@codemirror/lang-go'
-import { php } from '@codemirror/lang-php'
 import { sql } from '@codemirror/lang-sql'
 import { xml } from '@codemirror/lang-xml'
 import { yaml } from '@codemirror/lang-yaml'
@@ -103,7 +102,6 @@ const languageMap = {
   'rs': rust(),
   'rust': rust(),
   'go': go(),
-  'php': php(),
   'sql': sql(),
   'xml': xml(),
   'yaml': yaml(),
