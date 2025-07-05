@@ -3,13 +3,13 @@
     <div class="tree-title">文件树</div>
     <div class="tree-container">
       <NTree
-        :data="treeToNaive(localTreeData)"
-        :default-expand-all="true"
+        :data="treeDataComputed"
         :selected-keys="[currentFile]"
         :render-label="renderLabel"
         :node-props="nodeProps"
         :render-switcher-icon="renderSwitcherIcon"
         @update:selected-keys="onSelectFile"
+        @update:expanded-keys="updatePrefixWithExpanded"
       />
       <div v-if="!treeData || treeData.length === 0" style="padding: 32px; color: #888; text-align: center; user-select: none; cursor: context-menu;" @contextmenu="onTreeAreaContextMenu">暂无数据（右键新建）</div>
     </div>
@@ -28,7 +28,7 @@
 </template>
 
 <script setup>
-import { ref, watch, h } from 'vue'
+import { ref, watch, h, computed } from 'vue'
 import { NTree, useMessage, NIcon } from 'naive-ui'
 import { ChevronForward, FileTrayFullOutline, Folder, FolderOpenOutline, Trash } from '@vicons/ionicons5'
 
@@ -59,10 +59,17 @@ const editingNode = ref(null)
 const newName = ref('')
 const message = useMessage()
 const localTreeData = ref(JSON.parse(JSON.stringify(props.treeData)))
+// 维护展开状态的映射
+const expandedKeys = ref(new Set())
 
 watch(() => props.treeData, (val) => {
   localTreeData.value = JSON.parse(JSON.stringify(val))
 }, { deep: true })
+
+// 计算属性，确保展开状态变化时重新渲染
+const treeDataComputed = computed(() => {
+  return treeToNaive(localTreeData.value)
+})
 
 function treeToNaive(tree) {
   if (!Array.isArray(tree)) return []
@@ -78,18 +85,49 @@ function treeToNaive(tree) {
     return nameA.localeCompare(nameB)
   }
   const sorted = [...tree].sort(customSort)
-  return sorted.map(node => ({
-    label: node.isEditing === true ? undefined : (node.fileName || node.label),
-    key: node.key || node.id,
-    isLeaf: node.isDirectory === 0,
-    isEditing: node.isEditing === true,
-    filePath: node.filePath,
-    fileName: node.fileName,
-    prefix: node.isDirectory
-      ? () => h(NIcon, null, { default: () => h(Folder) })
-      : () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }),
-    children: node.children ? treeToNaive(node.children) : []
-  }))
+  return sorted.map(node => {
+    const nodeKey = node.key || node.id
+    const isExpanded = expandedKeys.value.has(String(nodeKey))
+    
+    return {
+      label: node.isEditing === true ? undefined : (node.fileName || node.label),
+      key: nodeKey,
+      isLeaf: node.isDirectory === 0,
+      isEditing: node.isEditing === true,
+      filePath: node.filePath,
+      fileName: node.fileName,
+      isDirectory: node.isDirectory === 1,
+      prefix: node.isDirectory
+        ? () => h(NIcon, null, { 
+            default: () => h(isExpanded ? FolderOpenOutline : Folder)
+          })
+        : () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }),
+      children: node.children ? treeToNaive(node.children) : []
+    }
+  })
+}
+
+// 更新展开/闭合时的图标
+function updatePrefixWithExpanded(
+  keys,
+  _option,
+  meta
+) {
+  if (!meta.node) return
+  
+  // 只对目录节点进行图标更新
+  if (!meta.node.isDirectory) return
+  
+  const nodeKey = String(meta.node.key)
+  
+  switch (meta.action) {
+    case 'expand':
+      expandedKeys.value.add(nodeKey)
+      break
+    case 'collapse':
+      expandedKeys.value.delete(nodeKey)
+      break
+  }
 }
 
 function onSelectFile(keys) {
