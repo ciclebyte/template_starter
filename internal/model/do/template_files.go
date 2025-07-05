@@ -15,6 +15,7 @@ type TemplateFiles struct {
 	Id          interface{} // 文件ID，自增主键
 	TemplateId  interface{} // 所属模板ID
 	FilePath    interface{} // 文件路径（相对路径）
+	FileName    interface{} // 文件名
 	FileContent interface{} // 文件内容
 	FileSize    interface{} // 文件大小（字节）
 	IsDirectory interface{} // 是否为目录

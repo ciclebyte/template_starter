@@ -177,7 +177,7 @@ async function saveCurrentFile() {
     await editTemplateFile({
       id: tab.key,
       templateId,
-      filePath: tab.name,
+      fileName: tab.name,
       fileContent: tab.content,
       isDirectory: 0
     })

@@ -125,7 +125,7 @@ async function onSelectFile(key) {
       if (!tab) {
         openedTabs.value.push({
           key: String(key),
-          name: node.filePath || node.label || String(key),
+          name: node.fileName || node.label || String(key),
           content
         })
         tab = openedTabs.value[openedTabs.value.length - 1]
@@ -205,7 +205,7 @@ function onTreeReload(payload) {
   const isDirectory = payload.type === 'folder' ? 1 : 0
   addTemplateFile({
     templateId,
-    filePath: payload.name,
+    fileName: payload.name,
     fileContent: '',
     fileSize: 0,
     isDirectory,
@@ -316,12 +316,10 @@ watch(treeData, (val) => {
   padding: 24px 12px 0 12px;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
-.tree-title {
-  font-weight: bold;
-  margin-bottom: 16px;
-  color: #333;
-}
+
 .edit-editor {
   flex: 1;
   background: #f8fafc;

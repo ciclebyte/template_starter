@@ -6,6 +6,7 @@ type TemplateFilesInfo struct {
 	Id          int64       `orm:"id"  json:"id"`                    // 文件ID，自增主键
 	TemplateId  int64       `orm:"template_id"  json:"templateId"`   // 所属模板ID
 	FilePath    string      `orm:"file_path"  json:"filePath"`       // 文件路径（相对路径）
+	FileName    string      `orm:"file_name"  json:"fileName"`       // 文件名
 	FileContent string      `orm:"file_content"  json:"fileContent"` // 文件内容
 	FileSize    int         `orm:"file_size"  json:"fileSize"`       // 文件大小（字节）
 	IsDirectory int         `orm:"is_directory"  json:"isDirectory"` // 是否为目录

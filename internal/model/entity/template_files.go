@@ -13,6 +13,7 @@ type TemplateFiles struct {
 	Id          int64       `json:"id"          description:"文件ID，自增主键"`
 	TemplateId  int64       `json:"templateId"  description:"所属模板ID"`
 	FilePath    string      `json:"filePath"    description:"文件路径（相对路径）"`
+	FileName    string      `json:"fileName"    description:"文件名"`
 	FileContent string      `json:"fileContent" description:"文件内容"`
 	FileSize    uint        `json:"fileSize"    description:"文件大小（字节）"`
 	IsDirectory int         `json:"isDirectory" description:"是否为目录"`

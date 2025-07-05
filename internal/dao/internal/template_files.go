@@ -23,6 +23,7 @@ type TemplateFilesColumns struct {
 	Id          string // 文件ID，自增主键
 	TemplateId  string // 所属模板ID
 	FilePath    string // 文件路径（相对路径）
+	FileName    string // 文件名
 	FileContent string // 文件内容
 	FileSize    string // 文件大小（字节）
 	IsDirectory string // 是否为目录
@@ -38,6 +39,7 @@ var templateFilesColumns = TemplateFilesColumns{
 	Id:          "id",
 	TemplateId:  "template_id",
 	FilePath:    "file_path",
+	FileName:    "file_name",
 	FileContent: "file_content",
 	FileSize:    "file_size",
 	IsDirectory: "is_directory",

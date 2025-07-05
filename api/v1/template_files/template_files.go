@@ -9,7 +9,7 @@ import (
 type TemplateFilesAddReq struct {
 	g.Meta      `path:"/templateFiles/add" method:"post" tags:"模板文件" summary:"模板文件-新增"`
 	TemplateId  interface{} `json:"templateId" v:"required#所属模板ID不能为空"`
-	FilePath    string      `json:"filePath" v:"required#文件路径（相对路径）不能为空"`
+	FileName    string      `json:"fileName" v:"required#文件名不能为空"`
 	FileContent string      `json:"fileContent"`
 	FileSize    int         `json:"fileSize"`
 	IsDirectory int         `json:"isDirectory" v:"required#是否为目录不能为空"`
@@ -44,7 +44,7 @@ type TemplateFilesEditReq struct {
 	g.Meta      `path:"/templateFiles/edit" method:"put" tags:"模板文件" summary:"模板文件-修改"`
 	Id          interface{} `json:"id" v:"required#文件ID，自增主键不能为空"`
 	TemplateId  interface{} `json:"templateId" v:"required#所属模板ID不能为空"`
-	FilePath    string      `json:"filePath" v:"required#文件路径（相对路径）不能为空"`
+	FileName    string      `json:"fileName" v:"required#文件名不能为空"`
 	FileContent string      `json:"fileContent"`
 	FileSize    int         `json:"fileSize"`
 	IsDirectory int         `json:"isDirectory" v:"required#是否为目录不能为空"`
@@ -62,6 +62,7 @@ type TemplateFilesListReq struct {
 	commonApi.PageReq
 	TemplateId  interface{} `json:"templateId" v:"required#所属模板ID不能为空"`
 	FilePath    string      `json:"filePath" v:"required#文件路径（相对路径）不能为空"`
+	FileName    string      `json:"fileName" v:"required#文件名不能为空"`
 	FileContent string      `json:"fileContent" v:"required#文件内容不能为空"`
 	FileSize    int         `json:"fileSize" v:"required#文件大小（字节）不能为空"`
 	IsDirectory int         `json:"isDirectory" v:"required#是否为目录不能为空"`
@@ -94,6 +95,7 @@ type TemplatesFileTreeReq struct {
 type FileTreeNode struct {
 	Id          int64           `json:"id"`
 	FilePath    string          `json:"filePath"`
+	FileName    string          `json:"fileName"`
 	IsDirectory int             `json:"isDirectory"`
 	ParentId    int64           `json:"parentId"`
 	FileSize    uint            `json:"fileSize"`

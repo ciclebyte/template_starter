@@ -57,10 +57,14 @@ func (s sTemplateFiles) Add(ctx context.Context, req *api.TemplateFilesAddReq) (
 	err = g.Try(ctx, func(ctx context.Context) {
 		// TODO 查询是否已经存在
 
+		// 动态生成文件路径
+		filePath := s.generateFilePath(ctx, req.TemplateId, req.ParentId, req.FileName)
+
 		// add
 		_, err = dao.TemplateFiles.Ctx(ctx).Insert(do.TemplateFiles{
 			TemplateId:  req.TemplateId,  // 所属模板ID
-			FilePath:    req.FilePath,    // 文件路径（相对路径）
+			FilePath:    filePath,        // 文件路径（相对路径）
+			FileName:    req.FileName,    // 文件名
 			FileContent: req.FileContent, // 文件内容
 			FileSize:    req.FileSize,    // 文件大小（字节）
 			IsDirectory: req.IsDirectory, // 是否为目录
@@ -79,11 +83,15 @@ func (s sTemplateFiles) Edit(ctx context.Context, req *api.TemplateFilesEditReq)
 		liberr.ErrIsNil(ctx, err, "获取模板文件失败")
 		//TODO 根据名称等查询是否存在
 
+		// 动态生成文件路径
+		filePath := s.generateFilePath(ctx, req.TemplateId, req.ParentId, req.FileName)
+
 		//编辑
 		_, err = dao.TemplateFiles.Ctx(ctx).WherePri(req.Id).Update(do.TemplateFiles{
 			Id:          req.Id,          // 文件ID，自增主键
 			TemplateId:  req.TemplateId,  // 所属模板ID
-			FilePath:    req.FilePath,    // 文件路径（相对路径）
+			FilePath:    filePath,        // 文件路径（相对路径）
+			FileName:    req.FileName,    // 文件名
 			FileContent: req.FileContent, // 文件内容
 			FileSize:    req.FileSize,    // 文件大小（字节）
 			IsDirectory: req.IsDirectory, // 是否为目录
@@ -125,7 +133,7 @@ func (s *sTemplateFiles) FileTree(ctx context.Context, req *api.TemplatesFileTre
 	templateId := gconv.Int64(req.TemplateId)
 	var files []*entity.TemplateFiles
 	err = dao.TemplateFiles.Ctx(ctx).Where("template_id = ?", templateId).
-		Fields("id, file_path, is_directory, parent_id, file_size, md5").
+		Fields("id, file_path, file_name, is_directory, parent_id, file_size, md5").
 		Scan(&files)
 	if err != nil {
 		return
@@ -134,7 +142,7 @@ func (s *sTemplateFiles) FileTree(ctx context.Context, req *api.TemplatesFileTre
 	idMap := make(map[int64]*api.FileTreeNode)
 	for _, f := range files {
 		node := &api.FileTreeNode{
-			Id: f.Id, FilePath: f.FilePath, IsDirectory: f.IsDirectory,
+			Id: f.Id, FilePath: f.FilePath, FileName: f.FileName, IsDirectory: f.IsDirectory,
 			ParentId: f.ParentId, FileSize: f.FileSize, Md5: f.Md5,
 		}
 		idMap[f.Id] = node
@@ -423,10 +431,20 @@ func (s *sTemplateFiles) createDirectoryRecord(ctx context.Context, templateId i
 	// 获取父目录ID
 	parentId := s.getParentId(ctx, templateId, filePath)
 
+	// 获取目录名
+	dirName := filepath.Base(filePath)
+	if dirName == "" || dirName == "." {
+		// 如果是根目录或空路径，使用一个默认名称
+		dirName = "root"
+	}
+
+	fmt.Printf("创建目录记录: filePath=%s, dirName=%s, parentId=%d\n", filePath, dirName, parentId)
+
 	// 创建目录记录
 	_, err = dao.TemplateFiles.Ctx(ctx).Insert(do.TemplateFiles{
 		TemplateId:  templateId,
 		FilePath:    filePath,
+		FileName:    dirName,
 		FileContent: "",
 		FileSize:    0,
 		IsDirectory: 1,
@@ -450,6 +468,15 @@ func (s *sTemplateFiles) createFileRecord(ctx context.Context, templateId int64,
 	// 获取父目录ID
 	parentId := s.getParentId(ctx, templateId, filePath)
 
+	// 获取文件名
+	fileName := filepath.Base(filePath)
+	if fileName == "" {
+		// 如果文件名为空，使用一个默认名称
+		fileName = "untitled"
+	}
+
+	fmt.Printf("创建文件记录: filePath=%s, fileName=%s, parentId=%d, contentLength=%d\n", filePath, fileName, parentId, len(content))
+
 	// 计算MD5
 	md5 := gmd5.MustEncrypt(content)
 
@@ -457,6 +484,7 @@ func (s *sTemplateFiles) createFileRecord(ctx context.Context, templateId int64,
 	_, err = dao.TemplateFiles.Ctx(ctx).Insert(do.TemplateFiles{
 		TemplateId:  templateId,
 		FilePath:    filePath,
+		FileName:    fileName,
 		FileContent: content,
 		FileSize:    len(content),
 		IsDirectory: 0,
@@ -481,4 +509,26 @@ func (s *sTemplateFiles) getParentId(ctx context.Context, templateId int64, file
 		return 0 // 找不到父目录，设为根目录
 	}
 	return parent.Id
+}
+
+// generateFilePath 根据父目录ID和文件名生成完整的文件路径
+func (s *sTemplateFiles) generateFilePath(ctx context.Context, templateId interface{}, parentId int, fileName string) string {
+	if parentId == 0 {
+		// 根目录下的文件
+		return fileName
+	}
+
+	// 查找父目录的路径
+	var parent entity.TemplateFiles
+	err := dao.TemplateFiles.Ctx(ctx).Where("id = ? AND template_id = ? AND is_directory = 1", parentId, templateId).Scan(&parent)
+	if err != nil {
+		// 找不到父目录，返回文件名
+		return fileName
+	}
+
+	// 拼接父目录路径和文件名
+	if parent.FilePath == "" {
+		return fileName
+	}
+	return filepath.Join(parent.FilePath, fileName)
 }

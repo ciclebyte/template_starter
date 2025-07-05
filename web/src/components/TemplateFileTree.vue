@@ -1,16 +1,18 @@
 <template>
   <div class="edit-tree" @contextmenu="onTreeAreaContextMenu">
     <div class="tree-title">文件树</div>
-    <NTree
-      :data="treeToNaive(localTreeData)"
-      :default-expand-all="true"
-      :selected-keys="[currentFile]"
-      :render-label="renderLabel"
-      :node-props="nodeProps"
-      :render-switcher-icon="renderSwitcherIcon"
-      @update:selected-keys="onSelectFile"
-    />
-    <div v-if="!treeData || treeData.length === 0" style="padding: 32px; color: #888; text-align: center; user-select: none; cursor: context-menu;" @contextmenu="onTreeAreaContextMenu">暂无数据（右键新建）</div>
+    <div class="tree-container">
+      <NTree
+        :data="treeToNaive(localTreeData)"
+        :default-expand-all="true"
+        :selected-keys="[currentFile]"
+        :render-label="renderLabel"
+        :node-props="nodeProps"
+        :render-switcher-icon="renderSwitcherIcon"
+        @update:selected-keys="onSelectFile"
+      />
+      <div v-if="!treeData || treeData.length === 0" style="padding: 32px; color: #888; text-align: center; user-select: none; cursor: context-menu;" @contextmenu="onTreeAreaContextMenu">暂无数据（右键新建）</div>
+    </div>
     <n-dropdown
       to="body"
       trigger="manual"
@@ -68,8 +70,8 @@ function treeToNaive(tree) {
     if ((b.isDirectory || 0) - (a.isDirectory || 0) !== 0) {
       return (b.isDirectory || 0) - (a.isDirectory || 0)
     }
-    const nameA = a.filePath ? a.filePath.split('/').pop().toLowerCase() : (a.label || '').toLowerCase()
-    const nameB = b.filePath ? b.filePath.split('/').pop().toLowerCase() : (b.label || '').toLowerCase()
+    const nameA = (a.fileName || a.label || '').toLowerCase()
+    const nameB = (b.fileName || b.label || '').toLowerCase()
     const aIsA = nameA.startsWith('a') ? 1 : 0
     const bIsA = nameB.startsWith('a') ? 1 : 0
     if (aIsA !== bIsA) return bIsA - aIsA
@@ -77,11 +79,12 @@ function treeToNaive(tree) {
   }
   const sorted = [...tree].sort(customSort)
   return sorted.map(node => ({
-    label: node.isEditing === true ? undefined : (node.filePath ? node.filePath.split('/').pop() : node.label),
+    label: node.isEditing === true ? undefined : (node.fileName || node.label),
     key: node.key || node.id,
     isLeaf: node.isDirectory === 0,
     isEditing: node.isEditing === true,
     filePath: node.filePath,
+    fileName: node.fileName,
     prefix: node.isDirectory
       ? () => h(NIcon, null, { default: () => h(Folder) })
       : () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }),
@@ -282,7 +285,7 @@ function renderLabel({ option }) {
       ]
     )
   }
-  return option.filePath ? option.filePath.split('/').pop() : option.label
+  return option.fileName || option.label
 }
 const renderSwitcherIcon = () =>
   h(NIcon, null, { default: () => h(ChevronForward) })
@@ -296,11 +299,40 @@ const renderSwitcherIcon = () =>
   padding: 24px 12px 0 12px;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 .tree-title {
   font-weight: bold;
   margin-bottom: 16px;
   color: #333;
+  flex-shrink: 0;
+}
+.tree-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  padding-right: 4px;
+}
+.tree-container::-webkit-scrollbar {
+  width: 6px;
+}
+.tree-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+.tree-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+.tree-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+/* Firefox 滚动条样式 */
+.tree-container {
+  scrollbar-width: thin;
+  scrollbar-color: #c1c1c1 #f1f1f1;
 }
 .tree-dropdown-menu {
   z-index: 2147483647 !important;
