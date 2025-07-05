@@ -219,10 +219,9 @@ function onTreeReload(payload) {
 }
 
 async function onRenameFile(payload) {
-  const { id, oldName, node } = payload
+  const { id, oldName, newName, node } = payload
   
-  // 弹出输入框让用户输入新名称
-  const newName = prompt(`请输入新的名称 (当前: ${oldName}):`, oldName)
+  // 验证新名称
   if (!newName || newName.trim() === '' || newName === oldName) {
     return
   }

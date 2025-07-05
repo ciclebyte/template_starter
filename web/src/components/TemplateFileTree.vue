@@ -57,6 +57,7 @@ const dropdownNode = ref(null)
 const addType = ref('file')
 const editingNode = ref(null)
 const newName = ref('')
+const renamingNode = ref(null)
 const message = useMessage()
 const localTreeData = ref(JSON.parse(JSON.stringify(props.treeData)))
 // 维护展开状态的映射
@@ -252,6 +253,7 @@ function insertToParent(list, parentId, node) {
 function removeEditingNode(list) {
   for (let i = list.length - 1; i >= 0; i--) {
     if (list[i].isEditing) {
+      // 只处理新增状态，删除临时节点
       list.splice(i, 1)
     } else if (list[i].children) {
       removeEditingNode(list[i].children)
@@ -263,13 +265,64 @@ function confirmAddNode() {
     message.warning('请输入名称')
     return
   }
-  emit('reload', { name: newName.value, type: addType.value, parentId: editingNode.value.parentId, sort: editingNode.value.sort })
-  editingNode.value = null
-  removeEditingNode(localTreeData.value)
+  
+  if (renamingNode.value) {
+    // 处理重命名
+    emit('rename', { 
+      id: renamingNode.value.id || renamingNode.value.key, 
+      oldName: renamingNode.value.fileName || renamingNode.value.label,
+      newName: newName.value,
+      node: renamingNode.value 
+    })
+    // 清除重命名状态
+    const newTreeData = JSON.parse(JSON.stringify(localTreeData.value))
+    function clearEditingState(list) {
+      for (const item of list) {
+        if (String(item.id || item.key) === String(renamingNode.value.id || renamingNode.value.key)) {
+          item.isEditing = false
+          return true
+        }
+        if (item.children && clearEditingState(item.children)) {
+          return true
+        }
+      }
+      return false
+    }
+    clearEditingState(newTreeData)
+    localTreeData.value = newTreeData
+    renamingNode.value = null
+  } else {
+    // 处理新增
+    emit('reload', { name: newName.value, type: addType.value, parentId: editingNode.value.parentId, sort: editingNode.value.sort })
+    editingNode.value = null
+    removeEditingNode(localTreeData.value)
+  }
 }
+
 function cancelAddNode() {
-  editingNode.value = null
-  removeEditingNode(localTreeData.value)
+  if (renamingNode.value) {
+    // 取消重命名：恢复编辑状态，不清除节点
+    const newTreeData = JSON.parse(JSON.stringify(localTreeData.value))
+    function clearEditingState(list) {
+      for (const item of list) {
+        if (String(item.id || item.key) === String(renamingNode.value.id || renamingNode.value.key)) {
+          item.isEditing = false
+          return true
+        }
+        if (item.children && clearEditingState(item.children)) {
+          return true
+        }
+      }
+      return false
+    }
+    clearEditingState(newTreeData)
+    localTreeData.value = newTreeData
+    renamingNode.value = null
+  } else {
+    // 取消新增：删除临时节点
+    editingNode.value = null
+    removeEditingNode(localTreeData.value)
+  }
 }
 function handleDropdownSelect(key) {
   showDropdown.value = false
@@ -303,19 +356,43 @@ function renameNode() {
   if (!dropdownNode.value) return
   const node = dropdownNode.value
   const oldName = node.fileName || node.label
-  emit('rename', { id: node.id || node.key, oldName, node })
+  newName.value = oldName
+  renamingNode.value = node
+  
+  // 设置节点为编辑状态
+  const newTreeData = JSON.parse(JSON.stringify(localTreeData.value))
+  function setEditingState(list) {
+    for (const item of list) {
+      if (String(item.id || item.key) === String(node.id || node.key)) {
+        item.isEditing = true
+        return true
+      }
+      if (item.children && setEditingState(item.children)) {
+        return true
+      }
+    }
+    return false
+  }
+  setEditingState(newTreeData)
+  localTreeData.value = newTreeData
 }
 function renderLabel({ option }) {
   if (option.isEditing === true) {
+    const isRenaming = renamingNode.value && String(option.id || option.key) === String(renamingNode.value.id || renamingNode.value.key)
+    const placeholder = isRenaming ? '请输入新名称' : '请输入名称'
+    const inputStyle = isRenaming 
+      ? 'width:120px;background: #fff3cd; border: 1px solid #ffc107; border-radius: 3px; padding: 2px 4px;'
+      : 'width:120px;background: #ffe0e0; border: 1px solid #f00; border-radius: 3px; padding: 2px 4px;'
+    
     return h(
       'div',
       { style: 'display:flex;align-items:center;gap:4px;' },
       [
         h('input', {
-          style: 'width:120px;background: #ffe0e0; border: 1px solid #f00;',
+          style: inputStyle,
           value: newName.value,
           autofocus: true,
-          placeholder: '请输入名称',
+          placeholder: placeholder,
           onInput: e => (newName.value = e.target.value),
           onKeydown: e => {
             if (e.key === 'Enter') confirmAddNode()
