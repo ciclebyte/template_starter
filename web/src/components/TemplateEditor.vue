@@ -8,11 +8,39 @@
       </n-tabs>
     </div>
     <div class="codemirror-container" ref="editorContainer"></div>
+    
+    <!-- HTML 预览弹框 -->
+    <n-modal v-model:show="showHtmlPreviewModal" preset="card" :style="modalStyle">
+      <template #header>
+        <div class="modal-header">
+          <span>HTML 预览</span>
+          <div class="modal-actions">
+            <n-button size="small" quaternary circle @click="toggleFullscreen">
+              <template #icon>
+                <svg v-if="!isFullscreen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                </svg>
+                <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+                </svg>
+              </template>
+            </n-button>
+          </div>
+        </div>
+      </template>
+      <div class="html-preview-container">
+        <iframe 
+          ref="htmlPreviewFrame" 
+          class="html-preview-frame"
+          sandbox="allow-scripts allow-same-origin"
+        ></iframe>
+      </div>
+    </n-modal>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
 import { NTabs, NTab, useNotification } from 'naive-ui'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
 import { storeToRefs } from 'pinia'
@@ -66,6 +94,9 @@ const props = defineProps({
 const emit = defineEmits(['tabChange', 'tabClose', 'contentChange'])
 
 const editorContainer = ref(null)
+const htmlPreviewFrame = ref(null)
+const showHtmlPreviewModal = ref(false)
+const isFullscreen = ref(false)
 let editorView = null
 
 const templateFileStore = useTemplateFileStore()
@@ -73,6 +104,23 @@ const { currentFileContent } = storeToRefs(templateFileStore)
 
 const route = useRoute()
 const notification = useNotification()
+
+// 计算属性
+const modalStyle = computed(() => {
+  if (isFullscreen.value) {
+    return {
+      width: '100vw',
+      height: '100vh',
+      margin: '0',
+      borderRadius: '0'
+    }
+  } else {
+    return {
+      width: '90vw',
+      height: '80vh'
+    }
+  }
+})
 
 // 语言映射
 const languageMap = {
@@ -147,10 +195,103 @@ async function saveCurrentFile() {
   }
 }
 
+
+
+function runHtmlFile() {
+  const tab = props.openedTabs.find(t => t.key === props.activeTab)
+  if (!tab) return
+  
+  // 直接预览，不做校验
+  showHtmlPreview(tab.content)
+}
+
+function showHtmlPreview(content) {
+  // 显示预览弹框
+  showHtmlPreviewModal.value = true
+  isFullscreen.value = false // 重置全屏状态
+  
+  // 等待 DOM 更新后设置 iframe 内容
+  nextTick(() => {
+    if (htmlPreviewFrame.value) {
+      const iframe = htmlPreviewFrame.value
+      
+      // 设置超时保护
+      const timeout = setTimeout(() => {
+        notification.error({
+          title: '预览超时',
+          content: 'HTML 渲染超时，可能存在无限循环或错误',
+          duration: 3000
+        })
+        showHtmlPreviewModal.value = false
+      }, 3000) // 3秒超时
+      
+      // 尝试渲染内容
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow.document
+        
+        // 写入 HTML 内容
+        doc.open()
+        doc.write(content)
+        doc.close()
+        
+        // 清除超时
+        clearTimeout(timeout)
+        
+        notification.success({
+          title: '预览成功',
+          content: 'HTML 内容已在弹框中显示',
+          duration: 2500
+        })
+      } catch (e) {
+        // 清除超时
+        clearTimeout(timeout)
+        
+        // 如果渲染失败，显示纯文本
+        try {
+          const doc = iframe.contentDocument || iframe.contentWindow.document
+          doc.open()
+          doc.write(`<html><body><pre style="white-space: pre-wrap; font-family: monospace; padding: 20px;">${content}</pre></body></html>`)
+          doc.close()
+          
+          notification.warning({
+            title: '渲染失败',
+            content: 'HTML 渲染失败，已显示为纯文本',
+            duration: 3000
+          })
+        } catch (fallbackError) {
+          // 最后的保护措施
+          showHtmlPreviewModal.value = false
+          notification.error({
+            title: '预览失败',
+            content: '无法显示内容',
+            duration: 3000
+          })
+        }
+      }
+    }
+  })
+}
+
+function toggleFullscreen() {
+  isFullscreen.value = !isFullscreen.value
+}
+
 function handleKeydown(e) {
   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
     e.preventDefault()
     saveCurrentFile()
+  }
+  
+  // HTML 文件运行快捷键
+  if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+    e.preventDefault()
+    const tab = props.openedTabs.find(t => t.key === props.activeTab)
+    if (tab) {
+      const fileExt = tab.name.split('.').pop()?.toLowerCase()
+      if (fileExt === 'html' || fileExt === 'htm') {
+        runHtmlFile()
+      }
+    }
   }
 }
 
@@ -261,6 +402,10 @@ function createEditorExtensions(languageExtension = null) {
 function showContextMenu(event, view) {
   const { clientX, clientY } = event
   
+  // 获取当前文件扩展名
+  const tab = props.openedTabs.find(t => t.key === props.activeTab)
+  const fileExt = tab ? tab.name.split('.').pop()?.toLowerCase() : ''
+  
   // 创建右键菜单
   const menu = document.createElement('div')
   menu.className = 'context-menu'
@@ -289,6 +434,14 @@ function showContextMenu(event, view) {
     { type: 'separator' },
     { label: '全选 (Ctrl+A)', action: () => view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } }) }
   ]
+  
+  // 如果是 HTML 文件，添加运行选项
+  if (fileExt === 'html' || fileExt === 'htm') {
+    menuItems.push(
+      { type: 'separator' },
+      { label: '运行 HTML (Ctrl+R)', action: () => runHtmlFile() }
+    )
+  }
   
   menuItems.forEach(item => {
     if (item.type === 'separator') {
@@ -325,7 +478,13 @@ function showContextMenu(event, view) {
         } catch (e) {
           console.warn('菜单操作失败:', e)
         }
-        document.body.removeChild(menu)
+        // 确保菜单被移除
+        if (document.body.contains(menu)) {
+          document.body.removeChild(menu)
+        }
+        // 移除事件监听器
+        document.removeEventListener('click', closeMenu)
+        document.removeEventListener('contextmenu', closeMenu)
       })
       
       menu.appendChild(menuItem)
@@ -499,5 +658,34 @@ onBeforeUnmount(() => {
 
 .context-menu-item:hover {
   background: #3c3c3c !important;
+}
+
+/* HTML 预览弹框样式 */
+.html-preview-container {
+  width: 100%;
+  height: 100%;
+  min-height: 60vh;
+}
+
+.html-preview-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 4px;
+  background: #ffffff;
+}
+
+/* 弹框头部样式 */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 8px 0;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 4px;
 }
 </style> 
