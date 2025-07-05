@@ -3,20 +3,39 @@
     <div class="edit-header">
       <div class="header-left">
         <span class="edit-title">模板编辑</span>
-        <div class="variable-toggle" @click="toggleVariablePanel">
-          <n-icon class="collapse-icon">
-            <ChevronDown v-if="!isVariablePanelCollapsed" />
-            <ChevronForward v-else />
-          </n-icon>
-          变量管理
+      </div>
+      <div class="header-center">
+        <!-- 变量插入快捷按钮组 -->
+        <div class="variable-insert-group">
+          <n-button 
+            v-for="quickVar in quickVariables" 
+            :key="quickVar.name"
+            size="small" 
+            class="variable-insert-btn"
+            @click="insertQuickVariable(quickVar)"
+          >
+            {{ quickVar.template }}
+          </n-button>
+          <n-dropdown 
+            :options="variableDropdownOptions" 
+            @select="insertVariableFromDropdown"
+            trigger="click"
+          >
+            <n-button size="small" class="variable-more-btn">
+              更多变量
+              <template #icon>
+                <n-icon><ChevronDown /></n-icon>
+              </template>
+            </n-button>
+          </n-dropdown>
         </div>
       </div>
       <div class="edit-actions">
-        <n-button size="small" type="primary" @click="addVariable" v-if="!isVariablePanelCollapsed">
+        <n-button size="small" @click="showVariableManager = true">
           <template #icon>
-            <n-icon><Add /></n-icon>
+            <n-icon><Settings /></n-icon>
           </template>
-          新增变量
+          变量管理
         </n-button>
         <n-button quaternary circle class="edit-close-btn" @click="closeEdit">
           <template #icon>
@@ -24,18 +43,6 @@
           </template>
         </n-button>
       </div>
-    </div>
-    
-    <!-- 变量管理区域 -->
-    <div v-show="!isVariablePanelCollapsed" class="variable-section">
-      <VariableManager
-        ref="variableManagerRef"
-        :variables="templateVariables"
-        @add="onAddVariable"
-        @edit="onEditVariable"
-        @delete="onDeleteVariable"
-        @insert="onInsertVariable"
-      />
     </div>
     
     <div class="edit-main">
@@ -71,12 +78,43 @@
         :current-file="currentFileNode"
       />
     </div>
+
+    <!-- 变量管理弹框 -->
+    <n-modal 
+      v-model:show="showVariableManager" 
+      preset="card" 
+      style="width: 80vw; height: 80vh; max-width: 1200px;"
+      :mask-closable="false"
+    >
+      <template #header>
+        <div class="variable-manager-header">
+          <span class="modal-title">变量管理</span>
+          <n-button type="primary" size="small" @click="addVariable">
+            <template #icon>
+              <n-icon><Add /></n-icon>
+            </template>
+            新增变量
+          </n-button>
+        </div>
+      </template>
+      
+      <div class="variable-manager-content">
+        <VariableManager
+          ref="variableManagerRef"
+          :variables="templateVariables"
+          @add="onAddVariable"
+          @edit="onEditVariable"
+          @delete="onDeleteVariable"
+          @insert="onInsertVariable"
+        />
+      </div>
+    </n-modal>
   </div>
 </template>
 
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileDetail, getTemplateFileContent, renameTemplateFile, uploadZipFile, uploadCodeFile } from '@/api/templateFiles'
 import { listTemplateVariables, addTemplateVariable, editTemplateVariable, deleteTemplateVariable } from '@/api/templateVariables'
 import TemplateExplorer from '@/components/TemplateFileTree.vue'
@@ -84,8 +122,8 @@ import TemplateEditor from '@/components/TemplateEditor.vue'
 import VariableManager from '@/components/VariableManager.vue'
 import TemplatePreview from '@/components/TemplatePreview.vue'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
-import { useMessage, NIcon } from 'naive-ui'
-import { ChevronDown, ChevronForward, Add } from '@vicons/ionicons5'
+import { useMessage, NIcon, NDropdown } from 'naive-ui'
+import { ChevronDown, Add, Settings } from '@vicons/ionicons5'
 
 const router = useRouter()
 const route = useRoute()
@@ -109,9 +147,26 @@ const templateFileStore = useTemplateFileStore()
 const templateVariables = ref([])
 const templateEditorRef = ref(null)
 const variableManagerRef = ref(null)
-const isVariablePanelCollapsed = ref(true)
+const showVariableManager = ref(false)
 const variableValues = ref({})
 const currentFileNode = ref(null)
+
+// 快速插入变量
+const quickVariables = [
+  { name: 'project_name', label: '项目名', template: '{{project_name}}' },
+  { name: 'author', label: '作者', template: '{{author}}' },
+  { name: 'date', label: '日期', template: '{{date}}' },
+  { name: 'version', label: '版本', template: '{{version}}' }
+]
+
+// 变量下拉菜单选项
+const variableDropdownOptions = computed(() => {
+  return templateVariables.value.map(v => ({
+    label: `${v.name} - ${v.description}`,
+    key: v.name,
+    template: `{{${v.name}}}`
+  }))
+})
 
 onMounted(async () => {
   await loadTree()
@@ -349,8 +404,13 @@ watch(treeData, (val) => {
 async function onAddVariable(variable) {
   try {
     await addTemplateVariable({
-      ...variable,
       templateId: parseInt(route.params.id),
+      name: variable.name,
+      variableType: variable.variableType || 'text',
+      description: variable.description,
+      defaultValue: variable.defaultValue || '',
+      isRequired: variable.isRequired ? 1 : 0,
+      validationRegex: variable.validationRegex || '',
       sort: templateVariables.value.length + 1
     })
     message.success('变量添加成功')
@@ -363,8 +423,15 @@ async function onAddVariable(variable) {
 async function onEditVariable(variable) {
   try {
     await editTemplateVariable({
-      ...variable,
-      templateId: parseInt(route.params.id)
+      id: variable.id,
+      templateId: parseInt(route.params.id),
+      name: variable.name,
+      variableType: variable.variableType || 'text',
+      description: variable.description,
+      defaultValue: variable.defaultValue || '',
+      isRequired: variable.isRequired ? 1 : 0,
+      validationRegex: variable.validationRegex || '',
+      sort: variable.sort || 0
     })
     message.success('变量更新成功')
     await loadVariables()
@@ -390,9 +457,17 @@ function onInsertVariable(template) {
   }
 }
 
-// 切换变量面板折叠状态
-function toggleVariablePanel() {
-  isVariablePanelCollapsed.value = !isVariablePanelCollapsed.value
+// 快速插入变量
+function insertQuickVariable(quickVar) {
+  onInsertVariable(quickVar.template)
+}
+
+// 从下拉菜单插入变量
+function insertVariableFromDropdown(key) {
+  const option = variableDropdownOptions.value.find(opt => opt.key === key)
+  if (option) {
+    onInsertVariable(option.template)
+  }
 }
 
 // 新增变量（直接打开编辑对话框）
@@ -411,6 +486,7 @@ function addVariable() {
   display: flex;
   flex-direction: column;
 }
+
 .edit-header {
   height: 56px;
   background: #fff;
@@ -428,30 +504,47 @@ function addVariable() {
   gap: 24px;
 }
 
+.header-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
 .edit-title {
   font-size: 1.2rem;
   font-weight: bold;
   color: #18a058;
 }
 
-.variable-toggle {
+.variable-insert-group {
   display: flex;
   align-items: center;
-  cursor: pointer;
-  padding: 6px 12px;
-  border-radius: 4px;
-  color: #666;
-  font-size: 14px;
-  transition: background-color 0.2s;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.variable-toggle:hover {
-  background-color: #f5f5f5;
+.variable-insert-btn {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  padding: 4px 8px;
+  height: 28px;
+  border: 1px solid #e0e0e0;
+  background: #fafafa;
+  color: #333;
+  transition: all 0.2s;
 }
 
-.collapse-icon {
-  margin-right: 6px;
-  font-size: 16px;
+.variable-insert-btn:hover {
+  border-color: #18a058;
+  background: #f0f9ff;
+  color: #18a058;
+}
+
+.variable-more-btn {
+  height: 28px;
+  padding: 4px 8px;
+  font-size: 12px;
 }
 
 .edit-actions {
@@ -463,6 +556,7 @@ function addVariable() {
 .edit-close-btn {
   margin-left: 16px;
 }
+
 .edit-main {
   flex: 1;
   display: flex;
@@ -476,14 +570,17 @@ function addVariable() {
   min-height: 0;
   overflow: hidden;
 }
+
 .editor-title {
   font-weight: bold;
   margin-bottom: 16px;
   color: #333;
 }
+
 .editor-tabs {
   margin-bottom: 4px;
 }
+
 .monaco-editor-container {
   flex: 1;
   min-height: 400px;
@@ -492,6 +589,7 @@ function addVariable() {
   box-shadow: 0 2px 8px rgba(0,0,0,0.03);
   overflow: hidden;
 }
+
 .custom-menu {
   position: fixed;
   z-index: 9999;
@@ -502,23 +600,38 @@ function addVariable() {
   min-width: 120px;
   padding: 4px 0;
 }
+
 .menu-item {
   padding: 8px 16px;
   cursor: pointer;
   transition: background 0.2s;
 }
+
 .menu-item:hover {
   background: #f5f5f5;
 }
 
-.variable-section {
-  background: #fff;
-  border-bottom: 1px solid #e0e0e0;
-  padding: 16px;
+/* 变量管理弹框样式 */
+.variable-manager-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
 }
 
-.variable-section .variable-manager {
-  height: 150px;
+.modal-title {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #333;
+}
+
+.variable-manager-content {
+  height: calc(80vh - 120px);
+  overflow: hidden;
+}
+
+.variable-manager-content .variable-manager {
+  height: 100%;
   overflow: hidden;
 }
 </style> 

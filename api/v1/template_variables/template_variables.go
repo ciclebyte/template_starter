@@ -13,10 +13,10 @@ type TemplateVariablesAddReq struct {
 	Name            string `json:"name" v:"required#变量名称不能为空"`
 	VariableType    string `json:"variableType" v:"required#变量类型不能为空"`
 	Description     string `json:"description" v:"required#变量描述不能为空"`
-	DefaultValue    string `json:"defaultValue" v:"required#变量默认值不能为空"`
-	IsRequired      int    `json:"isRequired" v:"required#是否为必填变量不能为空"`
-	ValidationRegex string `json:"validationRegex" v:"required#变量值验证正则表达式不能为空"`
-	Sort            int    `json:"sort" v:"required#显示顺序，数字越小排序越靠前不能为空"`
+	DefaultValue    string `json:"defaultValue"`
+	IsRequired      int    `json:"isRequired"`
+	ValidationRegex string `json:"validationRegex"`
+	Sort            int    `json:"sort"`
 }
 
 type TemplateVariablesAddRes struct {
@@ -44,14 +44,14 @@ type TemplateVariablesBatchDelRes struct {
 type TemplateVariablesEditReq struct {
 	g.Meta          `path:"/templateVariables/edit" method:"put" tags:"模板变量" summary:"模板变量-修改"`
 	Id              interface{} `json:"id" v:"required#变量ID，自增主键不能为空"`
-	TemplateId      interface{} `json:"templateId" v:"required#所属模板ID不能为空"`
+	TemplateId      int64       `json:"templateId" v:"required#所属模板ID不能为空"`
 	Name            string      `json:"name" v:"required#变量名称不能为空"`
 	VariableType    string      `json:"variableType" v:"required#变量类型不能为空"`
 	Description     string      `json:"description" v:"required#变量描述不能为空"`
-	DefaultValue    string      `json:"defaultValue" v:"required#变量默认值不能为空"`
-	IsRequired      int         `json:"isRequired" v:"required#是否为必填变量不能为空"`
-	ValidationRegex string      `json:"validationRegex" v:"required#变量值验证正则表达式不能为空"`
-	Sort            int         `json:"sort" v:"required#显示顺序"`
+	DefaultValue    string      `json:"defaultValue"`
+	IsRequired      int         `json:"isRequired"`
+	ValidationRegex string      `json:"validationRegex"`
+	Sort            int         `json:"sort"`
 }
 
 type TemplateVariablesEditRes struct {
