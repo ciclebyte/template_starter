@@ -19,7 +19,6 @@ const routes = [
         name: 'Templates',
         component: Templates
       }
-      // 其他普通页面
     ]
   },
   {

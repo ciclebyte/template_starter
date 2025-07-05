@@ -113,7 +113,6 @@ const handleMenuClick = (key) => {
   flex: 1;
   background: #f5f5f5;
   width: 100%;
-  min-height: 0;
   padding-top: 64px;
 }
 

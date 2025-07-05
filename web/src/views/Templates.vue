@@ -420,7 +420,7 @@ onMounted(async () => {
 
 <style scoped>
 .templates-page {
-  min-height: 100vh;
+  width: 100%;
 }
 
 .container {

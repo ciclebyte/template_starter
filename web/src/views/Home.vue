@@ -161,7 +161,7 @@ onMounted(async () => {
 
 <style scoped>
 .home-page {
-  min-height: 100vh;
+  width: 100%;
 }
 
 .hero-section {
