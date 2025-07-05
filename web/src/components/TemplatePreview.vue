@@ -2,6 +2,7 @@
   <div 
     class="template-preview" 
     :class="{ collapsed: isCollapsed }"
+    :style="{ width: panelWidth + 'px' }"
   >
     <div class="preview-header">
       <div class="preview-title" v-if="!isCollapsed">预览</div>
@@ -36,6 +37,13 @@
       
       <div class="file-content" ref="previewEditorRef"></div>
     </div>
+    
+    <!-- 拖动调整器 -->
+    <div 
+      class="resize-handle"
+      @mousedown="startResize"
+      :class="{ 'resizing': isResizing }"
+    ></div>
   </div>
 </template>
 
@@ -62,6 +70,28 @@ let previewEditor = null
 
 // 折叠状态
 const isCollapsed = ref(true)
+
+// 面板宽度和拖动状态
+const panelWidth = ref(400)
+const isResizing = ref(false)
+const startX = ref(0)
+const startWidth = ref(0)
+
+// 从本地存储加载宽度设置
+const loadPanelWidth = () => {
+  const savedWidth = localStorage.getItem('template-preview-width')
+  if (savedWidth) {
+    const width = parseInt(savedWidth)
+    if (width >= 300 && width <= 1200) {
+      panelWidth.value = width
+    }
+  }
+}
+
+// 保存宽度设置到本地存储
+const savePanelWidth = (width) => {
+  localStorage.setItem('template-preview-width', width.toString())
+}
 
 // 计算文件路径
 const currentFilePath = computed(() => {
@@ -96,6 +126,52 @@ function copyContent() {
 // 切换折叠状态
 function toggleCollapse() {
   isCollapsed.value = !isCollapsed.value
+  if (isCollapsed.value) {
+    panelWidth.value = 40
+  } else {
+    // 展开时使用保存的宽度或默认宽度
+    loadPanelWidth()
+  }
+}
+
+// 开始拖动调整
+function startResize(e) {
+  if (isCollapsed.value) return
+  
+  e.preventDefault()
+  isResizing.value = true
+  startX.value = e.clientX
+  startWidth.value = panelWidth.value
+  
+  document.addEventListener('mousemove', handleResize)
+  document.addEventListener('mouseup', stopResize)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+// 处理拖动调整
+function handleResize(e) {
+  if (!isResizing.value) return
+  
+  const deltaX = startX.value - e.clientX
+  const newWidth = startWidth.value + deltaX
+  
+  // 限制最小和最大宽度
+  if (newWidth >= 300 && newWidth <= 1200) {
+    panelWidth.value = newWidth
+  }
+}
+
+// 停止拖动调整
+function stopResize() {
+  isResizing.value = false
+  document.removeEventListener('mousemove', handleResize)
+  document.removeEventListener('mouseup', stopResize)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  
+  // 保存当前宽度到本地存储
+  savePanelWidth(panelWidth.value)
 }
 
 // 监听当前文件变化
@@ -107,6 +183,9 @@ watch(() => props.currentFile, () => {
 
 // 初始化预览编辑器
 onMounted(() => {
+  // 加载保存的宽度设置
+  loadPanelWidth()
+  
   if (previewEditorRef.value) {
     const state = EditorState.create({
       doc: '',
@@ -136,21 +215,21 @@ onMounted(() => {
 
 <style scoped>
 .template-preview {
-  width: 400px;
   background: #fff;
   border-left: 1px solid #e0e0e0;
   display: flex;
   flex-direction: column;
   height: 100%;
-  transition: width 0.3s ease;
+  transition: all 0.3s ease;
+  position: relative;
 }
 
 .template-preview.collapsed {
-  width: 32px;
+  width: 40px !important;
 }
 
 .template-preview.collapsed .preview-header {
-  padding: 8px 4px;
+  padding: 8px 6px;
   justify-content: center;
 }
 
@@ -215,5 +294,28 @@ onMounted(() => {
 .file-content {
   flex: 1;
   overflow: hidden;
+}
+
+.resize-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  transition: background-color 0.2s;
+}
+
+.resize-handle:hover {
+  background-color: #e0e0e0;
+}
+
+.resize-handle.resizing {
+  background-color: #1890ff;
+}
+
+.template-preview.collapsed .resize-handle {
+  display: none;
 }
 </style> 
