@@ -38,7 +38,11 @@ func (c *templatesController) List(ctx context.Context, req *api.TemplatesListRe
 
 func (c *templatesController) Get(ctx context.Context, req *api.TemplatesDetailReq) (res *api.TemplatesDetailRes, err error) {
 	res = new(api.TemplatesDetailRes)
-	service.Templates().GetById(ctx, gconv.Int64(req.Id))
+	templateInfo, err := service.Templates().GetById(ctx, gconv.Int64(req.Id))
+	if err != nil {
+		return nil, err
+	}
+	res.TemplatesInfo = templateInfo
 	return
 }
 

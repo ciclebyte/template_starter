@@ -73,11 +73,12 @@ func (s sTemplates) Add(ctx context.Context, req *api.TemplatesAddReq) (err erro
 
 		// add
 		result, err := dao.Templates.Ctx(ctx).TX(tx).Insert(do.Templates{
-			Name:        req.Name,        // 模板名称
-			Description: req.Description, // 模板详细描述
-			CategoryId:  req.CategoryId,  // 所属分类ID
-			IsFeatured:  req.IsFeatured,  // 是否推荐模板
-			Logo:        req.Logo,        // 模板logo图片URL
+			Name:         req.Name,         // 模板名称
+			Description:  req.Description,  // 模板详细描述
+			Introduction: req.Introduction, // 模板详细介绍，支持Markdown格式
+			CategoryId:   req.CategoryId,   // 所属分类ID
+			IsFeatured:   req.IsFeatured,   // 是否推荐模板
+			Logo:         req.Logo,         // 模板logo图片URL
 		})
 		liberr.ErrIsNil(ctx, err, "新增模板失败")
 		templateId, err := result.LastInsertId()
@@ -110,12 +111,13 @@ func (s sTemplates) Edit(ctx context.Context, req *api.TemplatesEditReq) (err er
 
 		// 编辑模板主表
 		_, err = dao.Templates.Ctx(ctx).TX(tx).WherePri(req.Id).Update(do.Templates{
-			Id:          req.Id,          // 模板ID，自增主键
-			Name:        req.Name,        // 模板名称
-			Description: req.Description, // 模板详细描述
-			CategoryId:  req.CategoryId,  // 所属分类ID
-			IsFeatured:  req.IsFeatured,  // 是否推荐模板
-			Logo:        req.Logo,        // 模板logo图片URL
+			Id:           req.Id,           // 模板ID，自增主键
+			Name:         req.Name,         // 模板名称
+			Description:  req.Description,  // 模板详细描述
+			Introduction: req.Introduction, // 模板详细介绍，支持Markdown格式
+			CategoryId:   req.CategoryId,   // 所属分类ID
+			IsFeatured:   req.IsFeatured,   // 是否推荐模板
+			Logo:         req.Logo,         // 模板logo图片URL
 		})
 		liberr.ErrIsNil(ctx, err, "修改模板失败")
 
@@ -157,10 +159,16 @@ func (s sTemplates) GetById(ctx context.Context, id int64) (res *model.Templates
 	err = g.Try(ctx, func(ctx context.Context) {
 		err = dao.Templates.Ctx(ctx).Where(fmt.Sprintf("%s=?", dao.Templates.Columns().Id), id).Scan(&res)
 		liberr.ErrIsNil(ctx, err, "获取模板失败")
+
+		// 检查是否找到数据
+		if res == nil {
+			liberr.ErrIsNil(ctx, gerror.Newf("模板ID %d 不存在", id), "模板不存在")
+		}
+
 		// 查询并填充Languages字段
 		var langs []model.TemplateLanguagesInfo
 		err = dao.TemplateLanguages.Ctx(ctx).Where("template_id = ?", id).Scan(&langs)
-		if err == nil && res != nil {
+		if err == nil {
 			res.Languages = langs
 		}
 	})

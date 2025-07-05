@@ -71,6 +71,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import { ArrowBack } from '@vicons/ionicons5'
+import { getTemplateDetail } from '@/api/templates'
 import StepIntro from './generator/StepIntro.vue'
 import StepVariables from './generator/StepVariables.vue'
 import StepPreview from './generator/StepPreview.vue'
@@ -94,26 +95,9 @@ const variables = ref({})
 // 获取模板信息
 const loadTemplateInfo = async () => {
   try {
-    // TODO: 调用API获取模板信息
-    // const res = await getTemplateInfo(route.params.id)
-    // templateInfo.value = res.data.data
-    
-    // 临时使用模拟数据
-    templateInfo.value = {
-      id: route.params.id,
-      name: 'Vue3项目模板',
-      description: '现代化的Vue3项目模板，包含Vue3、Vite、TypeScript等最新技术栈',
-      category: '前端框架',
-      fileCount: 15,
-      usage: '适用于快速搭建现代化的前端项目',
-      features: [
-        'Vue3 Composition API',
-        'TypeScript支持',
-        'Vite构建工具',
-        'ESLint + Prettier',
-        '单元测试配置'
-      ]
-    }
+    const res = await getTemplateDetail({ id: route.params.id })
+    console.log('getTemplateDetail 返回：', res)
+    templateInfo.value = res.data.data.data
   } catch (error) {
     message.error('加载模板信息失败')
     console.error(error)
@@ -161,6 +145,7 @@ const goBack = () => {
 }
 
 onMounted(() => {
+  console.log('当前路由参数：', route.params)
   loadTemplateInfo()
 })
 </script>

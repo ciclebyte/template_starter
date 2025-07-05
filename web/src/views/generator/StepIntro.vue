@@ -5,8 +5,8 @@
       <div class="template-info">
         <div class="template-header">
           <h1 class="template-name">{{ templateInfo?.name }}</h1>
-          <n-tag :type="getCategoryType(templateInfo?.category)" size="large">
-            {{ templateInfo?.category }}
+          <n-tag v-if="templateInfo?.categoryId" :type="getCategoryType(templateInfo?.categoryId)" size="large">
+            {{ getCategoryName(templateInfo?.categoryId) }}
           </n-tag>
         </div>
         
@@ -14,66 +14,45 @@
           {{ templateInfo?.description }}
         </div>
         
+        <!-- 模板统计信息 -->
+        <div v-if="templateInfo?.isFeatured" class="template-stats">
+          <div class="stat-item">
+            <n-icon size="20" color="#f0a020">
+              <Star />
+            </n-icon>
+            <span>推荐模板</span>
+          </div>
+        </div>
+        
+        <!-- 支持的语言 -->
+        <div v-if="getTemplateLanguages.length > 0" class="template-languages">
+          <h3 class="languages-title">支持的语言</h3>
+          <div class="languages-list">
+            <n-tag 
+              v-for="lang in getTemplateLanguages" 
+              :key="lang.id"
+              :color="{ color: lang.isPrimary === 1 ? '#e8f5e8' : lang.color }"
+              size="large"
+              style="margin-right: 12px; margin-bottom: 8px;"
+            >
+              {{ lang.displayName }}
+              <template v-if="lang.isPrimary === 1">
+                (主语言)
+              </template>
+            </n-tag>
+          </div>
+        </div>
+        
         <!-- 详细介绍 -->
         <div v-if="templateInfo?.introduction" class="template-introduction">
           <h3 class="intro-title">详细介绍</h3>
-          <div class="markdown-content" v-html="renderedIntroduction"></div>
-        </div>
-        
-        <div class="template-stats">
-          <div class="stat-item">
-            <n-icon size="20" color="#18a058">
-              <DocumentText />
-            </n-icon>
-            <span>{{ templateInfo?.fileCount }} 个文件</span>
+          <div class="markdown-content">
+            <MdPreview :modelValue="templateInfo.introduction" />
           </div>
         </div>
       </div>
 
-      <!-- 适用场景 -->
-      <div class="section">
-        <h3 class="section-title">
-          <n-icon><Bulb /></n-icon>
-          适用场景
-        </h3>
-        <div class="usage-text">
-          {{ templateInfo?.usage }}
-        </div>
-      </div>
 
-      <!-- 主要特性 -->
-      <div class="section">
-        <h3 class="section-title">
-          <n-icon><Star /></n-icon>
-          主要特性
-        </h3>
-        <div class="features-list">
-          <div 
-            v-for="feature in templateInfo?.features" 
-            :key="feature"
-            class="feature-item"
-          >
-            <n-icon size="16" color="#52c41a">
-              <CheckmarkCircle />
-            </n-icon>
-            <span>{{ feature }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 使用说明 -->
-      <div class="section">
-        <h3 class="section-title">
-          <n-icon><InformationCircle /></n-icon>
-          使用说明
-        </h3>
-        <div class="instructions">
-          <p>1. 在下一步中配置项目的基本信息</p>
-          <p>2. 填写必要的变量值</p>
-          <p>3. 预览生成的文件内容</p>
-          <p>4. 确认无误后下载项目文件</p>
-        </div>
-      </div>
     </div>
 
     <!-- 底部操作 -->
@@ -94,16 +73,16 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { 
   DocumentText, 
-  Bulb, 
   Star, 
-  CheckmarkCircle, 
-  InformationCircle,
+  CodeSlash,
   ArrowForward 
 } from '@vicons/ionicons5'
-import { marked } from 'marked'
+import { MdPreview } from 'md-editor-v3'
+import { useLanguageStore } from '@/stores/languageStore'
+import { useCategoryStore } from '@/stores/categoryStore'
 
 const props = defineProps({
   templateInfo: {
@@ -114,22 +93,75 @@ const props = defineProps({
 
 defineEmits(['next'])
 
-// 渲染 Markdown 内容
-const renderedIntroduction = computed(() => {
-  if (!props.templateInfo?.introduction) return ''
-  return marked(props.templateInfo.introduction)
+// 使用 Pinia stores
+const languageStore = useLanguageStore()
+const categoryStore = useCategoryStore()
+
+
+
+// 获取分类信息
+const getCategoryInfo = computed(() => {
+  if (!props.templateInfo?.categoryId) return null
+  return categoryStore.categoriesList.find(cat => cat.id === props.templateInfo.categoryId)
 })
 
 // 获取分类标签类型
-const getCategoryType = (category) => {
-  const typeMap = {
-    '前端框架': 'success',
-    '后端框架': 'info',
-    '全栈项目': 'warning',
-    '工具库': 'error'
-  }
-  return typeMap[category] || 'default'
+const getCategoryType = (categoryId) => {
+  console.log('查找分类ID:', categoryId)
+  console.log('Pinia分类列表:', categoryStore.categoriesList)
+  const category = categoryStore.categoriesList.find(cat => cat.id === categoryId)
+  console.log('找到的分类:', category)
+  return 'success' // 统一使用success样式
 }
+
+// 获取分类名称
+const getCategoryName = (categoryId) => {
+  const category = categoryStore.categoriesList.find(cat => cat.id === categoryId)
+  console.log('分类名称查找结果:', category)
+  return category ? category.name : '未知分类'
+}
+
+// 获取模板的语言详细信息
+const getTemplateLanguages = computed(() => {
+  if (!props.templateInfo?.languages?.length) return []
+  
+  console.log('模板语言数据:', props.templateInfo.languages)
+  console.log('Pinia语言列表:', languageStore.languagesList)
+  
+  const result = props.templateInfo.languages.map(templateLang => {
+    const language = languageStore.languagesList.find(lang => lang.id === templateLang.languageId)
+    console.log(`查找语言ID ${templateLang.languageId}:`, language)
+    return {
+      ...templateLang,
+      name: language?.name || '未知语言',
+      displayName: language?.displayName || language?.name || '未知语言',
+      color: language?.color || '#18a058'
+    }
+  })
+  
+  console.log('最终语言数组:', result)
+  return result
+})
+
+// 初始化数据
+onMounted(async () => {
+  try {
+    await Promise.all([
+      languageStore.getLanguages(),
+      categoryStore.getCategories()
+    ])
+  } catch (error) {
+    console.error('加载语言或分类数据失败:', error)
+  }
+})
+
+watch(
+  () => props.templateInfo,
+  (val) => {
+    console.log('StepIntro.vue 接收到的 templateInfo:', val)
+  },
+  { immediate: true, deep: true }
+)
 </script>
 
 <style scoped>
@@ -170,6 +202,17 @@ const getCategoryType = (category) => {
   margin-bottom: 24px;
 }
 
+.template-languages {
+  margin-bottom: 24px;
+}
+
+.languages-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 12px;
+}
+
 .template-introduction {
   margin-bottom: 24px;
 }
@@ -186,63 +229,16 @@ const getCategoryType = (category) => {
   padding: 20px;
   border-radius: 8px;
   border: 1px solid #e9ecef;
-  line-height: 1.6;
-}
-
-.markdown-content :deep(h1),
-.markdown-content :deep(h2),
-.markdown-content :deep(h3),
-.markdown-content :deep(h4),
-.markdown-content :deep(h5),
-.markdown-content :deep(h6) {
-  margin-top: 0;
-  margin-bottom: 12px;
-  color: #333;
-}
-
-.markdown-content :deep(p) {
-  margin-bottom: 12px;
-  color: #666;
-}
-
-.markdown-content :deep(code) {
-  background: #e9ecef;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: 'Fira Code', monospace;
-  font-size: 0.9em;
-}
-
-.markdown-content :deep(pre) {
-  background: #f8f9fa;
-  padding: 16px;
-  border-radius: 6px;
-  overflow-x: auto;
-  margin-bottom: 16px;
-}
-
-.markdown-content :deep(ul),
-.markdown-content :deep(ol) {
-  margin-bottom: 12px;
-  padding-left: 20px;
-}
-
-.markdown-content :deep(li) {
-  margin-bottom: 4px;
-  color: #666;
-}
-
-.markdown-content :deep(blockquote) {
-  border-left: 4px solid #18a058;
-  padding-left: 16px;
-  margin: 16px 0;
-  color: #666;
-  font-style: italic;
 }
 
 .template-stats {
   display: flex;
   gap: 24px;
+  margin-bottom: 24px;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
 }
 
 .stat-item {
@@ -251,6 +247,7 @@ const getCategoryType = (category) => {
   gap: 8px;
   color: #666;
   font-size: 14px;
+  font-weight: 500;
 }
 
 .section {
@@ -267,44 +264,10 @@ const getCategoryType = (category) => {
   margin-bottom: 16px;
 }
 
-.usage-text {
-  font-size: 15px;
-  color: #666;
-  line-height: 1.6;
-  background: #f8f9fa;
-  padding: 16px;
-  border-radius: 8px;
-  border-left: 4px solid #18a058;
-}
-
-.features-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 12px;
-}
-
-.feature-item {
+.languages-list {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  padding: 12px 16px;
-  background: #f8f9fa;
-  border-radius: 6px;
-  font-size: 14px;
-  color: #333;
-}
-
-.instructions {
-  background: #f0f9ff;
-  border: 1px solid #bae6fd;
-  border-radius: 8px;
-  padding: 20px;
-}
-
-.instructions p {
-  margin: 8px 0;
-  color: #333;
-  font-size: 14px;
 }
 
 .step-actions {

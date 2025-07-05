@@ -12,13 +12,14 @@ type TemplateLanguageReq struct {
 }
 
 type TemplatesAddReq struct {
-	g.Meta      `path:"/templates/add" method:"post" tags:"模板" summary:"模板-新增"`
-	Name        string                `json:"name" v:"required#模板名称不能为空"`
-	Description string                `json:"description" v:"required#模板详细描述不能为空"`
-	CategoryId  int                   `json:"categoryId" v:"required#所属分类ID不能为空"`
-	IsFeatured  int                   `json:"isFeatured" v:"required#是否推荐模板不能为空"`
-	Logo        string                `json:"logo"`
-	Languages   []TemplateLanguageReq `json:"languages"`
+	g.Meta       `path:"/templates/add" method:"post" tags:"模板" summary:"模板-新增"`
+	Name         string                `json:"name" v:"required#模板名称不能为空"`
+	Description  string                `json:"description" v:"required#模板详细描述不能为空"`
+	Introduction string                `json:"introduction"` // 模板详细介绍，支持Markdown格式
+	CategoryId   int                   `json:"categoryId" v:"required#所属分类ID不能为空"`
+	IsFeatured   int                   `json:"isFeatured" v:"required#是否推荐模板不能为空"`
+	Logo         string                `json:"logo"`
+	Languages    []TemplateLanguageReq `json:"languages"`
 }
 
 type TemplatesAddRes struct {
@@ -44,14 +45,15 @@ type TemplatesBatchDelRes struct {
 }
 
 type TemplatesEditReq struct {
-	g.Meta      `path:"/templates/edit" method:"put" tags:"模板" summary:"模板-修改"`
-	Id          interface{}           `json:"id" v:"required#模板ID，自增主键不能为空"`
-	Name        string                `json:"name" v:"required#模板名称不能为空"`
-	Description string                `json:"description" v:"required#模板详细描述不能为空"`
-	CategoryId  int                   `json:"categoryId" v:"required#所属分类ID不能为空"`
-	IsFeatured  int                   `json:"isFeatured" v:"required#是否推荐模板不能为空"`
-	Logo        string                `json:"logo" v:"required#模板logo图片URL不能为空"`
-	Languages   []TemplateLanguageReq `json:"languages"`
+	g.Meta       `path:"/templates/edit" method:"put" tags:"模板" summary:"模板-修改"`
+	Id           interface{}           `json:"id" v:"required#模板ID，自增主键不能为空"`
+	Name         string                `json:"name" v:"required#模板名称不能为空"`
+	Description  string                `json:"description" v:"required#模板详细描述不能为空"`
+	Introduction string                `json:"introduction"` // 模板详细介绍，支持Markdown格式
+	CategoryId   int                   `json:"categoryId" v:"required#所属分类ID不能为空"`
+	IsFeatured   int                   `json:"isFeatured" v:"required#是否推荐模板不能为空"`
+	Logo         string                `json:"logo" v:"required#模板logo图片URL不能为空"`
+	Languages    []TemplateLanguageReq `json:"languages"`
 }
 
 type TemplatesEditRes struct {
@@ -80,6 +82,6 @@ type TemplatesDetailReq struct {
 }
 
 type TemplatesDetailRes struct {
-	g.Meta `mime:"application/json" example:"string"`
-	*model.TemplatesInfo
+	g.Meta        `mime:"application/json" example:"string"`
+	TemplatesInfo *model.TemplatesInfo `json:"data"`
 }

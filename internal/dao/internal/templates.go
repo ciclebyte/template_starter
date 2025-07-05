@@ -20,26 +20,28 @@ type TemplatesDao struct {
 
 // TemplatesColumns defines and stores column names for table templates.
 type TemplatesColumns struct {
-	Id          string // 模板ID，自增主键
-	Name        string // 模板名称
-	Description string // 模板详细描述
-	CategoryId  string // 所属分类ID
-	IsFeatured  string // 是否推荐模板
-	Logo        string // 模板logo图片URL
-	CreatedAt   string // 记录创建时间
-	UpdatedAt   string // 记录最后更新时间
+	Id           string // 模板ID，自增主键
+	Name         string // 模板名称
+	Description  string // 模板详细描述
+	Introduction string // 模板详细介绍，支持Markdown格式
+	CategoryId   string // 所属分类ID
+	IsFeatured   string // 是否推荐模板
+	Logo         string // 模板logo图片URL
+	CreatedAt    string // 记录创建时间
+	UpdatedAt    string // 记录最后更新时间
 }
 
 // templatesColumns holds the columns for table templates.
 var templatesColumns = TemplatesColumns{
-	Id:          "id",
-	Name:        "name",
-	Description: "description",
-	CategoryId:  "category_id",
-	IsFeatured:  "is_featured",
-	Logo:        "logo",
-	CreatedAt:   "created_at",
-	UpdatedAt:   "updated_at",
+	Id:           "id",
+	Name:         "name",
+	Description:  "description",
+	Introduction: "introduction",
+	CategoryId:   "category_id",
+	IsFeatured:   "is_featured",
+	Logo:         "logo",
+	CreatedAt:    "created_at",
+	UpdatedAt:    "updated_at",
 }
 
 // NewTemplatesDao creates and returns a new DAO object for table data access.
