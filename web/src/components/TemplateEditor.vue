@@ -166,6 +166,8 @@ function updateEditorContent(content, filename = '') {
 
 function createEditorExtensions(languageExtension = null) {
   const extensions = [
+    // 启用编辑和选择功能
+    EditorView.editable.of(true),
     // 行号
     lineNumbers(),
     // 代码折叠标记
@@ -174,8 +176,6 @@ function createEditorExtensions(languageExtension = null) {
     highlightSpecialChars(),
     // 撤销历史
     history(),
-    // 自定义光标/选择
-    drawSelection(),
     // 拖拽时的光标
     dropCursor(),
     // 输入时自动缩进
@@ -196,7 +196,7 @@ function createEditorExtensions(languageExtension = null) {
     highlightActiveLine(),
     // 当前行行号高亮
     highlightActiveLineGutter(),
-    // 高亮匹配的选中文本
+    // 高亮匹配的选中文本 - 重新添加，但使用更安全的配置
     highlightSelectionMatches(),
     
     // 快捷键配置
@@ -453,12 +453,20 @@ onBeforeUnmount(() => {
   padding: 0;
 }
 
-:deep(.cm-editor .cm-selectionBackground) {
-  background: rgba(0, 122, 204, 0.3) !important;
+/* 选中样式 - 主要选择区域 */
+:deep(.cm-selectionBackground) {
+  background: rgba(0, 122, 204, 0.5) !important;
 }
 
-:deep(.cm-editor .cm-selectionMatch) {
-  background: rgba(0, 122, 204, 0.2) !important;
+/* 匹配文本高亮 - 与选中文本匹配的其他位置 */
+:deep(.cm-selectionMatch) {
+  background: rgba(255, 193, 7, 0.3) !important;
+  border-radius: 2px;
+}
+
+/* 确保匹配高亮不会覆盖主要选择 */
+:deep(.cm-selectionBackground .cm-selectionMatch) {
+  background: rgba(0, 122, 204, 0.5) !important;
 }
 
 :deep(.cm-editor .cm-activeLine) {
