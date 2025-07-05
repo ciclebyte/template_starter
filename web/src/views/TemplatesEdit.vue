@@ -1,8 +1,23 @@
 <template>
   <div class="templates-edit-fullscreen">
     <div class="edit-header">
-      <span class="edit-title">模板编辑</span>
+      <div class="header-left">
+        <span class="edit-title">模板编辑</span>
+        <div class="variable-toggle" @click="toggleVariablePanel">
+          <n-icon class="collapse-icon">
+            <ChevronDown v-if="!isVariablePanelCollapsed" />
+            <ChevronForward v-else />
+          </n-icon>
+          变量管理
+        </div>
+      </div>
       <div class="edit-actions">
+        <n-button size="small" type="primary" @click="addVariable" v-if="!isVariablePanelCollapsed">
+          <template #icon>
+            <n-icon><Add /></n-icon>
+          </template>
+          新增变量
+        </n-button>
         <n-button quaternary circle class="edit-close-btn" @click="closeEdit">
           <template #icon>
             <n-icon><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12l-4.89 4.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z"/></svg></n-icon>
@@ -10,8 +25,22 @@
         </n-button>
       </div>
     </div>
+    
+    <!-- 变量管理区域 -->
+    <div v-show="!isVariablePanelCollapsed" class="variable-section">
+      <VariableManager
+        ref="variableManagerRef"
+        :variables="templateVariables"
+        @add="onAddVariable"
+        @edit="onEditVariable"
+        @delete="onDeleteVariable"
+        @insert="onInsertVariable"
+      />
+    </div>
+    
     <div class="edit-main">
-      <TemplateFileTree
+      <!-- 左侧：模板资源管理器 -->
+      <TemplateExplorer
         v-model:treeData="treeData"
         :currentFile="currentFile"
         @select="onSelectFile"
@@ -20,16 +49,22 @@
         @uploadZip="onUploadZip"
         @uploadCodeFile="onUploadCodeFile"
       />
-      <TemplateEditor
-        :filePath="currentFilePath"
-        :fileContent="currentFileContent"
-        :openedTabs="openedTabs"
-        :activeTab="activeTab"
-        :fileMap="fileMap"
-        @tabChange="onTabChange"
-        @tabClose="onTabClose"
-        @contentChange="onEditorContentChange"
-      />
+      
+      <!-- 中间：编辑器区域 -->
+      <div class="editor-container">
+        <TemplateEditor
+          ref="templateEditorRef"
+          :filePath="currentFilePath"
+          :fileContent="currentFileContent"
+          :openedTabs="openedTabs"
+          :activeTab="activeTab"
+          :fileMap="fileMap"
+          @tabChange="onTabChange"
+          @tabClose="onTabClose"
+          @contentChange="onEditorContentChange"
+          @insertVariable="onInsertVariable"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -38,10 +73,13 @@
 import { useRouter, useRoute } from 'vue-router'
 import { ref, onMounted, watch } from 'vue'
 import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileDetail, getTemplateFileContent, renameTemplateFile, uploadZipFile, uploadCodeFile } from '@/api/templateFiles'
-import TemplateFileTree from '@/components/TemplateFileTree.vue'
+import { listTemplateVariables, addTemplateVariable, editTemplateVariable, deleteTemplateVariable } from '@/api/templateVariables'
+import TemplateExplorer from '@/components/TemplateFileTree.vue'
 import TemplateEditor from '@/components/TemplateEditor.vue'
+import VariableManager from '@/components/VariableManager.vue'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
-import { useMessage } from 'naive-ui'
+import { useMessage, NIcon } from 'naive-ui'
+import { ChevronDown, ChevronForward, Add } from '@vicons/ionicons5'
 
 const router = useRouter()
 const route = useRoute()
@@ -61,8 +99,15 @@ const activeTab = ref('')
 const fileMap = ref({})
 const templateFileStore = useTemplateFileStore()
 
+// 变量相关
+const templateVariables = ref([])
+const templateEditorRef = ref(null)
+const variableManagerRef = ref(null)
+const isVariablePanelCollapsed = ref(false)
+
 onMounted(async () => {
   await loadTree()
+  await loadVariables()
 })
 
 async function loadTree() {
@@ -82,6 +127,16 @@ async function loadTree() {
     noTreeData.value = true
   }
   loadingTree.value = false
+}
+
+async function loadVariables() {
+  try {
+    const res = await listTemplateVariables({ templateId: route.params.id })
+    templateVariables.value = res.data.data.templateVariablesList || []
+  } catch (e) {
+    templateVariables.value = []
+    console.error('加载变量失败:', e)
+  }
 }
 
 function findNodeByKey(list, key) {
@@ -280,6 +335,63 @@ async function onUploadCodeFile(payload) {
 watch(treeData, (val) => {
   console.log('父组件 treeData 变化:', val)
 }, { deep: true })
+
+// 变量相关事件处理
+async function onAddVariable(variable) {
+  try {
+    await addTemplateVariable({
+      ...variable,
+      templateId: parseInt(route.params.id),
+      sort: templateVariables.value.length + 1
+    })
+    message.success('变量添加成功')
+    await loadVariables()
+  } catch (error) {
+    message.error('变量添加失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+  }
+}
+
+async function onEditVariable(variable) {
+  try {
+    await editTemplateVariable({
+      ...variable,
+      templateId: parseInt(route.params.id)
+    })
+    message.success('变量更新成功')
+    await loadVariables()
+  } catch (error) {
+    message.error('变量更新失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+  }
+}
+
+async function onDeleteVariable(id) {
+  try {
+    await deleteTemplateVariable({ id })
+    message.success('变量删除成功')
+    await loadVariables()
+  } catch (error) {
+    message.error('变量删除失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+  }
+}
+
+function onInsertVariable(template) {
+  // 通过 ref 调用编辑器的插入变量方法
+  if (templateEditorRef.value) {
+    templateEditorRef.value.insertVariable(template)
+  }
+}
+
+// 切换变量面板折叠状态
+function toggleVariablePanel() {
+  isVariablePanelCollapsed.value = !isVariablePanelCollapsed.value
+}
+
+// 新增变量（直接打开编辑对话框）
+function addVariable() {
+  if (variableManagerRef.value) {
+    variableManagerRef.value.addVariable()
+  }
+}
 </script>
 
 <style scoped>
@@ -300,16 +412,45 @@ watch(treeData, (val) => {
   padding: 0 32px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.03);
 }
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
 .edit-title {
   font-size: 1.2rem;
   font-weight: bold;
   color: #18a058;
 }
+
+.variable-toggle {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 4px;
+  color: #666;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.variable-toggle:hover {
+  background-color: #f5f5f5;
+}
+
+.collapse-icon {
+  margin-right: 6px;
+  font-size: 16px;
+}
+
 .edit-actions {
   display: flex;
   align-items: center;
   gap: 12px;
 }
+
 .edit-close-btn {
   margin-left: 16px;
 }
@@ -318,23 +459,12 @@ watch(treeData, (val) => {
   display: flex;
   min-height: 0;
 }
-.edit-tree {
-  width: 260px;
-  background: #fff;
-  border-right: 1px solid #e0e0e0;
-  padding: 24px 12px 0 12px;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
 
-.edit-editor {
+.editor-container {
   flex: 1;
-  background: #f8fafc;
-  padding: 24px 24px 0 24px;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 .editor-title {
   font-weight: bold;
@@ -369,5 +499,16 @@ watch(treeData, (val) => {
 }
 .menu-item:hover {
   background: #f5f5f5;
+}
+
+.variable-section {
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 16px;
+}
+
+.variable-section .variable-manager {
+  height: 150px;
+  overflow: hidden;
 }
 </style> 

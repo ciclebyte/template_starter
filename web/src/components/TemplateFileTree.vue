@@ -1,7 +1,7 @@
 <template>
-  <div class="edit-tree" @contextmenu="onTreeAreaContextMenu">
-    <div class="tree-title">文件树</div>
-    <div class="tree-container">
+  <div class="template-explorer" @contextmenu="onTreeAreaContextMenu">
+    <div class="explorer-title">模板资源</div>
+    <div class="explorer-container">
       <NTree
         :data="treeDataComputed"
         :selected-keys="[currentFile]"
@@ -478,7 +478,7 @@ const renderSwitcherIcon = () =>
 </script>
 
 <style scoped>
-.edit-tree {
+.template-explorer {
   width: 260px;
   background: #fff;
   border-right: 1px solid #e0e0e0;
@@ -488,35 +488,35 @@ const renderSwitcherIcon = () =>
   height: 100%;
   overflow: hidden;
 }
-.tree-title {
+.explorer-title {
   font-weight: bold;
   margin-bottom: 16px;
   color: #333;
   flex-shrink: 0;
 }
-.tree-container {
+.explorer-container {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
   padding-right: 4px;
 }
-.tree-container::-webkit-scrollbar {
+.explorer-container::-webkit-scrollbar {
   width: 6px;
 }
-.tree-container::-webkit-scrollbar-track {
+.explorer-container::-webkit-scrollbar-track {
   background: #f1f1f1;
   border-radius: 3px;
 }
-.tree-container::-webkit-scrollbar-thumb {
+.explorer-container::-webkit-scrollbar-thumb {
   background: #c1c1c1;
   border-radius: 3px;
 }
-.tree-container::-webkit-scrollbar-thumb:hover {
+.explorer-container::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
 /* Firefox 滚动条样式 */
-.tree-container {
+.explorer-container {
   scrollbar-width: thin;
   scrollbar-color: #c1c1c1 #f1f1f1;
 }

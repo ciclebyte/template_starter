@@ -91,7 +91,7 @@ const props = defineProps({
     default: () => ({})
   }
 })
-const emit = defineEmits(['tabChange', 'tabClose', 'contentChange'])
+const emit = defineEmits(['tabChange', 'tabClose', 'contentChange', 'insertVariable'])
 
 const editorContainer = ref(null)
 const htmlPreviewFrame = ref(null)
@@ -194,6 +194,36 @@ async function saveCurrentFile() {
     })
   }
 }
+
+// 插入变量到编辑器
+function insertVariable(template) {
+  if (!editorView) return
+  
+  const { state, dispatch } = editorView
+  const { selection } = state
+  
+  // 在光标位置插入变量模板
+  const transaction = state.update({
+    changes: {
+      from: selection.main.head,
+      insert: template
+    }
+  })
+  
+  dispatch(transaction)
+  
+  // 触发内容变化事件
+  const tab = props.openedTabs.find(t => t.key === props.activeTab)
+  if (tab) {
+    tab.content = editorView.state.doc.toString()
+    emit('contentChange', { key: tab.key, content: tab.content })
+  }
+}
+
+// 暴露方法给父组件
+defineExpose({
+  insertVariable
+})
 
 
 
