@@ -79,6 +79,7 @@
               :key="quickVar.name"
               class="variable-tag builtin"
               @click="insertQuickVariable(quickVar)"
+              :title="`${quickVar.name} - ${quickVar.label}${quickVar.description ? ' - ' + quickVar.description : ''}`"
             >
               {{ quickVar.label }}
             </n-tag>
@@ -94,6 +95,7 @@
               :key="variable.id"
               class="variable-tag text"
               @click="insertVariable(variable)"
+              :title="`${variable.name}${variable.description ? ' - ' + variable.description : ''}`"
             >
               {{ variable.name }}
             </n-tag>
@@ -109,6 +111,7 @@
               :key="variable.id"
               class="variable-tag conditional"
               @click="insertVariable(variable)"
+              :title="`${variable.name}${variable.description ? ' - ' + variable.description : ''}`"
             >
               {{ variable.name }}
             </n-tag>
@@ -200,12 +203,16 @@ const currentFileNode = ref(null)
 
 // 快速插入变量
 const quickVariables = [
-  { name: 'project_name', label: '项目名', template: '{{project_name}}' },
-  { name: 'author', label: '作者', template: '{{author}}' },
-  { name: 'date', label: '日期', template: '{{date}}' },
-  { name: 'version', label: '版本', template: '{{version}}' },
-  { name: 'description', label: '描述', template: '{{description}}' },
-  { name: 'email', label: '邮箱', template: '{{email}}' }
+  { name: 'project_name', label: '项目名', description: '项目名称', template: '{{project_name}}' },
+  { name: 'project_description', label: '项目描述', description: '项目的详细描述信息', template: '{{project_description}}' },
+  { name: 'author', label: '作者', description: '项目作者姓名', template: '{{author}}' },
+  { name: 'author_email', label: '作者邮箱', description: '作者联系邮箱', template: '{{author_email}}' },
+  { name: 'author_github', label: '作者GitHub', description: '作者GitHub用户名', template: '{{author_github}}' },
+  { name: 'current_time', label: '当前时间', description: '当前时间戳', template: '{{current_time}}' },
+  { name: 'package_name', label: '包名', description: '项目包名', template: '{{package_name}}' },
+  { name: 'module_name', label: '模块名', description: '模块名称', template: '{{module_name}}' },
+  { name: 'namespace', label: '命名空间', description: '代码命名空间', template: '{{namespace}}' },
+  { name: 'port', label: '端口号', description: '服务端口号', template: '{{port}}' }
 ]
 
 // 计算属性：按类型分组变量
@@ -274,7 +281,7 @@ onMounted(async () => {
     const screenWidth = window.innerWidth
     const screenHeight = window.innerHeight
     const contentWidth = 280  // 展开内容的最小宽度
-    const contentHeight = 400 // 展开内容的最大高度
+    const contentHeight = 500 // 展开内容的最大高度
     
     panelPosition.value = {
       x: Math.max(screenWidth - contentWidth - 40, 20), // 确保展开后有足够空间
@@ -602,7 +609,7 @@ function adjustPanelPosition() {
   if (!panel) return
   
   const rect = panel.getBoundingClientRect()
-  const contentHeight = 400 // 展开内容的最大高度
+  const contentHeight = 500 // 展开内容的最大高度
   const contentWidth = 280  // 展开内容的最小宽度
   
   let newX = panelPosition.value.x
@@ -797,7 +804,7 @@ function addVariable() {
   padding: 16px;
   background: #fff;
   border-top: 1px solid #f0f0f0;
-  max-height: 400px;
+  max-height: 500px;
   overflow-y: auto;
   min-width: 280px;
 }
@@ -820,19 +827,25 @@ function addVariable() {
 }
 
 .variable-tags {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
   gap: 6px;
+  max-width: 100%;
 }
 
 .variable-tag {
   cursor: pointer;
-  font-size: 11px;
-  padding: 4px 8px;
+  font-size: 10px;
+  padding: 4px 6px;
   border-radius: 4px;
   transition: all 0.2s;
   user-select: none;
   border: none;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .variable-tag.builtin {
