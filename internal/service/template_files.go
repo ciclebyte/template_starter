@@ -19,6 +19,7 @@ type ITemplateFiles interface {
 	GetFileContent(ctx context.Context, id int64) (fileContent string, err error)
 	UploadZip(ctx context.Context, templateId int64) (successCount int, failedFiles []string, err error)
 	UploadCode(ctx context.Context, req *api.TemplateFilesUploadCodeReq) (res *api.TemplateFilesUploadCodeRes, err error)
+	Render(ctx context.Context, req *api.TemplateFilesRenderReq) (res *api.TemplateFilesRenderRes, err error)
 }
 
 var localTemplateFiles ITemplateFiles

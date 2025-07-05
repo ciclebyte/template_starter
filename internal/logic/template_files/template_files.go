@@ -2,13 +2,16 @@ package template_files
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 
+	"github.com/Masterminds/sprig/v3"
 	api "github.com/ciclebyte/template_starter/api/v1/template_files"
 	dao "github.com/ciclebyte/template_starter/internal/dao"
 	model "github.com/ciclebyte/template_starter/internal/model"
@@ -702,27 +705,150 @@ func (s *sTemplateFiles) UploadCode(ctx context.Context, req *api.TemplateFilesU
 }
 
 // isTextFile 判断文件是否为文本文件（仅检查前4KB内容，不再根据扩展名判断）
-func (s *sTemplateFiles) isTextFile(_ string, content []byte) bool {
-	const checkLen = 4096
-	n := len(content)
-	if n > checkLen {
-		n = checkLen
+func (s sTemplateFiles) isTextFile(filename string, content []byte) bool {
+	// 检查是否为文本文件
+	textFileExtensions := []string{
+		".txt", ".md", ".json", ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
+		".go", ".java", ".py", ".js", ".ts", ".vue", ".html", ".css", ".scss", ".less",
+		".php", ".rb", ".rs", ".cpp", ".c", ".h", ".cs", ".swift", ".kt", ".scala",
+		".sql", ".sh", ".bat", ".ps1", ".dockerfile", ".gitignore", ".env",
 	}
-	sample := content[:n]
 
-	// 检查null字节
-	for _, b := range sample {
-		if b == 0 {
-			return false
+	// 检查文件扩展名
+	for _, ext := range textFileExtensions {
+		if strings.HasSuffix(strings.ToLower(filename), ext) {
+			return true
 		}
 	}
 
-	// 可打印字符比例
+	// 检查文件内容是否包含null字节（二进制文件特征）
+	if bytes.Contains(content, []byte{0}) {
+		return false
+	}
+
+	// 检查是否包含大量可打印字符
 	printableCount := 0
-	for _, b := range sample {
-		if (b >= 32 && b <= 126) || b == 9 || b == 10 || b == 13 {
+	totalCount := len(content)
+	for _, b := range content {
+		if b >= 32 && b <= 126 || b == 9 || b == 10 || b == 13 {
 			printableCount++
 		}
 	}
-	return float64(printableCount)/float64(n) > 0.9
+
+	// 如果可打印字符占比超过90%，认为是文本文件
+	return float64(printableCount)/float64(totalCount) > 0.9
+}
+
+// 获取模板函数映射
+func (s sTemplateFiles) getTemplateFuncs() template.FuncMap {
+	funcs := sprig.FuncMap()
+
+	// 添加自定义函数
+	funcs["formatGoPackage"] = func(packageName string) string {
+		return strings.ReplaceAll(packageName, "-", "_")
+	}
+
+	funcs["formatJavaPackage"] = func(packageName string) string {
+		return strings.ReplaceAll(packageName, "-", ".")
+	}
+
+	funcs["toSnakeCase"] = func(str string) string {
+		// 转换为snake_case
+		return strings.ToLower(strings.ReplaceAll(str, " ", "_"))
+	}
+
+	funcs["toCamelCase"] = func(str string) string {
+		// 转换为camelCase
+		words := strings.Fields(str)
+		if len(words) == 0 {
+			return ""
+		}
+		result := strings.ToLower(words[0])
+		for i := 1; i < len(words); i++ {
+			result += strings.Title(strings.ToLower(words[i]))
+		}
+		return result
+	}
+
+	funcs["toPascalCase"] = func(str string) string {
+		// 转换为PascalCase
+		words := strings.Fields(str)
+		result := ""
+		for _, word := range words {
+			result += strings.Title(strings.ToLower(word))
+		}
+		return result
+	}
+
+	funcs["toKebabCase"] = func(str string) string {
+		// 转换为kebab-case
+		return strings.ToLower(strings.ReplaceAll(str, " ", "-"))
+	}
+
+	funcs["indent"] = func(spaces int, text string) string {
+		// 缩进文本
+		indent := strings.Repeat(" ", spaces)
+		lines := strings.Split(text, "\n")
+		for i, line := range lines {
+			if line != "" {
+				lines[i] = indent + line
+			}
+		}
+		return strings.Join(lines, "\n")
+	}
+
+	funcs["wrapText"] = func(width int, text string) string {
+		// 文本换行
+		words := strings.Fields(text)
+		if len(words) == 0 {
+			return ""
+		}
+
+		var lines []string
+		currentLine := words[0]
+
+		for i := 1; i < len(words); i++ {
+			if len(currentLine)+len(words[i])+1 <= width {
+				currentLine += " " + words[i]
+			} else {
+				lines = append(lines, currentLine)
+				currentLine = words[i]
+			}
+		}
+		lines = append(lines, currentLine)
+
+		return strings.Join(lines, "\n")
+	}
+
+	return funcs
+}
+
+// 渲染模板文件
+func (s sTemplateFiles) Render(ctx context.Context, req *api.TemplateFilesRenderReq) (res *api.TemplateFilesRenderRes, err error) {
+	err = g.Try(ctx, func(ctx context.Context) {
+		// 1. 获取文件内容
+		fileContent, err := s.GetFileContent(ctx, gconv.Int64(req.FileId))
+		liberr.ErrIsNil(ctx, err, "获取文件内容失败")
+
+		// 2. 获取文件信息
+		fileInfo, err := s.GetById(ctx, gconv.Int64(req.FileId))
+		liberr.ErrIsNil(ctx, err, "获取文件信息失败")
+
+		// 3. 创建模板
+		tmpl, err := template.New("template").Funcs(s.getTemplateFuncs()).Parse(fileContent)
+		liberr.ErrIsNil(ctx, err, "解析模板失败")
+
+		// 4. 渲染模板
+		var buf bytes.Buffer
+		err = tmpl.Execute(&buf, req.TestVariables)
+		liberr.ErrIsNil(ctx, err, "模板渲染失败")
+
+		res = &api.TemplateFilesRenderRes{
+			FileId:      gconv.Int64(req.FileId),
+			FileName:    fileInfo.FileName,
+			FileContent: buf.String(),
+			Variables:   req.TestVariables,
+		}
+	})
+	return
 }

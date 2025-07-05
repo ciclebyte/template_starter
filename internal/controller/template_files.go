@@ -98,3 +98,8 @@ func (c *templateFilesController) UploadZip(ctx context.Context, req *api.Templa
 func (c *templateFilesController) UploadCode(ctx context.Context, req *api.TemplateFilesUploadCodeReq) (res *api.TemplateFilesUploadCodeRes, err error) {
 	return service.TemplateFiles().UploadCode(ctx, req)
 }
+
+// Render 渲染模板文件
+func (c *templateFilesController) Render(ctx context.Context, req *api.TemplateFilesRenderReq) (res *api.TemplateFilesRenderRes, err error) {
+	return service.TemplateFiles().Render(ctx, req)
+}

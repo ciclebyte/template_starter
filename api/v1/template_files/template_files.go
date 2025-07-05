@@ -160,3 +160,18 @@ type TemplateFilesUploadCodeRes struct {
 	FileContent string `json:"fileContent"` // 文件内容（如果是文本文件）
 	Message     string `json:"message"`     // 处理结果消息
 }
+
+// 模板文件渲染接口
+type TemplateFilesRenderReq struct {
+	g.Meta        `path:"/templateFiles/render" method:"post" tags:"模板文件" summary:"模板文件-渲染"`
+	FileId        interface{}            `json:"fileId" v:"required#文件ID不能为空"`
+	TestVariables map[string]interface{} `json:"testVariables"` // 测试变量值
+}
+
+type TemplateFilesRenderRes struct {
+	g.Meta      `mime:"application/json" example:"string"`
+	FileId      int64                  `json:"fileId"`
+	FileName    string                 `json:"fileName"`
+	FileContent string                 `json:"fileContent"` // 渲染后的内容
+	Variables   map[string]interface{} `json:"variables"`   // 使用的变量
+}

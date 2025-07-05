@@ -74,15 +74,15 @@
         <div class="variable-section">
           <div class="section-title">内置变量</div>
           <div class="variable-tags">
-            <n-tag
-              v-for="quickVar in quickVariables"
-              :key="quickVar.name"
-              class="variable-tag builtin"
-              @click="insertQuickVariable(quickVar)"
-              :title="`${quickVar.name} - ${quickVar.label}${quickVar.description ? ' - ' + quickVar.description : ''}`"
+            <div 
+              v-for="variable in quickVariables" 
+              :key="variable.name"
+              class="variable-tag"
+              @click="insertVariable(variable.name)"
+              :title="`${variable.name} - ${variable.label}`"
             >
-              {{ quickVar.label }}
-            </n-tag>
+              {{ variable.label }}
+            </div>
           </div>
         </div>
         
@@ -94,7 +94,7 @@
               v-for="variable in textVariables"
               :key="variable.id"
               class="variable-tag text"
-              @click="insertVariable(variable)"
+              @click="insertVariable(variable.name)"
               :title="`${variable.name}${variable.description ? ' - ' + variable.description : ''}`"
             >
               {{ variable.name }}
@@ -110,7 +110,7 @@
               v-for="variable in conditionalVariables"
               :key="variable.id"
               class="variable-tag conditional"
-              @click="insertVariable(variable)"
+              @click="insertVariable(variable.name)"
               :title="`${variable.name}${variable.description ? ' - ' + variable.description : ''}`"
             >
               {{ variable.name }}
@@ -197,18 +197,18 @@ const isVariablePanelExpanded = ref(false)
 const variableValues = ref({})
 const currentFileNode = ref(null)
 
-// 快速插入变量
+// 内置变量列表
 const quickVariables = [
-  { name: 'project_name', label: '项目名', description: '项目名称', template: '{{project_name}}' },
-  { name: 'project_description', label: '项目描述', description: '项目的详细描述信息', template: '{{project_description}}' },
-  { name: 'author', label: '作者', description: '项目作者姓名', template: '{{author}}' },
-  { name: 'author_email', label: '作者邮箱', description: '作者联系邮箱', template: '{{author_email}}' },
-  { name: 'author_github', label: '作者GitHub', description: '作者GitHub用户名', template: '{{author_github}}' },
-  { name: 'current_time', label: '当前时间', description: '当前时间戳', template: '{{current_time}}' },
-  { name: 'package_name', label: '包名', description: '项目包名', template: '{{package_name}}' },
-  { name: 'module_name', label: '模块名', description: '模块名称', template: '{{module_name}}' },
-  { name: 'namespace', label: '命名空间', description: '代码命名空间', template: '{{namespace}}' },
-  { name: 'port', label: '端口号', description: '服务端口号', template: '{{port}}' }
+  { name: 'ProjectName', label: '项目名称' },
+  { name: 'Author', label: '作者' },
+  { name: 'CurrentTime', label: '当前时间' },
+  { name: 'CurrentDate', label: '当前日期' },
+  { name: 'FileName', label: '文件名' },
+  { name: 'PackageName', label: '包名' },
+  { name: 'ClassName', label: '类名' },
+  { name: 'TableName', label: '表名' },
+  { name: 'ApiPath', label: 'API路径' },
+  { name: 'ConfigPrefix', label: '配置前缀' }
 ]
 
 // 计算属性：按类型分组变量
@@ -582,9 +582,17 @@ function insertQuickVariable(quickVar) {
 }
 
 // 插入自定义变量
-function insertVariable(variable) {
-  const template = `{{${variable.name}}}`
-  onInsertVariable(template)
+function insertVariable(variableName) {
+  const goTemplateVar = `.${variableName}`
+  if (templateEditorRef.value) {
+    const editor = templateEditorRef.value.getEditor()
+    const position = editor.getPosition()
+    editor.executeEdits('insert-variable', [{
+      range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+      text: goTemplateVar
+    }])
+    editor.focus()
+  }
 }
 
 // 切换变量面板展开状态

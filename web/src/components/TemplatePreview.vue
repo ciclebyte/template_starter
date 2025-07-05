@@ -53,9 +53,18 @@ import { EditorView } from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { dracula } from '@uiw/codemirror-theme-dracula'
+import { renderTemplate } from '@/api/templateFiles'
 
 const props = defineProps({
   currentFile: {
+    type: Object,
+    default: null
+  },
+  fileId: {
+    type: String,
+    default: null
+  },
+  testVariables: {
     type: Object,
     default: null
   }
@@ -174,6 +183,33 @@ function stopResize() {
   
   // 保存当前宽度到本地存储
   savePanelWidth(panelWidth.value)
+}
+
+// 渲染模板
+const renderTemplateContent = async () => {
+  if (!props.fileId || !props.testVariables) {
+    return
+  }
+  
+  try {
+    loading.value = true
+    const response = await renderTemplate({
+      fileId: props.fileId,
+      testVariables: props.testVariables
+    })
+    
+    if (response.code === 0) {
+      renderedContent.value = response.data.fileContent
+      fileName.value = response.data.fileName
+    } else {
+      message.error(response.msg || '渲染失败')
+    }
+  } catch (error) {
+    console.error('渲染模板失败:', error)
+    message.error('渲染模板失败')
+  } finally {
+    loading.value = false
+  }
 }
 
 // 监听当前文件变化

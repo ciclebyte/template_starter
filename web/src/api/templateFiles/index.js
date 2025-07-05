@@ -112,3 +112,21 @@ export function uploadCodeFile(templateId, file, parentId) {
     }
   })
 }
+
+// 上传代码文件
+export function uploadCode(data) {
+  return request({
+    url: '/templateFiles/uploadCode',
+    method: 'post',
+    data
+  })
+}
+
+// 渲染模板文件
+export function renderTemplate(data) {
+  return request({
+    url: '/templateFiles/render',
+    method: 'post',
+    data
+  })
+}

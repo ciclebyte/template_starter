@@ -2,146 +2,92 @@
   <div class="variable-manager">
     <div class="variable-tabs">
       <n-tabs type="line" animated>
-        <n-tab-pane name="variables" tab="变量管理">
-          <div class="variable-content">
-            <div class="variable-list">
-              <div class="variable-header">
-                <div class="header-info">
-                  <span class="header-title">变量列表</span>
-                  <span class="header-count">共 {{ templateVariables.length }} 个变量</span>
-                </div>
-                <div class="header-actions">
-                  <n-button type="primary" size="small" @click="addVariable">
-                    <template #icon>
-                      <n-icon><Add /></n-icon>
-                    </template>
-                    新增变量
-                  </n-button>
-                </div>
+        <n-tab-pane name="builtin" tab="内置变量">
+          <div class="quick-insert-buttons">
+            <n-button size="small" @click="insertBuiltInVariables">一键插入内置变量</n-button>
+          </div>
+          <div class="variable-list">
+            <div v-for="variable in builtInVariables" :key="variable.name" class="variable-item">
+              <div class="variable-info">
+                <div class="variable-name">{{ variable.name }}</div>
+                <div class="variable-label">{{ variable.label }}</div>
+                <div class="variable-description">{{ variable.description }}</div>
               </div>
-              
-              <!-- 文本变量 -->
-              <div class="variable-section">
-                <div class="section-title">
-                  <n-icon><DocumentText /></n-icon>
-                  文本变量 ({{ textVariables.length }})
-                </div>
-                <div class="variable-grid">
-                  <div v-for="variable in textVariables" :key="variable.id" class="variable-card">
-                    <div class="variable-header-card">
-                      <div class="variable-name">{{ variable.name }}</div>
-                      <div class="variable-actions">
-                        <n-button size="tiny" @click="insertVariable(variable)">插入</n-button>
-                        <n-button size="tiny" @click="editVariable(variable)">编辑</n-button>
-                        <n-button size="tiny" type="error" @click="deleteVariable(variable.id)">删除</n-button>
-                      </div>
-                    </div>
-                    <div class="variable-desc">{{ variable.description }}</div>
-                    <div class="variable-meta">
-                      <n-tag size="small" :type="variable.isRequired === 1 ? 'error' : 'default'">
-                        {{ variable.isRequired === 1 ? '必填' : '可选' }}
-                      </n-tag>
-                      <span class="meta-text" v-if="variable.defaultValue">默认值: {{ variable.defaultValue }}</span>
-                      <span class="meta-text" v-if="variable.validationRegex">验证: {{ variable.validationRegex }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 条件变量 -->
-              <div class="variable-section" v-if="conditionalVariables.length > 0">
-                <div class="section-title">
-                  <n-icon><CodeSlash /></n-icon>
-                  条件变量 ({{ conditionalVariables.length }})
-                </div>
-                <div class="variable-grid">
-                  <div v-for="variable in conditionalVariables" :key="variable.id" class="variable-card">
-                    <div class="variable-header-card">
-                      <div class="variable-name">{{ variable.name }}</div>
-                      <div class="variable-actions">
-                        <n-button size="tiny" @click="insertVariable(variable)">插入</n-button>
-                        <n-button size="tiny" @click="editVariable(variable)">编辑</n-button>
-                        <n-button size="tiny" type="error" @click="deleteVariable(variable.id)">删除</n-button>
-                      </div>
-                    </div>
-                    <div class="variable-desc">{{ variable.description }}</div>
-                    <div class="variable-meta">
-                      <n-tag size="small" :type="variable.isRequired === 1 ? 'error' : 'default'">
-                        {{ variable.isRequired === 1 ? '必填' : '可选' }}
-                      </n-tag>
-                      <span class="meta-text" v-if="variable.defaultValue">默认值: {{ variable.defaultValue }}</span>
-                      <span class="meta-text" v-if="variable.validationRegex">验证: {{ variable.validationRegex }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 空状态 -->
-              <div v-if="templateVariables.length === 0" class="empty-state">
-                <div class="empty-icon">📝</div>
-                <div class="empty-title">暂无变量</div>
-                <div class="empty-desc">点击"新增变量"按钮开始创建变量</div>
+              <div class="variable-actions">
+                <n-button size="tiny" @click="insertVariable(variable.name)">插入</n-button>
               </div>
             </div>
           </div>
         </n-tab-pane>
-        
-        <n-tab-pane name="testData" tab="测试数据">
-          <div class="test-data-content">
-            <div class="test-data-header">
-              <div class="header-info">
-                <span class="header-title">测试数据设置</span>
-                <span class="header-desc">设置变量测试值，用于预览模板效果</span>
+
+        <n-tab-pane name="text" tab="文本变量">
+          <div class="quick-insert-buttons">
+            <n-button size="small" @click="insertTextVariables">一键插入文本变量</n-button>
+          </div>
+          <div class="variable-list">
+            <div v-for="variable in textVariables" :key="variable.name" class="variable-item">
+              <div class="variable-info">
+                <div class="variable-name">{{ variable.name }}</div>
+                <div class="variable-label">{{ variable.label }}</div>
+                <div class="variable-description">{{ variable.description }}</div>
               </div>
-              <div class="header-actions">
-                <n-button size="small" @click="resetTestData">重置</n-button>
-                <n-button type="primary" size="small" @click="applyTestData">应用</n-button>
-              </div>
-            </div>
-            
-            <!-- 内置变量测试值 -->
-            <div class="test-data-section">
-              <div class="section-title">
-                <n-icon><Settings /></n-icon>
-                内置变量测试值
-              </div>
-              <div class="test-data-grid">
-                <div 
-                  v-for="variable in builtinVariables" 
-                  :key="variable.name"
-                  class="test-data-item"
-                >
-                  <label>{{ variable.label }}:</label>
-                  <n-input 
-                    v-model:value="testData[variable.name]" 
-                    :placeholder="variable.description"
-                    size="small"
-                  />
-                </div>
+              <div class="variable-actions">
+                <n-button size="tiny" @click="insertVariable(variable.name)">插入</n-button>
               </div>
             </div>
-            
-            <!-- 自定义变量测试值 -->
-            <div class="test-data-section" v-if="templateVariables.length > 0">
-              <div class="section-title">
-                <n-icon><DocumentText /></n-icon>
-                自定义变量测试值
+          </div>
+        </n-tab-pane>
+
+        <n-tab-pane name="condition" tab="条件变量">
+          <div class="quick-insert-buttons">
+            <n-button size="small" @click="insertConditionVariables">一键插入条件变量</n-button>
+          </div>
+          <div class="variable-list">
+            <div v-for="variable in conditionVariables" :key="variable.name" class="variable-item">
+              <div class="variable-info">
+                <div class="variable-name">{{ variable.name }}</div>
+                <div class="variable-label">{{ variable.label }}</div>
+                <div class="variable-description">{{ variable.description }}</div>
               </div>
-              <div class="test-data-grid">
-                <div 
-                  v-for="variable in templateVariables" 
-                  :key="variable.id"
-                  class="test-data-item"
-                >
-                  <label>{{ variable.name }}:</label>
-                  <n-input 
-                    v-model:value="testData[variable.name]" 
-                    :placeholder="variable.description || '请输入测试值'"
-                    size="small"
-                  />
-                </div>
+              <div class="variable-actions">
+                <n-button size="tiny" @click="insertVariable(variable.name)">插入</n-button>
               </div>
             </div>
+          </div>
+        </n-tab-pane>
+
+        <n-tab-pane name="custom" tab="自定义变量">
+          <div class="custom-variable-header">
+            <n-button type="primary" @click="showAddVariableModal = true">添加变量</n-button>
+          </div>
+          <div class="variable-list">
+            <div v-for="variable in customVariables" :key="variable.id" class="variable-item">
+              <div class="variable-info">
+                <div class="variable-name">{{ variable.name }}</div>
+                <div class="variable-label">{{ variable.label }}</div>
+                <div class="variable-description">{{ variable.description }}</div>
+              </div>
+              <div class="variable-actions">
+                <n-button size="tiny" @click="insertVariable(variable.name)">插入</n-button>
+                <n-button size="tiny" @click="editVariable(variable)">编辑</n-button>
+                <n-button size="tiny" type="error" @click="deleteVariable(variable.id)">删除</n-button>
+              </div>
+            </div>
+          </div>
+        </n-tab-pane>
+
+        <n-tab-pane name="testdata" tab="测试数据">
+          <div class="test-data-header">
+            <n-button size="small" @click="insertAllVariables">一键插入所有变量</n-button>
+            <n-button size="small" @click="loadTestData">加载测试数据</n-button>
+            <n-button size="small" @click="saveTestData">保存测试数据</n-button>
+          </div>
+          <div class="test-data-form">
+            <n-form :model="testData" label-placement="left" label-width="120">
+              <n-form-item v-for="variable in allVariables" :key="variable.name" :label="variable.label">
+                <n-input v-model:value="testData[variable.name]" :placeholder="`输入${variable.label}的测试值`" />
+              </n-form-item>
+            </n-form>
           </div>
         </n-tab-pane>
       </n-tabs>
@@ -258,18 +204,27 @@ const rules = {
 // 测试数据相关
 const testData = ref({})
 
-// 内置变量定义
-const builtinVariables = [
-  { name: 'project_name', label: '项目名', description: '项目名称' },
-  { name: 'project_description', label: '项目描述', description: '项目的详细描述信息' },
-  { name: 'author', label: '作者', description: '项目作者姓名' },
-  { name: 'author_email', label: '作者邮箱', description: '作者联系邮箱' },
-  { name: 'author_github', label: '作者GitHub', description: '作者GitHub用户名' },
-  { name: 'current_time', label: '当前时间', description: '当前时间戳' },
-  { name: 'package_name', label: '包名', description: '项目包名' },
-  { name: 'module_name', label: '模块名', description: '模块名称' },
-  { name: 'namespace', label: '命名空间', description: '代码命名空间' },
-  { name: 'port', label: '端口号', description: '服务端口号' }
+// 内置变量列表
+const builtInVariables = [
+  { name: 'ProjectName', label: '项目名称', description: '项目名称', category: 'project' },
+  { name: 'Author', label: '作者', description: '作者姓名', category: 'project' },
+  { name: 'CurrentTime', label: '当前时间', description: '当前时间戳', category: 'time' },
+  { name: 'CurrentDate', label: '当前日期', description: '当前日期', category: 'time' },
+  { name: 'FileName', label: '文件名', description: '当前文件名（不含扩展名）', category: 'file' },
+  { name: 'PackageName', label: '包名', description: 'Go包名', category: 'package' },
+  { name: 'ClassName', label: '类名', description: 'Java类名', category: 'class' },
+  { name: 'TableName', label: '表名', description: '数据库表名', category: 'database' },
+  { name: 'ApiPath', label: 'API路径', description: 'API接口路径', category: 'api' },
+  { name: 'ConfigPrefix', label: '配置前缀', description: '配置文件前缀', category: 'config' }
+]
+
+// 条件变量列表
+const conditionVariables = [
+  { name: 'IsProduction', label: '生产环境', description: '是否为生产环境', category: 'condition' },
+  { name: 'IsDevelopment', label: '开发环境', description: '是否为开发环境', category: 'condition' },
+  { name: 'HasDatabase', label: '有数据库', description: '是否使用数据库', category: 'condition' },
+  { name: 'HasApi', label: '有API', description: '是否有API接口', category: 'condition' },
+  { name: 'HasWeb', label: '有前端', description: '是否有前端界面', category: 'condition' }
 ]
 
 // 获取测试数据存储键名
@@ -309,7 +264,7 @@ const initTestData = () => {
     const data = { ...savedData }
     
     // 补充内置变量（如果保存的数据中没有）
-    builtinVariables.forEach(variable => {
+    builtInVariables.forEach(variable => {
       if (!(variable.name in data)) {
         data[variable.name] = getDefaultValue(variable.name)
       }
@@ -328,7 +283,7 @@ const initTestData = () => {
     const data = {}
     
     // 初始化内置变量
-    builtinVariables.forEach(variable => {
+    builtInVariables.forEach(variable => {
       data[variable.name] = getDefaultValue(variable.name)
     })
     
@@ -477,10 +432,35 @@ async function saveVariable() {
   }
 }
 
-// 插入变量
-function insertVariable(variable) {
-  const template = `{{${variable.name}}}`
-  emit('insert', template)
+// 插入变量到编辑器
+const insertVariable = (variableName) => {
+  const goTemplateVar = `.${variableName}`
+  emit('insert-variable', goTemplateVar)
+}
+
+// 一键插入所有变量
+const insertAllVariables = () => {
+  const allVariables = [...builtInVariables, ...textVariables.value, ...conditionalVariables.value]
+  const variableTexts = allVariables.map(v => `.${v.name}`).join('\n')
+  emit('insert-variable', variableTexts)
+}
+
+// 一键插入内置变量
+const insertBuiltInVariables = () => {
+  const variableTexts = builtInVariables.map(v => `.${v.name}`).join('\n')
+  emit('insert-variable', variableTexts)
+}
+
+// 一键插入文本变量
+const insertTextVariables = () => {
+  const variableTexts = textVariables.value.map(v => `.${v.name}`).join('\n')
+  emit('insert-variable', variableTexts)
+}
+
+// 一键插入条件变量
+const insertConditionVariables = () => {
+  const variableTexts = conditionalVariables.value.map(v => `.${v.name}`).join('\n')
+  emit('insert-variable', variableTexts)
 }
 
 // 暴露方法给父组件
@@ -790,5 +770,84 @@ function cancelEdit() {
 
 .test-data-item .n-input {
   width: 100%;
+}
+
+.quick-insert-buttons {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.variable-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.variable-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  margin-bottom: 8px;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  background: #fff;
+  transition: all 0.2s;
+}
+
+.variable-item:hover {
+  border-color: #007bff;
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.1);
+}
+
+.variable-info {
+  flex: 1;
+}
+
+.variable-name {
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 4px;
+}
+
+.variable-label {
+  font-size: 14px;
+  color: #6c757d;
+  margin-bottom: 2px;
+}
+
+.variable-description {
+  font-size: 12px;
+  color: #adb5bd;
+}
+
+.variable-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.custom-variable-header {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.test-data-header {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+  display: flex;
+  gap: 8px;
+}
+
+.test-data-form {
+  max-height: 400px;
+  overflow-y: auto;
 }
 </style> 
