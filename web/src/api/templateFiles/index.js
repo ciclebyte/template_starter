@@ -18,6 +18,15 @@ export function editTemplateFile(data) {
   })
 }
 
+// 重命名模板文件
+export function renameTemplateFile(data) {
+  return request({
+    url: '/api/v1/templateFiles/rename',
+    method: 'put',
+    data
+  })
+}
+
 // 删除模板文件
 export function delTemplateFile(id) {
   return request({

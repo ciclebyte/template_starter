@@ -47,6 +47,11 @@ func (c *templateFilesController) Edit(ctx context.Context, req *api.TemplateFil
 	return
 }
 
+func (c *templateFilesController) Rename(ctx context.Context, req *api.TemplateFilesRenameReq) (res *api.TemplateFilesRenameRes, err error) {
+	err = service.TemplateFiles().Rename(ctx, req)
+	return
+}
+
 func (c *templateFilesController) Delete(ctx context.Context, req *api.TemplateFilesDelReq) (res *api.TemplateFilesDelRes, err error) {
 	err = service.TemplateFiles().Delete(ctx, gconv.Int64(req.Id))
 	return

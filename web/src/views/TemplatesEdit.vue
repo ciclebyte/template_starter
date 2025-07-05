@@ -29,6 +29,7 @@
         :currentFile="currentFile"
         @select="onSelectFile"
         @reload="onTreeReload"
+        @rename="onRenameFile"
       />
       <TemplateEditor
         :filePath="currentFilePath"
@@ -47,7 +48,7 @@
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
 import { ref, onMounted, watch } from 'vue'
-import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileDetail, getTemplateFileContent, uploadZipFile } from '@/api/templateFiles'
+import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileDetail, getTemplateFileContent, uploadZipFile, renameTemplateFile } from '@/api/templateFiles'
 import TemplateFileTree from '@/components/TemplateFileTree.vue'
 import TemplateEditor from '@/components/TemplateEditor.vue'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
@@ -215,6 +216,37 @@ function onTreeReload(payload) {
   }).then(() => {
     loadTree()
   })
+}
+
+async function onRenameFile(payload) {
+  const { id, oldName, node } = payload
+  
+  // 弹出输入框让用户输入新名称
+  const newName = prompt(`请输入新的名称 (当前: ${oldName}):`, oldName)
+  if (!newName || newName.trim() === '' || newName === oldName) {
+    return
+  }
+  
+  try {
+    await renameTemplateFile({
+      id: parseInt(id),
+      fileName: newName.trim()
+    })
+    
+    message.success('重命名成功')
+    
+    // 重新加载文件树
+    await loadTree()
+    
+    // 如果重命名的文件在打开的标签页中，更新标签页名称
+    const tabIndex = openedTabs.value.findIndex(tab => tab.key === String(id))
+    if (tabIndex !== -1) {
+      openedTabs.value[tabIndex].name = newName.trim()
+    }
+  } catch (error) {
+    console.error('重命名失败:', error)
+    message.error('重命名失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+  }
 }
 
 // ZIP 上传处理

@@ -104,6 +104,51 @@ func (s sTemplateFiles) Edit(ctx context.Context, req *api.TemplateFilesEditReq)
 	return
 }
 
+func (s sTemplateFiles) Rename(ctx context.Context, req *api.TemplateFilesRenameReq) (err error) {
+	err = g.Try(ctx, func(ctx context.Context) {
+		// 获取当前文件信息
+		fileInfo, err := s.GetById(ctx, gconv.Int64(req.Id))
+		liberr.ErrIsNil(ctx, err, "获取模板文件失败")
+
+		// 检查新文件名是否为空
+		if req.FileName == "" {
+			liberr.ErrIsNil(ctx, fmt.Errorf("新文件名不能为空"), "新文件名不能为空")
+		}
+
+		// 检查新文件名是否与当前文件名相同
+		if fileInfo.FileName == req.FileName {
+			liberr.ErrIsNil(ctx, fmt.Errorf("新文件名与当前文件名相同"), "新文件名与当前文件名相同")
+		}
+
+		// 检查同级目录下是否存在同名文件
+		count, err := dao.TemplateFiles.Ctx(ctx).Where(
+			"template_id = ? AND parent_id = ? AND file_name = ? AND id != ?",
+			fileInfo.TemplateId, fileInfo.ParentId, req.FileName, req.Id,
+		).Count()
+		liberr.ErrIsNil(ctx, err, "检查文件名冲突失败")
+		if count > 0 {
+			liberr.ErrIsNil(ctx, fmt.Errorf("同级目录下已存在同名文件"), "同级目录下已存在同名文件")
+		}
+
+		// 生成新的文件路径
+		newFilePath := s.generateFilePath(ctx, fileInfo.TemplateId, fileInfo.ParentId, req.FileName)
+
+		// 如果是目录，需要更新所有子文件的路径
+		if fileInfo.IsDirectory == 1 {
+			err = s.updateChildrenPaths(ctx, fileInfo.Id, fileInfo.FilePath, newFilePath)
+			liberr.ErrIsNil(ctx, err, "更新子文件路径失败")
+		}
+
+		// 更新文件名和路径
+		_, err = dao.TemplateFiles.Ctx(ctx).WherePri(req.Id).Update(do.TemplateFiles{
+			FileName: req.FileName,
+			FilePath: newFilePath,
+		})
+		liberr.ErrIsNil(ctx, err, "重命名文件失败")
+	})
+	return
+}
+
 func (s sTemplateFiles) Delete(ctx context.Context, id int64) (err error) {
 	err = g.Try(ctx, func(ctx context.Context) {
 		_, err = dao.TemplateFiles.Ctx(ctx).WherePri(id).Delete()
@@ -531,4 +576,42 @@ func (s *sTemplateFiles) generateFilePath(ctx context.Context, templateId interf
 		return fileName
 	}
 	return filepath.Join(parent.FilePath, fileName)
+}
+
+// updateChildrenPaths 更新目录下所有子文件的路径
+func (s *sTemplateFiles) updateChildrenPaths(ctx context.Context, parentId int64, oldParentPath, newParentPath string) error {
+	// 获取所有子文件
+	var children []*entity.TemplateFiles
+	err := dao.TemplateFiles.Ctx(ctx).Where("parent_id = ?", parentId).Scan(&children)
+	if err != nil {
+		return err
+	}
+
+	for _, child := range children {
+		// 计算新的文件路径
+		var newChildPath string
+		if newParentPath == "" {
+			newChildPath = child.FileName
+		} else {
+			newChildPath = filepath.Join(newParentPath, child.FileName)
+		}
+
+		// 更新子文件的路径
+		_, err = dao.TemplateFiles.Ctx(ctx).WherePri(child.Id).Update(do.TemplateFiles{
+			FilePath: newChildPath,
+		})
+		if err != nil {
+			return err
+		}
+
+		// 如果子文件也是目录，递归更新其子文件
+		if child.IsDirectory == 1 {
+			err = s.updateChildrenPaths(ctx, child.Id, child.FilePath, newChildPath)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

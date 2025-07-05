@@ -133,3 +133,14 @@ type TemplateFilesUploadZipRes struct {
 	FailedFiles  []string `json:"failedFiles"`  // 解压失败的文件列表
 	Message      string   `json:"message"`      // 处理结果消息
 }
+
+// 重命名接口
+type TemplateFilesRenameReq struct {
+	g.Meta   `path:"/templateFiles/rename" method:"put" tags:"模板文件" summary:"模板文件-重命名"`
+	Id       interface{} `json:"id" v:"required#文件ID不能为空"`
+	FileName string      `json:"fileName" v:"required#新文件名不能为空"`
+}
+
+type TemplateFilesRenameRes struct {
+	g.Meta `mime:"application/json" example:"string"`
+}

@@ -30,7 +30,7 @@
 <script setup>
 import { ref, watch, h, computed } from 'vue'
 import { NTree, useMessage, NIcon } from 'naive-ui'
-import { ChevronForward, FileTrayFullOutline, Folder, FolderOpenOutline, Trash } from '@vicons/ionicons5'
+import { ChevronForward, FileTrayFullOutline, Folder, FolderOpenOutline, Trash, CreateOutline as Edit } from '@vicons/ionicons5'
 
 const props = defineProps({
   treeData: {
@@ -42,7 +42,7 @@ const props = defineProps({
     default: ''
   }
 })
-const emit = defineEmits(['select', 'reload', 'update:treeData'])
+const emit = defineEmits(['select', 'reload', 'update:treeData', 'rename'])
 
 const showDropdown = ref(false)
 const dropdownOptions = ref([
@@ -142,6 +142,8 @@ function nodeProps({ option }) {
       dropdownNode.value = option
       if (option.isLeaf) {
         dropdownOptions.value = [
+          { label: '重命名', key: 'renameNode', icon: () => h(NIcon, null, { default: () => h(Edit) }) },
+          { type: 'divider', key: 'divider1' },
           { label: '删除节点', key: 'deleteNode', icon: () => h(NIcon, null, { default: () => h(Trash) }) }
         ]
       } else {
@@ -149,8 +151,10 @@ function nodeProps({ option }) {
           { label: '新增文件', key: 'addFile', icon: () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }) },
           { label: '新增文件夹', key: 'addFolder', icon: () => h(NIcon, null, { default: () => h(Folder) }) },
           { type: 'divider', key: 'divider1' },
-          { label: '删除节点', key: 'deleteNode', icon: () => h(NIcon, null, { default: () => h(Trash) }) },
+          { label: '重命名', key: 'renameNode', icon: () => h(NIcon, null, { default: () => h(Edit) }) },
           { type: 'divider', key: 'divider2' },
+          { label: '删除节点', key: 'deleteNode', icon: () => h(NIcon, null, { default: () => h(Trash) }) },
+          { type: 'divider', key: 'divider3' },
           { label: '上传代码文件', key: 'uploadFile', icon: () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }) }
         ]
       }
@@ -272,6 +276,7 @@ function handleDropdownSelect(key) {
   if (key === 'addFile') addFile()
   else if (key === 'addFolder') addFolder()
   else if (key === 'deleteNode') deleteNode()
+  else if (key === 'renameNode') renameNode()
 }
 function handleDropdownClickoutside() {
   showDropdown.value = false
@@ -292,6 +297,13 @@ function deleteNode() {
   recursiveDelete(newTree)
   localTreeData.value = newTree
   emit('reload', { type: 'delete', id })
+}
+
+function renameNode() {
+  if (!dropdownNode.value) return
+  const node = dropdownNode.value
+  const oldName = node.fileName || node.label
+  emit('rename', { id: node.id || node.key, oldName, node })
 }
 function renderLabel({ option }) {
   if (option.isEditing === true) {

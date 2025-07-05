@@ -11,6 +11,7 @@ type ITemplateFiles interface {
 	List(ctx context.Context, req *api.TemplateFilesListReq) (total interface{}, res []*model.TemplateFilesInfo, err error)
 	Add(ctx context.Context, req *api.TemplateFilesAddReq) (err error)
 	Edit(ctx context.Context, req *api.TemplateFilesEditReq) (err error)
+	Rename(ctx context.Context, req *api.TemplateFilesRenameReq) (err error)
 	Delete(ctx context.Context, id int64) (err error)
 	BatchDelete(ctx context.Context, ids []int64) (err error)
 	GetById(ctx context.Context, id int64) (res *model.TemplateFilesInfo, err error)
