@@ -30,6 +30,9 @@ import { defaultHighlightStyle, syntaxHighlighting, indentOnInput,
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 
+// Dracula 主题
+import { dracula } from '@uiw/codemirror-theme-dracula'
+
 // 语言支持
 import { javascript } from '@codemirror/lang-javascript'
 import { html } from '@codemirror/lang-html'
@@ -45,6 +48,7 @@ import { php } from '@codemirror/lang-php'
 import { sql } from '@codemirror/lang-sql'
 import { xml } from '@codemirror/lang-xml'
 import { yaml } from '@codemirror/lang-yaml'
+import { vue } from '@codemirror/lang-vue'
 
 const props = defineProps({
   openedTabs: {
@@ -79,6 +83,7 @@ const languageMap = {
   'typescript': javascript({typescript: true}),
   'jsx': javascript({jsx: true}),
   'tsx': javascript({typescript: true, jsx: true}),
+  'vue': vue(),
   'html': html(),
   'htm': html(),
   'css': css(),
@@ -166,6 +171,8 @@ function updateEditorContent(content, filename = '') {
 
 function createEditorExtensions(languageExtension = null) {
   const extensions = [
+    // Dracula 主题
+    dracula,
     // 启用编辑和选择功能
     EditorView.editable.of(true),
     // 行号
@@ -180,8 +187,6 @@ function createEditorExtensions(languageExtension = null) {
     dropCursor(),
     // 输入时自动缩进
     indentOnInput(),
-    // 语法高亮
-    syntaxHighlighting(defaultHighlightStyle),
     // 括号匹配高亮
     bracketMatching(),
     // 自动关闭括号
@@ -431,11 +436,10 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
-/* CodeMirror 基础样式 */
+/* CodeMirror 基础样式 - 适配 Dracula 主题 */
 :deep(.cm-editor) {
   height: 100% !important;
   font-size: 15px;
-  color: #cccccc;
   outline: none !important;
 }
 
@@ -445,28 +449,26 @@ onBeforeUnmount(() => {
 
 :deep(.cm-editor .cm-content) {
   padding: 16px;
-  background: #1e1e1e;
-  caret-color: #007acc !important;
 }
 
 :deep(.cm-editor .cm-line) {
   padding: 0;
 }
 
-/* 选中样式 - 主要选择区域 */
+/* 选中样式 - 适配 Dracula 主题 */
 :deep(.cm-selectionBackground) {
-  background: rgba(0, 122, 204, 0.5) !important;
+  background: rgba(68, 71, 90, 0.6) !important;
 }
 
 /* 匹配文本高亮 - 与选中文本匹配的其他位置 */
 :deep(.cm-selectionMatch) {
-  background: rgba(255, 193, 7, 0.3) !important;
+  background: rgba(255, 184, 108, 0.3) !important;
   border-radius: 2px;
 }
 
 /* 确保匹配高亮不会覆盖主要选择 */
 :deep(.cm-selectionBackground .cm-selectionMatch) {
-  background: rgba(0, 122, 204, 0.5) !important;
+  background: rgba(68, 71, 90, 0.6) !important;
 }
 
 :deep(.cm-editor .cm-activeLine) {
