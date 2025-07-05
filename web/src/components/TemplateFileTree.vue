@@ -24,6 +24,20 @@
       @clickoutside="handleDropdownClickoutside"
       class="tree-dropdown-menu"
     />
+    <input
+      type="file"
+      ref="fileInput"
+      accept=".zip"
+      style="display: none"
+      @change="handleFileSelect"
+    />
+    <input
+      type="file"
+      ref="codeFileInput"
+      accept=".js,.ts,.py,.go,.java,.c,.cpp,.json,.md,.txt,.html,.css,.sh,.php,.rb,.rs,.cs,.xml,.yml,.yaml,.ini,.cfg,.conf,.log,.vue,.jsx,.tsx,.less,.scss,.sass,.bat,.ps1,.swift,.dart,.r,.m,.mm,.pl,.lua,.groovy,.gradle,.pom,.lock,.toml,.env,.gitignore,.dockerfile,.makefile,.cmake,.rst,.tex,.bib,.wiki,.adoc,.asciidoc"
+      style="display: none"
+      @change="handleCodeFileSelect"
+    />
   </div>
 </template>
 
@@ -42,7 +56,7 @@ const props = defineProps({
     default: ''
   }
 })
-const emit = defineEmits(['select', 'reload', 'update:treeData', 'rename'])
+const emit = defineEmits(['select', 'reload', 'update:treeData', 'rename', 'uploadZip', 'uploadCodeFile'])
 
 const showDropdown = ref(false)
 const dropdownOptions = ref([
@@ -59,6 +73,8 @@ const editingNode = ref(null)
 const newName = ref('')
 const renamingNode = ref(null)
 const message = useMessage()
+const fileInput = ref(null)
+const codeFileInput = ref(null)
 const localTreeData = ref(JSON.parse(JSON.stringify(props.treeData)))
 // 维护展开状态的映射
 const expandedKeys = ref(new Set())
@@ -152,11 +168,10 @@ function nodeProps({ option }) {
           { label: '新增文件', key: 'addFile', icon: () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }) },
           { label: '新增文件夹', key: 'addFolder', icon: () => h(NIcon, null, { default: () => h(Folder) }) },
           { type: 'divider', key: 'divider1' },
+          { label: '上传代码文件', key: 'uploadCodeFile', icon: () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }) },
           { label: '重命名', key: 'renameNode', icon: () => h(NIcon, null, { default: () => h(Edit) }) },
           { type: 'divider', key: 'divider2' },
-          { label: '删除节点', key: 'deleteNode', icon: () => h(NIcon, null, { default: () => h(Trash) }) },
-          { type: 'divider', key: 'divider3' },
-          { label: '上传代码文件', key: 'uploadFile', icon: () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }) }
+          { label: '删除节点', key: 'deleteNode', icon: () => h(NIcon, null, { default: () => h(Trash) }) }
         ]
       }
       showDropdown.value = true
@@ -174,8 +189,8 @@ function onTreeAreaContextMenu(event) {
     { label: '新增文件', key: 'addFile', icon: () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }) },
     { label: '新增文件夹', key: 'addFolder', icon: () => h(NIcon, null, { default: () => h(Folder) }) },
     { type: 'divider', key: 'divider1' },
-    { label: '上传代码文件', key: 'uploadFile', icon: () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }) },
-    { label: '上传zip包', key: 'uploadZip', icon: () => h(NIcon, null, { default: () => h(Folder) }) }
+    { label: '上传ZIP包', key: 'uploadZip', icon: () => h(NIcon, null, { default: () => h(Folder) }) },
+    { label: '上传代码文件', key: 'uploadCodeFile', icon: () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }) }
   ]
   showDropdown.value = true
   dropdownX.value = event.clientX
@@ -330,6 +345,8 @@ function handleDropdownSelect(key) {
   else if (key === 'addFolder') addFolder()
   else if (key === 'deleteNode') deleteNode()
   else if (key === 'renameNode') renameNode()
+  else if (key === 'uploadZip') uploadZip()
+  else if (key === 'uploadCodeFile') uploadCodeFile()
 }
 function handleDropdownClickoutside() {
   showDropdown.value = false
@@ -376,6 +393,48 @@ function renameNode() {
   setEditingState(newTreeData)
   localTreeData.value = newTreeData
 }
+
+function uploadZip() {
+  fileInput.value.click()
+}
+
+function handleFileSelect({ target }) {
+  const file = target.files[0]
+  if (!file) return
+  
+  // 文件验证
+  if (!file.name.endsWith('.zip')) {
+    message.error('请选择ZIP格式的文件')
+    target.value = ''
+    return
+  }
+  
+  if (file.size > 1024 * 1024) {
+    message.error('文件大小不能超过1MB')
+    target.value = ''
+    return
+  }
+  
+  // 发送上传事件给父组件
+  emit('uploadZip', { file, parentId: dropdownNode.value ? String(dropdownNode.value.id || dropdownNode.value.key) : '0' })
+  
+  // 清空文件输入
+  target.value = ''
+}
+
+function uploadCodeFile() {
+  codeFileInput.value.value = '' // reset
+  codeFileInput.value.click()
+}
+
+function handleCodeFileSelect({ target }) {
+  const file = target.files[0]
+  if (!file) return
+  const parentId = dropdownNode.value ? String(dropdownNode.value.id || dropdownNode.value.key) : undefined
+  emit('uploadCodeFile', { file, parentId })
+  target.value = ''
+}
+
 function renderLabel({ option }) {
   if (option.isEditing === true) {
     const isRenaming = renamingNode.value && String(option.id || option.key) === String(renamingNode.value.id || renamingNode.value.key)

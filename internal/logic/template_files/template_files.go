@@ -615,3 +615,114 @@ func (s *sTemplateFiles) updateChildrenPaths(ctx context.Context, parentId int64
 
 	return nil
 }
+
+// UploadCode 上传代码文件
+func (s *sTemplateFiles) UploadCode(ctx context.Context, req *api.TemplateFilesUploadCodeReq) (res *api.TemplateFilesUploadCodeRes, err error) {
+	res = &api.TemplateFilesUploadCodeRes{}
+
+	err = g.Try(ctx, func(ctx context.Context) {
+		// 获取上传的文件
+		file := g.RequestFromCtx(ctx).GetUploadFile("codeFile")
+		if file == nil {
+			liberr.ErrIsNil(ctx, fmt.Errorf("未找到上传的代码文件"), "请选择代码文件")
+		}
+
+		// 检查文件大小（1MB = 1024 * 1024 字节）
+		if file.Size > 1024*1024 {
+			liberr.ErrIsNil(ctx, fmt.Errorf("文件大小超过1MB限制"), "代码文件大小不能超过1MB")
+		}
+
+		// 获取文件名
+		fileName := file.Filename
+		if fileName == "" {
+			liberr.ErrIsNil(ctx, fmt.Errorf("文件名不能为空"), "文件名不能为空")
+		}
+
+		// 读取文件内容
+		src, err := file.Open()
+		liberr.ErrIsNil(ctx, err, "打开上传文件失败")
+		defer src.Close()
+		fileContent, err := io.ReadAll(src)
+		liberr.ErrIsNil(ctx, err, "读取文件内容失败")
+
+		// 判断是否为文本文件
+		isTextFile := s.isTextFile(fileName, fileContent)
+
+		// 如果是文本文件，尝试解码为UTF-8字符串
+		var content string
+		if isTextFile {
+			content = string(fileContent)
+		}
+
+		// 获取父目录ID
+		parentId := int64(0)
+		if req.ParentId != nil {
+			parentId = gconv.Int64(req.ParentId)
+		}
+
+		// 生成文件路径
+		filePath := s.generateFilePath(ctx, req.TemplateId, int(parentId), fileName)
+
+		// 检查同级目录下是否存在同名文件
+		count, err := dao.TemplateFiles.Ctx(ctx).Where(
+			"template_id = ? AND parent_id = ? AND file_name = ?",
+			req.TemplateId, parentId, fileName,
+		).Count()
+		liberr.ErrIsNil(ctx, err, "检查文件名冲突失败")
+		if count > 0 {
+			liberr.ErrIsNil(ctx, fmt.Errorf("同级目录下已存在同名文件"), "同级目录下已存在同名文件")
+		}
+
+		// 计算MD5
+		md5 := gmd5.MustEncrypt(fileContent)
+
+		// 创建文件记录
+		_, err = dao.TemplateFiles.Ctx(ctx).Insert(do.TemplateFiles{
+			TemplateId:  req.TemplateId,
+			FilePath:    filePath,
+			FileName:    fileName,
+			FileContent: content,
+			FileSize:    len(fileContent),
+			IsDirectory: 0,
+			Md5:         md5,
+			Sort:        0,
+			ParentId:    parentId,
+		})
+		liberr.ErrIsNil(ctx, err, "保存文件记录失败")
+
+		// 设置返回结果
+		res.FileName = fileName
+		res.FileSize = len(fileContent)
+		res.IsTextFile = isTextFile
+		res.FileContent = content
+		res.Message = "代码文件上传成功"
+	})
+
+	return
+}
+
+// isTextFile 判断文件是否为文本文件（仅检查前4KB内容，不再根据扩展名判断）
+func (s *sTemplateFiles) isTextFile(_ string, content []byte) bool {
+	const checkLen = 4096
+	n := len(content)
+	if n > checkLen {
+		n = checkLen
+	}
+	sample := content[:n]
+
+	// 检查null字节
+	for _, b := range sample {
+		if b == 0 {
+			return false
+		}
+	}
+
+	// 可打印字符比例
+	printableCount := 0
+	for _, b := range sample {
+		if (b >= 32 && b <= 126) || b == 9 || b == 10 || b == 13 {
+			printableCount++
+		}
+	}
+	return float64(printableCount)/float64(n) > 0.9
+}

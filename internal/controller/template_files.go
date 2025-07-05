@@ -94,3 +94,7 @@ func (c *templateFilesController) UploadZip(ctx context.Context, req *api.Templa
 	}
 	return
 }
+
+func (c *templateFilesController) UploadCode(ctx context.Context, req *api.TemplateFilesUploadCodeReq) (res *api.TemplateFilesUploadCodeRes, err error) {
+	return service.TemplateFiles().UploadCode(ctx, req)
+}

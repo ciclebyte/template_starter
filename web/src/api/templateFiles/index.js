@@ -96,3 +96,19 @@ export function uploadZipFile(templateId, file) {
     }
   })
 }
+
+// 上传代码文件
+export function uploadCodeFile(templateId, file, parentId) {
+  const formData = new FormData()
+  formData.append('codeFile', file)
+  formData.append('templateId', templateId)
+  if (parentId) formData.append('parentId', parentId)
+  return request({
+    url: '/api/v1/templateFiles/uploadCode',
+    method: 'post',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+}

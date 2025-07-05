@@ -144,3 +144,19 @@ type TemplateFilesRenameReq struct {
 type TemplateFilesRenameRes struct {
 	g.Meta `mime:"application/json" example:"string"`
 }
+
+// 上传代码文件接口
+type TemplateFilesUploadCodeReq struct {
+	g.Meta     `path:"/templateFiles/uploadCode" method:"post" tags:"模板文件" summary:"模板文件-上传代码文件"`
+	TemplateId interface{} `json:"templateId" v:"required#所属模板ID不能为空"`
+	ParentId   interface{} `json:"parentId"` // 可选的父目录ID
+}
+
+type TemplateFilesUploadCodeRes struct {
+	g.Meta      `mime:"application/json" example:"string"`
+	FileName    string `json:"fileName"`    // 上传的文件名
+	FileSize    int    `json:"fileSize"`    // 文件大小
+	IsTextFile  bool   `json:"isTextFile"`  // 是否为文本文件
+	FileContent string `json:"fileContent"` // 文件内容（如果是文本文件）
+	Message     string `json:"message"`     // 处理结果消息
+}
