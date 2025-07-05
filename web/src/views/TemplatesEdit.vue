@@ -44,12 +44,16 @@
           @tabClose="onTabClose"
           @contentChange="onEditorContentChange"
           @insertVariable="onInsertVariable"
+          @preview="onPreview"
         />
       </div>
       
       <!-- 右侧：预览面板 -->
       <TemplatePreview
+        ref="templatePreviewRef"
         :current-file="currentFileNode"
+        :file-id="previewFileId"
+        :test-variables="variableValues"
       />
     </div>
 
@@ -196,6 +200,8 @@ const showVariableManager = ref(false)
 const isVariablePanelExpanded = ref(false)
 const variableValues = ref({})
 const currentFileNode = ref(null)
+const templatePreviewRef = ref(null)
+const previewFileId = ref(null)
 
 // 内置变量列表
 const quickVariables = [
@@ -574,6 +580,38 @@ function onInsertVariable(template) {
   if (templateEditorRef.value) {
     templateEditorRef.value.insertVariable(template)
   }
+}
+
+// 预览事件处理
+function onPreview({ fileId, fileName }) {
+  console.log('预览事件触发:', { fileId, fileName })
+  
+  // 设置预览文件ID
+  previewFileId.value = fileId
+  
+  // 获取当前文件的测试变量值
+  const templateId = route.params.id
+  const testDataKey = `template_${templateId}_test_data`
+  const savedTestData = localStorage.getItem(testDataKey)
+  if (savedTestData) {
+    try {
+      variableValues.value = JSON.parse(savedTestData)
+      console.log('加载测试数据:', variableValues.value)
+    } catch (e) {
+      console.error('解析测试数据失败:', e)
+      variableValues.value = {}
+    }
+  } else {
+    console.log('未找到测试数据，使用空对象')
+    variableValues.value = {}
+  }
+  
+  // 触发预览面板展开
+  if (templatePreviewRef.value) {
+    templatePreviewRef.value.toggleCollapse()
+  }
+  
+  message.success(`正在预览: ${fileName}`)
 }
 
 // 快速插入变量

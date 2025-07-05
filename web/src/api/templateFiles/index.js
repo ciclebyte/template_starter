@@ -125,7 +125,7 @@ export function uploadCode(data) {
 // 渲染模板文件
 export function renderTemplate(data) {
   return request({
-    url: '/templateFiles/render',
+    url: '/api/v1/templateFiles/render',
     method: 'post',
     data
   })

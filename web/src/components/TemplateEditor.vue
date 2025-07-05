@@ -91,7 +91,7 @@ const props = defineProps({
     default: () => ({})
   }
 })
-const emit = defineEmits(['tabChange', 'tabClose', 'contentChange', 'insertVariable'])
+const emit = defineEmits(['tabChange', 'tabClose', 'contentChange', 'insertVariable', 'preview'])
 
 const editorContainer = ref(null)
 const htmlPreviewFrame = ref(null)
@@ -220,6 +220,14 @@ function insertVariable(template) {
   }
 }
 
+// 触发预览
+function triggerPreview() {
+  const tab = props.openedTabs.find(t => t.key === props.activeTab)
+  if (tab) {
+    emit('preview', { fileId: tab.key, fileName: tab.name })
+  }
+}
+
 // 暴露方法给父组件
 defineExpose({
   insertVariable
@@ -312,16 +320,10 @@ function handleKeydown(e) {
     saveCurrentFile()
   }
   
-  // HTML 文件运行快捷键
+  // 预览快捷键
   if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
     e.preventDefault()
-    const tab = props.openedTabs.find(t => t.key === props.activeTab)
-    if (tab) {
-      const fileExt = tab.name.split('.').pop()?.toLowerCase()
-      if (fileExt === 'html' || fileExt === 'htm') {
-        runHtmlFile()
-      }
-    }
+    triggerPreview()
   }
 }
 
@@ -482,13 +484,11 @@ function showContextMenu(event, view) {
     { label: '全选 (Ctrl+A)', action: () => view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } }) }
   ]
   
-  // 如果是 HTML 文件，添加运行选项
-  if (fileExt === 'html' || fileExt === 'htm') {
-    menuItems.push(
-      { type: 'separator' },
-      { label: '运行 HTML (Ctrl+R)', action: () => runHtmlFile() }
-    )
-  }
+  // 添加预览选项
+  menuItems.push(
+    { type: 'separator' },
+    { label: '预览 (Ctrl+R)', action: () => triggerPreview() }
+  )
   
   menuItems.forEach(item => {
     if (item.type === 'separator') {

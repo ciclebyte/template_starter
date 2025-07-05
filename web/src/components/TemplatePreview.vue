@@ -75,6 +75,11 @@ const message = useMessage()
 const previewEditorRef = ref(null)
 let previewEditor = null
 
+// 渲染相关状态
+const loading = ref(false)
+const renderedContent = ref('')
+const fileName = ref('')
+
 // 折叠状态
 const isCollapsed = ref(true)
 
@@ -102,14 +107,32 @@ const savePanelWidth = (width) => {
 
 // 计算文件路径
 const currentFilePath = computed(() => {
+  if (fileName.value) {
+    return `预览: ${fileName.value}`
+  }
   return props.currentFile?.filePath || props.currentFile?.fileName || '未选择文件'
 })
 
 // 更新预览内容
 function updatePreviewContent() {
-  if (!previewEditor || !props.currentFile) return
+  if (!previewEditor) {
+    console.log('预览编辑器未初始化')
+    return
+  }
   
-  const content = props.currentFile.fileContent || props.currentFile.content || ''
+  let content = ''
+  
+  // 如果有渲染后的内容，优先显示
+  if (renderedContent.value) {
+    content = renderedContent.value
+    console.log('使用渲染后的内容，长度:', content.length)
+  } else if (props.currentFile) {
+    content = props.currentFile.fileContent || props.currentFile.content || ''
+    console.log('使用原始文件内容，长度:', content.length)
+  }
+  
+  console.log('更新预览内容:', { contentLength: content.length, contentPreview: content.substring(0, 100) })
+  
   const transaction = previewEditor.state.update({
     changes: {
       from: 0,
@@ -118,6 +141,8 @@ function updatePreviewContent() {
     }
   })
   previewEditor.dispatch(transaction)
+  
+  console.log('预览内容更新完成')
 }
 
 // 复制内容
@@ -140,6 +165,11 @@ function toggleCollapse() {
     loadPanelWidth()
   }
 }
+
+// 暴露方法给父组件
+defineExpose({
+  toggleCollapse
+})
 
 // 开始拖动调整
 function startResize(e) {
@@ -187,26 +217,41 @@ function stopResize() {
 
 // 渲染模板
 const renderTemplateContent = async () => {
-  if (!props.fileId || !props.testVariables) {
+  if (!props.fileId) {
+    console.log('缺少文件ID，跳过渲染')
     return
   }
   
+  // 确保有测试变量，如果没有则使用空对象
+  const testVariables = props.testVariables || {}
+  
   try {
     loading.value = true
+    console.log('开始渲染模板:', { fileId: props.fileId, testVariables })
+    
     const response = await renderTemplate({
       fileId: props.fileId,
-      testVariables: props.testVariables
+      testVariables: testVariables
     })
     
-    if (response.code === 0) {
-      renderedContent.value = response.data.fileContent
-      fileName.value = response.data.fileName
+    console.log('渲染响应:', response)
+    
+    if (response.data.code === 0) {
+      renderedContent.value = response.data.data.fileContent
+      fileName.value = response.data.data.fileName
+      console.log('渲染成功:', { fileName: fileName.value, contentLength: renderedContent.value.length })
+      
+      // 立即更新预览内容
+      nextTick(() => {
+        updatePreviewContent()
+      })
     } else {
-      message.error(response.msg || '渲染失败')
+      message.error(response.data.message || response.data.msg || '渲染失败')
+      console.error('渲染失败:', response.data.message || response.data.msg)
     }
   } catch (error) {
     console.error('渲染模板失败:', error)
-    message.error('渲染模板失败')
+    message.error('渲染模板失败: ' + (error.message || '未知错误'))
   } finally {
     loading.value = false
   }
@@ -218,6 +263,16 @@ watch(() => props.currentFile, () => {
     updatePreviewContent()
   })
 })
+
+// 监听文件ID和测试变量变化，自动渲染
+watch([() => props.fileId, () => props.testVariables], async () => {
+  console.log('监听器触发:', { fileId: props.fileId, testVariables: props.testVariables })
+  
+  if (props.fileId) {
+    await renderTemplateContent()
+    // 渲染成功后会自动调用 updatePreviewContent
+  }
+}, { deep: true, immediate: false })
 
 // 初始化预览编辑器
 onMounted(() => {
