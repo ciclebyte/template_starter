@@ -65,6 +65,11 @@
           @insertVariable="onInsertVariable"
         />
       </div>
+      
+      <!-- 右侧：预览面板 -->
+      <TemplatePreview
+        :current-file="currentFileNode"
+      />
     </div>
   </div>
 </template>
@@ -77,6 +82,7 @@ import { listTemplateVariables, addTemplateVariable, editTemplateVariable, delet
 import TemplateExplorer from '@/components/TemplateFileTree.vue'
 import TemplateEditor from '@/components/TemplateEditor.vue'
 import VariableManager from '@/components/VariableManager.vue'
+import TemplatePreview from '@/components/TemplatePreview.vue'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
 import { useMessage, NIcon } from 'naive-ui'
 import { ChevronDown, ChevronForward, Add } from '@vicons/ionicons5'
@@ -103,7 +109,9 @@ const templateFileStore = useTemplateFileStore()
 const templateVariables = ref([])
 const templateEditorRef = ref(null)
 const variableManagerRef = ref(null)
-const isVariablePanelCollapsed = ref(false)
+const isVariablePanelCollapsed = ref(true)
+const variableValues = ref({})
+const currentFileNode = ref(null)
 
 onMounted(async () => {
   await loadTree()
@@ -155,6 +163,7 @@ async function onSelectFile(key) {
   currentFile.value = key
   const node = findNodeByKey(treeData.value, key)
   console.log('找到的 node:', node)
+  currentFileNode.value = node
   if (node && node.isDirectory === 0) {
     try {
       const res = await getTemplateFileContent(key)
