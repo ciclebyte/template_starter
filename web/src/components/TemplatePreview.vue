@@ -49,11 +49,27 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { NButton, NIcon, useMessage } from 'naive-ui'
 import { Copy, ChevronForward, ChevronBack } from '@vicons/ionicons5'
-import { EditorView } from '@codemirror/view'
+import { EditorView, highlightActiveLine, highlightActiveLineGutter, lineNumbers } from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { dracula } from '@uiw/codemirror-theme-dracula'
 import { renderTemplate } from '@/api/templateFiles'
+
+// 语言支持
+import { javascript } from '@codemirror/lang-javascript'
+import { html } from '@codemirror/lang-html'
+import { css } from '@codemirror/lang-css'
+import { json } from '@codemirror/lang-json'
+import { markdown } from '@codemirror/lang-markdown'
+import { python } from '@codemirror/lang-python'
+import { java } from '@codemirror/lang-java'
+import { cpp } from '@codemirror/lang-cpp'
+import { rust } from '@codemirror/lang-rust'
+import { go } from '@codemirror/lang-go'
+import { sql } from '@codemirror/lang-sql'
+import { xml } from '@codemirror/lang-xml'
+import { yaml } from '@codemirror/lang-yaml'
+import { vue } from '@codemirror/lang-vue'
 
 const props = defineProps({
   currentFile: {
@@ -79,6 +95,46 @@ let previewEditor = null
 const loading = ref(false)
 const renderedContent = ref('')
 const fileName = ref('')
+
+// 语言映射
+const languageMap = {
+  'js': javascript(),
+  'javascript': javascript(),
+  'ts': javascript({typescript: true}),
+  'typescript': javascript({typescript: true}),
+  'jsx': javascript({jsx: true}),
+  'tsx': javascript({typescript: true, jsx: true}),
+  'vue': vue(),
+  'html': html(),
+  'htm': html(),
+  'css': css(),
+  'scss': css(),
+  'sass': css(),
+  'less': css(),
+  'json': json(),
+  'md': markdown(),
+  'markdown': markdown(),
+  'py': python(),
+  'python': python(),
+  'java': java(),
+  'cpp': cpp(),
+  'cc': cpp(),
+  'cxx': cpp(),
+  'c': cpp(),
+  'rs': rust(),
+  'rust': rust(),
+  'go': go(),
+  'sql': sql(),
+  'xml': xml(),
+  'yaml': yaml(),
+  'yml': yaml()
+}
+
+// 获取语言扩展
+function getLanguageExtension(filename) {
+  const ext = filename.split('.').pop()?.toLowerCase()
+  return languageMap[ext] || null
+}
 
 // 折叠状态
 const isCollapsed = ref(true)
@@ -121,28 +177,61 @@ function updatePreviewContent() {
   }
   
   let content = ''
+  let currentFileName = ''
   
   // 如果有渲染后的内容，优先显示
   if (renderedContent.value) {
     content = renderedContent.value
+    currentFileName = fileName.value
     console.log('使用渲染后的内容，长度:', content.length)
   } else if (props.currentFile) {
     content = props.currentFile.fileContent || props.currentFile.content || ''
+    currentFileName = props.currentFile.fileName || props.currentFile.name || ''
     console.log('使用原始文件内容，长度:', content.length)
   }
   
-  console.log('更新预览内容:', { contentLength: content.length, contentPreview: content.substring(0, 100) })
-  
-  const transaction = previewEditor.state.update({
-    changes: {
-      from: 0,
-      to: previewEditor.state.doc.length,
-      insert: content
-    }
+  console.log('更新预览内容:', { 
+    fileName: currentFileName,
+    contentLength: content.length, 
+    contentPreview: content.substring(0, 100) 
   })
-  previewEditor.dispatch(transaction)
   
-  console.log('预览内容更新完成')
+  // 获取语言扩展
+  const languageExt = getLanguageExtension(currentFileName)
+  console.log('语言扩展:', languageExt ? '已找到' : '未找到', '文件名:', currentFileName)
+  
+  // 更新编辑器状态，包括语言支持
+  const newState = EditorState.create({
+    doc: content,
+    extensions: [
+      // Dracula 主题（与主编辑器一致）
+      dracula,
+      // 语法高亮
+      syntaxHighlighting(defaultHighlightStyle),
+      // 行号
+      lineNumbers(),
+      // 当前行高亮
+      highlightActiveLine(),
+      // 当前行行号高亮
+      highlightActiveLineGutter(),
+      // 确保滚动正常工作
+      EditorView.scrollMargins.of(() => ({ top: 10, bottom: 10 })),
+      // 强制启用滚动
+      EditorView.theme({
+        "&": { height: "100%" },
+        ".cm-scroller": { 
+          overflow: "auto !important",
+          height: "100% !important"
+        }
+      }),
+      // 添加语言支持
+      ...(languageExt ? [languageExt] : [])
+    ]
+  })
+  
+  previewEditor.setState(newState)
+  
+  console.log('预览内容更新完成，已应用语言高亮')
 }
 
 // 复制内容
@@ -292,13 +381,26 @@ onMounted(() => {
     const state = EditorState.create({
       doc: '',
       extensions: [
-        EditorView.theme({
-          '&': { height: '100%' },
-          '.cm-editor': { height: '100%' },
-          '.cm-scroller': { fontFamily: 'monospace' }
-        }),
+        // Dracula 主题（与主编辑器一致）
+        dracula,
+        // 语法高亮
         syntaxHighlighting(defaultHighlightStyle),
-        dracula
+        // 行号
+        lineNumbers(),
+        // 当前行高亮
+        highlightActiveLine(),
+        // 当前行行号高亮
+        highlightActiveLineGutter(),
+        // 确保滚动正常工作
+        EditorView.scrollMargins.of(() => ({ top: 10, bottom: 10 })),
+        // 强制启用滚动
+        EditorView.theme({
+          "&": { height: "100%" },
+          ".cm-scroller": { 
+            overflow: "auto !important",
+            height: "100% !important"
+          }
+        })
       ]
     })
     
