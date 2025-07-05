@@ -5,7 +5,9 @@
     :style="{ width: panelWidth + 'px' }"
   >
     <div class="preview-header">
-      <div class="preview-title" v-if="!isCollapsed">预览</div>
+      <div class="file-info">
+        <div class="file-path">{{ currentFilePath }}</div>
+      </div>
       <div class="preview-actions">
         <n-button size="small" @click="copyContent" v-if="!isCollapsed">
           <template #icon>
@@ -31,10 +33,6 @@
     </div>
     
     <div v-show="!isCollapsed" class="preview-content">
-      <div class="file-info">
-        <div class="file-path">{{ currentFilePath }}</div>
-      </div>
-      
       <div class="file-content" ref="previewEditorRef"></div>
     </div>
     
@@ -139,6 +137,7 @@ function startResize(e) {
   if (isCollapsed.value) return
   
   e.preventDefault()
+  e.stopPropagation()
   isResizing.value = true
   startX.value = e.clientX
   startWidth.value = panelWidth.value
@@ -152,6 +151,9 @@ function startResize(e) {
 // 处理拖动调整
 function handleResize(e) {
   if (!isResizing.value) return
+  
+  e.preventDefault()
+  e.stopPropagation()
   
   const deltaX = startX.value - e.clientX
   const newWidth = startWidth.value + deltaX
@@ -222,6 +224,7 @@ onMounted(() => {
   height: 100%;
   transition: all 0.3s ease;
   position: relative;
+  flex-shrink: 0;
 }
 
 .template-preview.collapsed {
@@ -233,19 +236,29 @@ onMounted(() => {
   justify-content: center;
 }
 
+.template-preview.collapsed .resize-handle {
+  display: none;
+}
+
 .preview-header {
-  padding: 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid #e0e0e0;
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-shrink: 0;
   transition: padding 0.3s ease;
+  background: #f8f9fa;
 }
 
-.preview-title {
-  font-weight: bold;
-  color: #333;
+.file-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-path {
+  font-size: 13px;
+  color: #666;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -279,18 +292,6 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.file-info {
-  padding: 12px 16px;
-  border-bottom: 1px solid #e0e0e0;
-  background: #f8f9fa;
-}
-
-.file-path {
-  font-size: 13px;
-  color: #666;
-  word-break: break-all;
-}
-
 .file-content {
   flex: 1;
   overflow: hidden;
@@ -305,6 +306,10 @@ onMounted(() => {
   cursor: col-resize;
   background: transparent;
   transition: background-color 0.2s;
+  z-index: 10;
+  pointer-events: auto;
+  user-select: none;
+  touch-action: none;
 }
 
 .resize-handle:hover {

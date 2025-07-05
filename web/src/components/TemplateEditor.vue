@@ -336,6 +336,13 @@ function updateEditorContent(content, filename = '') {
   })
 
   editorView.setState(newState)
+  
+  // 确保滚动正常工作
+  setTimeout(() => {
+    if (editorView && editorView.scrollDOM) {
+      editorView.requestMeasure()
+    }
+  }, 100)
 }
 
 function createEditorExtensions(languageExtension = null) {
@@ -372,6 +379,16 @@ function createEditorExtensions(languageExtension = null) {
     highlightActiveLineGutter(),
     // 高亮匹配的选中文本 - 重新添加，但使用更安全的配置
     highlightSelectionMatches(),
+    // 确保滚动正常工作
+    EditorView.scrollMargins.of(() => ({ top: 10, bottom: 10 })),
+    // 强制启用滚动
+    EditorView.theme({
+      "&": { height: "100%" },
+      ".cm-scroller": { 
+        overflow: "auto !important",
+        height: "100% !important"
+      }
+    }),
     
     // 快捷键配置
     keymap.of([
@@ -582,6 +599,21 @@ onMounted(async () => {
     parent: editorContainer.value
   })
 
+  // 确保编辑器可以滚动
+  setTimeout(() => {
+    if (editorView && editorView.scrollDOM) {
+      // 强制触发滚动更新
+      editorView.requestMeasure()
+      
+      // 确保滚动容器正确配置
+      const scroller = editorView.dom.querySelector('.cm-scroller')
+      if (scroller) {
+        scroller.style.overflow = 'auto'
+        scroller.style.height = '100%'
+      }
+    }
+  }, 200)
+
   // 自动聚焦编辑器
   setTimeout(() => {
     if (editorView) {
@@ -607,6 +639,7 @@ onBeforeUnmount(() => {
   padding: 24px 24px 0 24px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .editor-tabs {
@@ -621,6 +654,30 @@ onBeforeUnmount(() => {
   box-shadow: 0 2px 8px rgba(0,0,0,0.03);
   overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+
+
+:deep(.cm-editor .cm-scroller .cm-content) {
+  padding: 16px;
+}
+
+/* 只有CodeMirror的滚动容器可以滚动 */
+:deep(.cm-editor) {
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+:deep(.cm-editor .cm-scroller) {
+  overflow: auto !important;
+  height: 100% !important;
+  max-height: none !important;
+}
+
+:deep(.cm-editor .cm-scroller .cm-content) {
+  padding: 16px;
 }
 
 /* CodeMirror 基础样式 - 适配 Dracula 主题 */
@@ -632,11 +689,12 @@ onBeforeUnmount(() => {
 
 :deep(.cm-editor .cm-scroller) {
   font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+  overflow: auto !important;
+  height: 100% !important;
+  max-height: none !important;
 }
 
-:deep(.cm-editor .cm-content) {
-  padding: 16px;
-}
+
 
 :deep(.cm-editor .cm-line) {
   padding: 0;

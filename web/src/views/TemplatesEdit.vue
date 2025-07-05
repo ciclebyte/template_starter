@@ -474,6 +474,7 @@ function addVariable() {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 .editor-title {
   font-weight: bold;
