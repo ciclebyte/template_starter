@@ -138,12 +138,6 @@
       <template #header>
         <div class="variable-manager-header">
           <span class="modal-title">变量管理</span>
-          <n-button type="primary" size="small" @click="addVariable">
-            <template #icon>
-              <n-icon><Add /></n-icon>
-            </template>
-            新增变量
-          </n-button>
         </div>
       </template>
       
@@ -151,10 +145,12 @@
         <VariableManager
           ref="variableManagerRef"
           :variables="templateVariables"
+          :template-id="route.params.id"
           @add="onAddVariable"
           @edit="onEditVariable"
           @delete="onDeleteVariable"
           @insert="onInsertVariable"
+          @applyTestData="onApplyTestData"
         />
       </div>
     </n-modal>
@@ -644,6 +640,14 @@ function addVariable() {
     variableManagerRef.value.addVariable()
   }
 }
+
+// 应用测试数据
+function onApplyTestData(testData) {
+  // 将测试数据传递给预览组件
+  if (templateEditorRef.value) {
+    templateEditorRef.value.updateTestData(testData)
+  }
+}
 </script>
 
 <style scoped>
@@ -896,7 +900,6 @@ function addVariable() {
 .variable-manager-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   width: 100%;
 }
 
