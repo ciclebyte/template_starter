@@ -113,7 +113,21 @@ type TemplateFilesContentReq struct {
 	g.Meta `path:"/templateFiles/content" method:"get" tags:"模板文件" summary:"模板文件-仅获取内容"`
 	Id     interface{} `json:"id" v:"required#id不能为空"`
 }
+
 type TemplateFilesContentRes struct {
 	g.Meta      `mime:"application/json" example:"string"`
 	FileContent string `json:"fileContent"`
+}
+
+// ZIP 包上传接口
+type TemplateFilesUploadZipReq struct {
+	g.Meta     `path:"/templateFiles/uploadZip" method:"post" tags:"模板文件" summary:"模板文件-上传ZIP包"`
+	TemplateId interface{} `json:"templateId" v:"required#所属模板ID不能为空"`
+}
+
+type TemplateFilesUploadZipRes struct {
+	g.Meta       `mime:"application/json" example:"string"`
+	SuccessCount int      `json:"successCount"` // 成功解压的文件数量
+	FailedFiles  []string `json:"failedFiles"`  // 解压失败的文件列表
+	Message      string   `json:"message"`      // 处理结果消息
 }

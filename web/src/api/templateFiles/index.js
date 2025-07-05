@@ -71,3 +71,19 @@ export function getTemplateFileContent(id) {
     params: { id }
   })
 } 
+
+// 上传ZIP包
+export function uploadZipFile(templateId, file) {
+  const formData = new FormData()
+  formData.append('zipFile', file)
+  formData.append('templateId', templateId)
+  
+  return request({
+    url: '/api/v1/templateFiles/uploadZip',
+    method: 'post',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+}

@@ -2,11 +2,26 @@
   <div class="templates-edit-fullscreen">
     <div class="edit-header">
       <span class="edit-title">模板编辑</span>
-      <n-button quaternary circle class="edit-close-btn" @click="closeEdit">
-        <template #icon>
-          <n-icon><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12l-4.89 4.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z"/></svg></n-icon>
-        </template>
-      </n-button>
+      <div class="edit-actions">
+        <input
+          type="file"
+          ref="fileInput"
+          accept=".zip"
+          style="display: none"
+          @change="handleFileSelect"
+        />
+        <n-button type="primary" size="small" @click="triggerFileSelect">
+          <template #icon>
+            <n-icon><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/></svg></n-icon>
+          </template>
+          上传ZIP包
+        </n-button>
+        <n-button quaternary circle class="edit-close-btn" @click="closeEdit">
+          <template #icon>
+            <n-icon><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12l-4.89 4.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z"/></svg></n-icon>
+          </template>
+        </n-button>
+      </div>
     </div>
     <div class="edit-main">
       <TemplateFileTree
@@ -32,13 +47,15 @@
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
 import { ref, onMounted, watch } from 'vue'
-import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileDetail,getTemplateFileContent } from '@/api/templateFiles'
+import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileDetail, getTemplateFileContent, uploadZipFile } from '@/api/templateFiles'
 import TemplateFileTree from '@/components/TemplateFileTree.vue'
 import TemplateEditor from '@/components/TemplateEditor.vue'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
+import { useMessage } from 'naive-ui'
 
 const router = useRouter()
 const route = useRoute()
+const message = useMessage()
 const closeEdit = () => {
   router.push('/templates')
 }
@@ -53,6 +70,7 @@ const openedTabs = ref([])
 const activeTab = ref('')
 const fileMap = ref({})
 const templateFileStore = useTemplateFileStore()
+const fileInput = ref(null)
 
 onMounted(async () => {
   await loadTree()
@@ -199,6 +217,56 @@ function onTreeReload(payload) {
   })
 }
 
+// ZIP 上传处理
+async function handleFileSelect({ target }) {
+  console.log('handleFileSelect 被调用:', { target })
+  const file = target.files[0]
+  if (!file) {
+    console.log('没有文件')
+    return
+  }
+  
+  // 文件验证
+  if (!file.name.endsWith('.zip')) {
+    message.error('请选择ZIP格式的文件')
+    return
+  }
+  
+  if (file.size > 1024 * 1024) {
+    message.error('文件大小不能超过1MB')
+    return
+  }
+  
+  try {
+    console.log('开始上传文件:', file)
+    const res = await uploadZipFile(route.params.id, file)
+    console.log('上传结果:', res)
+    const { successCount, failedFiles, message: resultMessage } = res.data.data
+    
+    if (failedFiles && failedFiles.length > 0) {
+      message.warning(`${resultMessage}，成功 ${successCount} 个文件，失败 ${failedFiles.length} 个文件`)
+      console.log('失败的文件:', failedFiles)
+    } else {
+      message.success(`${resultMessage}，成功解压 ${successCount} 个文件`)
+    }
+    
+    // 重新加载文件树
+    await loadTree()
+    
+    // 清空文件输入
+    target.value = ''
+  } catch (error) {
+    console.error('上传错误:', error)
+    message.error('ZIP包上传失败：' + (error.message || '未知错误'))
+    // 清空文件输入
+    target.value = ''
+  }
+}
+
+function triggerFileSelect() {
+  fileInput.value.click()
+}
+
 // 调试：打印treeData变化
 watch(treeData, (val) => {
   console.log('父组件 treeData 变化:', val)
@@ -227,6 +295,11 @@ watch(treeData, (val) => {
   font-size: 1.2rem;
   font-weight: bold;
   color: #18a058;
+}
+.edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 .edit-close-btn {
   margin-left: 16px;

@@ -73,3 +73,19 @@ func (c *templateFilesController) GetFileContent(ctx context.Context, req *api.T
 	res.FileContent = fileContent
 	return
 }
+
+func (c *templateFilesController) UploadZip(ctx context.Context, req *api.TemplateFilesUploadZipReq) (res *api.TemplateFilesUploadZipRes, err error) {
+	res = new(api.TemplateFilesUploadZipRes)
+	successCount, failedFiles, err := service.TemplateFiles().UploadZip(ctx, gconv.Int64(req.TemplateId))
+	if err != nil {
+		return nil, err
+	}
+	res.SuccessCount = successCount
+	res.FailedFiles = failedFiles
+	if len(failedFiles) > 0 {
+		res.Message = "部分文件解压失败"
+	} else {
+		res.Message = "ZIP包解压成功"
+	}
+	return
+}
