@@ -606,9 +606,9 @@ function onPreview({ fileId, fileName }) {
     variableValues.value = {}
   }
   
-  // 触发预览面板展开
+  // 触发预览面板展开（如果已折叠）
   if (templatePreviewRef.value) {
-    templatePreviewRef.value.toggleCollapse()
+    templatePreviewRef.value.expandPanel()
   }
   
   message.success(`正在预览: ${fileName}`)

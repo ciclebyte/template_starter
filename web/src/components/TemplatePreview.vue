@@ -166,9 +166,18 @@ function toggleCollapse() {
   }
 }
 
+// 展开面板（如果已折叠）
+function expandPanel() {
+  if (isCollapsed.value) {
+    isCollapsed.value = false
+    loadPanelWidth()
+  }
+}
+
 // 暴露方法给父组件
 defineExpose({
-  toggleCollapse
+  toggleCollapse,
+  expandPanel
 })
 
 // 开始拖动调整
