@@ -7,20 +7,23 @@
         </n-tab>
       </n-tabs>
     </div>
-    <div class="monaco-editor-container" ref="monacoContainer"></div>
+    <div class="codemirror-container" ref="editorContainer"></div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { NTabs, NTab, useNotification } from 'naive-ui'
-import * as monaco from 'monaco-editor'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
 import { storeToRefs } from 'pinia'
 import { editTemplateFile } from '@/api/templateFiles'
 import { useRoute } from 'vue-router'
-import { createHighlighter } from 'shiki'
-import { shikiToMonaco } from '@shikijs/monaco'
+
+// CodeMirror 核心模块
+import { EditorView } from '@codemirror/view'
+import { EditorState } from '@codemirror/state'
+import { keymap } from '@codemirror/view'
+import { defaultKeymap, indentWithTab } from '@codemirror/commands'
 
 const props = defineProps({
   openedTabs: {
@@ -38,10 +41,8 @@ const props = defineProps({
 })
 const emit = defineEmits(['tabChange', 'tabClose', 'contentChange'])
 
-const monacoContainer = ref(null)
-let editorInstance = null
-let highlighter = null
-let shikiInjected = false
+const editorContainer = ref(null)
+let editorView = null
 
 const templateFileStore = useTemplateFileStore()
 const { currentFileContent } = storeToRefs(templateFileStore)
@@ -49,60 +50,13 @@ const { currentFileContent } = storeToRefs(templateFileStore)
 const route = useRoute()
 const notification = useNotification()
 
-function getLanguage(file) {
-  if (typeof file !== 'string') file = String(file)
-  if (file.endsWith('.vue')) return 'vue'
-  if (file.endsWith('.js')) return 'javascript'
-  if (file.endsWith('.ts')) return 'typescript'
-  if (file.endsWith('.json')) return 'json'
-  if (file.endsWith('.md')) return 'markdown'
-  if (file.endsWith('.html')) return 'html'
-  if (file.endsWith('.go')) return 'go'
-  if (file.endsWith('.java')) return 'java'
-  if (file.endsWith('.py')) return 'python'
-  if (file.endsWith('.c')) return 'c'
-  if (file.endsWith('.cpp')) return 'cpp'
-  if (file.endsWith('.cs')) return 'csharp'
-  if (file.endsWith('.php')) return 'php'
-  if (file.endsWith('.rb')) return 'ruby'
-  if (file.endsWith('.sh')) return 'shell'
-  if (file.endsWith('.xml')) return 'xml'
-  if (file.endsWith('.yml') || file.endsWith('.yaml')) return 'yaml'
-  return 'plaintext'
-}
-
 function onTabChange(key) {
   emit('tabChange', key)
 }
+
 function onTabClose(key) {
   emit('tabClose', key)
 }
-
-watch(() => [props.activeTab, props.openedTabs, currentFileContent.value], () => {
-  const tab = props.openedTabs.find(t => t.key === props.activeTab)
-  if (tab && editorInstance) {
-    const lang = tab ? getLanguage(tab.name) : 'plaintext'
-    let model = monaco.editor.getModels().find(m => m.uri.path.endsWith(tab.key))
-    if (!model) {
-      model = monaco.editor.createModel(tab.content, lang, monaco.Uri.parse(`file:///${tab.key}`))
-    }
-    if (model.getValue() !== currentFileContent.value) {
-      model.setValue(currentFileContent.value || '')
-    }
-    monaco.editor.setModelLanguage(model, lang)
-    editorInstance.setModel(model)
-  }
-})
-
-watch(currentFileContent, (val) => {
-  const tab = props.openedTabs.find(t => t.key === props.activeTab)
-  if (tab && tab.content !== val) {
-    tab.content = val
-    if (editorInstance) {
-      editorInstance.setValue(val || '')
-    }
-  }
-})
 
 async function saveCurrentFile() {
   const tab = props.openedTabs.find(t => t.key === props.activeTab)
@@ -137,62 +91,192 @@ function handleKeydown(e) {
   }
 }
 
-onMounted(async () => {
-  // 1. 初始化 shiki 高亮器和主题，只做一次
-  highlighter = await createHighlighter({
-    themes: ['github-dark', 'nord', 'github-light'],
-    langs: [
-      'vue', 'javascript', 'typescript', 'json', 'markdown', 'html',
-      'go', 'java', 'python', 'c', 'cpp', 'csharp', 'php', 'ruby', 'shell', 'xml', 'yaml'
-    ]
-  })
-  if (!shikiInjected) {
-    await shikiToMonaco(highlighter, monaco)
-    shikiInjected = true
-  }
-  monaco.editor.setTheme('github-dark')
+function updateEditorContent(content) {
+  if (!editorView) return
 
-  const tab = props.openedTabs.find(t => t.key === props.activeTab)
-  const lang = tab ? getLanguage(tab.name) : 'plaintext'
-  editorInstance = monaco.editor.create(monacoContainer.value, {
-    value: tab ? tab.content : '',
-    language: lang,
-    theme: 'github-dark',
-    automaticLayout: true,
-    fontSize: 15,
-    minimap: { enabled: false }
+  const newState = EditorState.create({
+    doc: content || '',
+    extensions: createEditorExtensions()
   })
-  editorInstance.onDidChangeModelContent(() => {
-    const tab = props.openedTabs.find(t => t.key === props.activeTab)
-    if (tab) {
-      tab.content = editorInstance.getValue()
-      emit('contentChange', { key: tab.key, content: tab.content })
-    }
-  })
-  window.addEventListener('keydown', handleKeydown)
 
-  // 注册右键菜单保存命令
-  if (editorInstance) {
-    editorInstance.addAction({
-      id: 'save-file',
-      label: '保存 (Ctrl+S)',
-      keybindings: [
-        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS
-      ],
-      precondition: null,
-      keybindingContext: null,
-      contextMenuGroupId: 'navigation',
-      contextMenuOrder: 1.5,
-      run: function(ed) {
-        saveCurrentFile()
+  editorView.setState(newState)
+}
+
+function createEditorExtensions() {
+  return [
+    // 基础快捷键
+    keymap.of([
+      ...defaultKeymap,
+      indentWithTab,
+      {
+        key: 'Ctrl-s',
+        run: () => {
+          saveCurrentFile()
+          return true
+        }
+      }
+    ]),
+    
+    // 右键菜单
+    EditorView.domEventHandlers({
+      contextmenu: (event, view) => {
+        event.preventDefault()
+        showContextMenu(event, view)
+        return true
+      }
+    }),
+    
+    // 内容变化监听
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged) {
+        const content = update.state.doc.toString()
+        const tab = props.openedTabs.find(t => t.key === props.activeTab)
+        if (tab && tab.content !== content) {
+          tab.content = content
+          emit('contentChange', { key: tab.key, content: tab.content })
+        }
       }
     })
+  ]
+}
+
+function showContextMenu(event, view) {
+  const { clientX, clientY } = event
+  
+  // 创建右键菜单
+  const menu = document.createElement('div')
+  menu.className = 'context-menu'
+  menu.style.cssText = `
+    position: fixed;
+    top: ${clientY}px;
+    left: ${clientX}px;
+    background: #2d2d30;
+    border: 1px solid #3c3c3c;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 1000;
+    min-width: 160px;
+    padding: 4px 0;
+  `
+  
+  const menuItems = [
+    { label: '保存 (Ctrl+S)', action: () => saveCurrentFile() },
+    { type: 'separator' },
+    { label: '剪切 (Ctrl+X)', action: () => document.execCommand('cut') },
+    { label: '复制 (Ctrl+C)', action: () => document.execCommand('copy') },
+    { label: '粘贴 (Ctrl+V)', action: () => document.execCommand('paste') },
+    { type: 'separator' },
+    { label: '全选 (Ctrl+A)', action: () => view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } }) }
+  ]
+  
+  menuItems.forEach(item => {
+    if (item.type === 'separator') {
+      const separator = document.createElement('div')
+      separator.style.cssText = `
+        height: 1px;
+        background: #3c3c3c;
+        margin: 4px 0;
+      `
+      menu.appendChild(separator)
+    } else {
+      const menuItem = document.createElement('div')
+      menuItem.className = 'context-menu-item'
+      menuItem.textContent = item.label
+      menuItem.style.cssText = `
+        padding: 8px 16px;
+        cursor: pointer;
+        color: #cccccc;
+        font-size: 14px;
+        user-select: none;
+      `
+      
+      menuItem.addEventListener('mouseenter', () => {
+        menuItem.style.background = '#3c3c3c'
+      })
+      
+      menuItem.addEventListener('mouseleave', () => {
+        menuItem.style.background = 'transparent'
+      })
+      
+      menuItem.addEventListener('click', () => {
+        try {
+          item.action()
+        } catch (e) {
+          console.warn('菜单操作失败:', e)
+        }
+        document.body.removeChild(menu)
+      })
+      
+      menu.appendChild(menuItem)
+    }
+  })
+  
+  // 添加菜单到页面
+  document.body.appendChild(menu)
+  
+  // 点击其他地方关闭菜单
+  const closeMenu = (e) => {
+    if (!menu.contains(e.target)) {
+      if (document.body.contains(menu)) {
+        document.body.removeChild(menu)
+      }
+      document.removeEventListener('click', closeMenu)
+      document.removeEventListener('contextmenu', closeMenu)
+    }
+  }
+  
+  // 延迟添加事件监听，避免立即触发
+  setTimeout(() => {
+    document.addEventListener('click', closeMenu)
+    document.addEventListener('contextmenu', closeMenu)
+  }, 0)
+}
+
+watch(() => [props.activeTab, props.openedTabs, currentFileContent.value], async () => {
+  const tab = props.openedTabs.find(t => t.key === props.activeTab)
+  if (tab && editorView) {
+    const currentContent = editorView.state.doc.toString()
+    if (currentContent !== tab.content) {
+      updateEditorContent(tab.content)
+    }
   }
 })
 
+watch(currentFileContent, (val) => {
+  const tab = props.openedTabs.find(t => t.key === props.activeTab)
+  if (tab && tab.content !== val) {
+    tab.content = val
+    if (editorView) {
+      const currentContent = editorView.state.doc.toString()
+      if (currentContent !== val) {
+        updateEditorContent(val)
+      }
+    }
+  }
+})
+
+onMounted(async () => {
+  await nextTick()
+
+  // 创建 CodeMirror 编辑器
+  const tab = props.openedTabs.find(t => t.key === props.activeTab)
+  
+  const state = EditorState.create({
+    doc: tab ? tab.content : '',
+    extensions: createEditorExtensions()
+  })
+
+  editorView = new EditorView({
+    state,
+    parent: editorContainer.value
+  })
+
+  window.addEventListener('keydown', handleKeydown)
+})
+
 onBeforeUnmount(() => {
-  if (editorInstance) {
-    editorInstance.dispose()
+  if (editorView) {
+    editorView.destroy()
   }
   window.removeEventListener('keydown', handleKeydown)
 })
@@ -206,20 +290,54 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
 }
-.editor-title {
-  font-weight: bold;
-  margin-bottom: 16px;
-  color: #333;
-}
+
 .editor-tabs {
   margin-bottom: 4px;
 }
-.monaco-editor-container {
+
+.codemirror-container {
   flex: 1;
   min-height: 400px;
   background: #1e1e1e;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.03);
   overflow: hidden;
+}
+
+/* CodeMirror 基础样式 */
+:deep(.cm-editor) {
+  height: 100%;
+  font-size: 15px;
+  color: #cccccc;
+}
+
+:deep(.cm-editor .cm-scroller) {
+  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+}
+
+:deep(.cm-editor .cm-content) {
+  padding: 16px;
+  background: #1e1e1e;
+}
+
+:deep(.cm-editor .cm-line) {
+  padding: 0;
+}
+
+:deep(.cm-editor .cm-cursor) {
+  border-left: 2px solid #007acc;
+}
+
+:deep(.cm-editor .cm-selectionBackground) {
+  background: rgba(0, 122, 204, 0.3);
+}
+
+/* 右键菜单样式 */
+.context-menu {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.context-menu-item:hover {
+  background: #3c3c3c !important;
 }
 </style> 
