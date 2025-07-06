@@ -172,7 +172,6 @@ const currentFilePath = computed(() => {
 // 更新预览内容
 function updatePreviewContent() {
   if (!previewEditor) {
-    console.log('预览编辑器未初始化')
     return
   }
   
@@ -183,22 +182,12 @@ function updatePreviewContent() {
   if (renderedContent.value) {
     content = renderedContent.value
     currentFileName = fileName.value
-    console.log('使用渲染后的内容，长度:', content.length)
   } else if (props.currentFile) {
     content = props.currentFile.fileContent || props.currentFile.content || ''
     currentFileName = props.currentFile.fileName || props.currentFile.name || ''
-    console.log('使用原始文件内容，长度:', content.length)
   }
-  
-  console.log('更新预览内容:', { 
-    fileName: currentFileName,
-    contentLength: content.length, 
-    contentPreview: content.substring(0, 100) 
-  })
-  
   // 获取语言扩展
   const languageExt = getLanguageExtension(currentFileName)
-  console.log('语言扩展:', languageExt ? '已找到' : '未找到', '文件名:', currentFileName)
   
   // 更新编辑器状态，包括语言支持
   const newState = EditorState.create({
@@ -230,8 +219,6 @@ function updatePreviewContent() {
   })
   
   previewEditor.setState(newState)
-  
-  console.log('预览内容更新完成，已应用语言高亮')
 }
 
 // 复制内容
@@ -316,7 +303,6 @@ function stopResize() {
 // 渲染模板
 const renderTemplateContent = async () => {
   if (!props.fileId) {
-    console.log('缺少文件ID，跳过渲染')
     return
   }
   
@@ -325,19 +311,15 @@ const renderTemplateContent = async () => {
   
   try {
     loading.value = true
-    console.log('开始渲染模板:', { fileId: props.fileId, variables })
     
     const response = await renderTemplate({
       fileId: props.fileId,
       variables: variables
     })
     
-    console.log('渲染响应:', response)
-    
     if (response.data.code === 0) {
       renderedContent.value = response.data.data.fileContent
       fileName.value = response.data.data.fileName
-      console.log('渲染成功:', { fileName: fileName.value, contentLength: renderedContent.value.length })
       
       // 立即更新预览内容
       nextTick(() => {
@@ -345,7 +327,6 @@ const renderTemplateContent = async () => {
       })
     } else {
       message.error(response.data.message || response.data.msg || '渲染失败')
-      console.error('渲染失败:', response.data.message || response.data.msg)
     }
   } catch (error) {
     console.error('渲染模板失败:', error)
@@ -364,7 +345,6 @@ watch(() => props.currentFile, () => {
 
 // 监听文件ID和测试变量变化，自动渲染
 watch([() => props.fileId, () => props.variables], async () => {
-  console.log('监听器触发:', { fileId: props.fileId, variables: props.variables })
   
   if (props.fileId) {
     await renderTemplateContent()

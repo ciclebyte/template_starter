@@ -107,30 +107,21 @@ const getCategoryInfo = computed(() => {
 
 // 获取分类标签类型
 const getCategoryType = (categoryId) => {
-  console.log('查找分类ID:', categoryId)
-  console.log('Pinia分类列表:', categoryStore.categoriesList)
   const category = categoryStore.categoriesList.find(cat => cat.id === categoryId)
-  console.log('找到的分类:', category)
   return 'success' // 统一使用success样式
 }
 
 // 获取分类名称
 const getCategoryName = (categoryId) => {
   const category = categoryStore.categoriesList.find(cat => cat.id === categoryId)
-  console.log('分类名称查找结果:', category)
   return category ? category.name : '未知分类'
 }
 
 // 获取模板的语言详细信息
 const getTemplateLanguages = computed(() => {
   if (!props.templateInfo?.languages?.length) return []
-  
-  console.log('模板语言数据:', props.templateInfo.languages)
-  console.log('Pinia语言列表:', languageStore.languagesList)
-  
   const result = props.templateInfo.languages.map(templateLang => {
     const language = languageStore.languagesList.find(lang => lang.id === templateLang.languageId)
-    console.log(`查找语言ID ${templateLang.languageId}:`, language)
     return {
       ...templateLang,
       name: language?.name || '未知语言',
@@ -139,7 +130,6 @@ const getTemplateLanguages = computed(() => {
     }
   })
   
-  console.log('最终语言数组:', result)
   return result
 })
 
@@ -158,7 +148,6 @@ onMounted(async () => {
 watch(
   () => props.templateInfo,
   (val) => {
-    console.log('StepIntro.vue 接收到的 templateInfo:', val)
   },
   { immediate: true, deep: true }
 )

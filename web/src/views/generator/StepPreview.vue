@@ -240,13 +240,10 @@ function treeToNaive(tree) {
 
 // 加载渲染后的文件树
 const loadTree = async () => {
-  console.log('StepPreview 开始加载文件树，templateInfo:', props.templateInfo)
   if (!props.templateInfo?.id) {
     console.log('templateInfo.id 不存在，跳过加载')
     return
   }
-  
-  console.log('调用API获取渲染后的文件树，templateId:', props.templateInfo.id)
   loading.value = true
   try {
     // 获取渲染后的文件树
@@ -254,7 +251,6 @@ const loadTree = async () => {
       templateId: props.templateInfo.id,
       variables: props.variables || {}
     })
-    console.log('渲染文件树API返回结果:', renderRes)
     const tree = renderRes.data?.data?.tree || []
     treeData.value = tree
     
@@ -270,7 +266,6 @@ const loadTree = async () => {
     }
     flattenFiles(tree)
     
-    console.log('设置渲染文件树数据:', treeData.value)
   } catch (error) {
     console.error('加载文件树失败:', error)
     treeData.value = []
@@ -437,7 +432,6 @@ const generateProject = async () => {
 
 // 监听templateInfo变化，当有数据时加载文件树
 watch(() => props.templateInfo, (newTemplateInfo) => {
-  console.log('StepPreview 监听到 templateInfo 变化:', newTemplateInfo)
   if (newTemplateInfo?.id) {
     // 延迟加载，避免在第一步就加载
     setTimeout(() => {
@@ -447,8 +441,6 @@ watch(() => props.templateInfo, (newTemplateInfo) => {
 }, { immediate: false })
 
 onMounted(() => {
-  console.log('StepPreview 组件挂载，templateInfo:', props.templateInfo)
-  console.log('StepPreview 组件挂载，templateInfo.id:', props.templateInfo?.id)
   // 如果已经有 templateInfo，则加载数据
   if (props.templateInfo?.id) {
     console.log('StepPreview 组件挂载时直接加载文件树')

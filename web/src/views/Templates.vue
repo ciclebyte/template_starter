@@ -328,12 +328,10 @@ const pageSize = ref(20)
 
 // 模拟数据 - 标签
 const tags = computed(() => {
-  console.log('languagesList for tags:', languagesList.value)
   const arr = [
     { id: 'all', name: '全部' },
     ...languagesList.value.map(lang => ({ id: lang.id, name: lang.name }))
   ]
-  console.log('computed tags:', arr)
   return arr
 })
 
@@ -492,7 +490,6 @@ const handlePageSizeChange = (size) => {
 }
 
 const useTemplate = (template) => {
-  console.log('使用模板:', template.name)
   router.push(`/templates/generate/${template.id}`)
 }
 
@@ -856,14 +853,12 @@ const handleCancelCategory = () => {
 }
 
 const openEditCategoryModal = (category) => {
-  console.log('编辑分类数据:', category)
   categoryForm.value = {
     id: category.id,
     name: category.name,
     description: category.description || category.Description || '',
     sort: category.sort || category.Sort || 0
   }
-  console.log('分类表单数据:', categoryForm.value)
   showEditCategoryModal.value = true
 }
 
@@ -927,7 +922,6 @@ const handleCancelLanguage = () => {
 }
 
 const openEditLanguageModal = (language) => {
-  console.log('编辑语言数据:', language)
   languageForm.value = {
     id: language.id,
     name: language.name,
@@ -937,7 +931,6 @@ const openEditLanguageModal = (language) => {
     sort: language.sort || language.Sort || 0,
     isPopular: language.isPopular || language.IsPopular || 0
   }
-  console.log('语言表单数据:', languageForm.value)
   showEditLanguageModal.value = true
 }
 
@@ -969,7 +962,6 @@ const handleDeleteLanguage = async (language) => {
 }
 
 watch(languagesList, (val) => {
-  console.log('languagesList changed:', val)
 })
 
 // 初始化
@@ -979,9 +971,6 @@ onMounted(async () => {
   // 获取真实模板数据
   const res = await listTemplates({})
   allTemplates.value = res.data.data.templatesList || []
-  console.log('onMounted languagesList:', languagesList.value)
-  console.log('onMounted categoriesList:', categoriesList.value)
-  console.log('onMounted allTemplates:', allTemplates.value)
   // 可以在这里加载数据
 })
 </script>

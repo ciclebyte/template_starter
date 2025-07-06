@@ -99,7 +99,6 @@ const initIcons = () => {
   icons.sort((a, b) => a.name.localeCompare(b.name))
   
   allIcons.value = icons
-  console.log(`成功加载了 ${icons.length} 个图标`)
 }
 
 // 暴露方法

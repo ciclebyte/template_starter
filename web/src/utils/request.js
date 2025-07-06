@@ -2,8 +2,6 @@ import axios from 'axios';
 import qs from 'qs';
 
 function getApiBaseUrl() {
-	console.log(import.meta.env)
-    console.log(import.meta.env.VITE_API_URL)
     // 1. 优先使用显式配置的环境变量
     if (import.meta.env.VITE_API_URL) {
       return import.meta.env.VITE_API_URL

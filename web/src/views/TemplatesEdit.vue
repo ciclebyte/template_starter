@@ -396,13 +396,10 @@ function loadTestData() {
   if (savedTestData) {
     try {
       variableValues.value = JSON.parse(savedTestData)
-      console.log('初始化时加载测试数据:', variableValues.value)
     } catch (e) {
-      console.error('解析测试数据失败:', e)
       variableValues.value = {}
     }
   } else {
-    console.log('未找到测试数据，使用空对象')
     variableValues.value = {}
   }
 }
@@ -419,17 +416,13 @@ function findNodeByKey(list, key) {
 }
 
 async function onSelectFile(key) {
-  console.log('点击的 key:', key)
   currentFile.value = key
   const node = findNodeByKey(treeData.value, key)
-  console.log('找到的 node:', node)
   currentFileNode.value = node
   
   if (node && node.isDirectory === 0) {
     try {
       const res = await getTemplateFileContent(key)
-      console.log('接口返回:', res)
-      console.log('接口返回的 fileContent:', res.data?.data?.fileContent)
       const content = res.data.data.fileContent
       
       // 设置当前文件信息
@@ -516,9 +509,7 @@ async function onUploadZip(payload) {
   const { file } = payload
   
   try {
-    console.log('开始上传文件:', file)
     const res = await uploadZipFile(route.params.id, file)
-    console.log('上传结果:', res)
     const { successCount, failedFiles, message: resultMessage } = res.data.data
     
     if (failedFiles && failedFiles.length > 0) {
@@ -554,7 +545,6 @@ async function onUploadCodeFile(payload) {
 
 // 调试：打印treeData变化
 watch(treeData, (val) => {
-  console.log('父组件 treeData 变化:', val)
 }, { deep: true })
 
 // 变量相关事件处理
@@ -570,7 +560,6 @@ async function onAddVariable(variable) {
       validationRegex: variable.validationRegex || '',
       sort: templateVariables.value.length + 1
     })
-    message.success('变量添加成功')
     await loadVariables()
   } catch (error) {
     message.error('变量添加失败: ' + (error.response?.data?.message || error.message || '未知错误'))
@@ -616,7 +605,6 @@ function onInsertVariable(template) {
 
 // 预览事件处理
 function onPreview({ fileId, fileName }) {
-  console.log('预览事件触发:', { fileId, fileName })
   
   // 设置预览文件ID
   previewFileId.value = fileId
@@ -628,13 +616,11 @@ function onPreview({ fileId, fileName }) {
   if (savedTestData) {
     try {
       variableValues.value = JSON.parse(savedTestData)
-      console.log('从 localStorage 加载测试数据:', variableValues.value)
     } catch (e) {
       console.error('解析测试数据失败:', e)
       variableValues.value = {}
     }
   } else {
-    console.log('未找到测试数据，使用空对象')
     variableValues.value = {}
   }
   
@@ -694,7 +680,6 @@ function addVariable() {
 function onApplyTestData(testData) {
   // 更新本地变量值
   variableValues.value = testData
-  console.log('测试数据已应用:', testData)
   message.success('测试数据已应用并保存')
 }
 </script>

@@ -142,7 +142,6 @@ const featuredTemplates = ref([])
 
 // 使用模板
 const useTemplate = (template) => {
-  console.log('使用模板:', template.name)
   router.push(`/templates/generate/${template.id}`)
 }
 
@@ -217,10 +216,7 @@ const fetchIndexData = async () => {
       categories.value = response.data.data.categories || []
       featuredTemplates.value = response.data.data.featuredTemplates || []
     }
-    
-    console.log('首页数据:', response.data)
   } catch (error) {
-    console.error('获取首页数据失败:', error)
   } finally {
     loading.value = false
   }
@@ -234,7 +230,6 @@ onMounted(async () => {
     // 再获取首页数据
     await fetchIndexData()
   } catch (error) {
-    console.error('页面初始化失败:', error)
   }
 })
 </script>

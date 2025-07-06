@@ -253,30 +253,18 @@ const getInputType = (variableType) => {
 
 // 加载模板变量数据
 const loadTemplateVariables = async () => {
-  console.log('开始加载模板变量，templateInfo:', props.templateInfo)
   if (!props.templateInfo?.id) {
-    console.log('templateInfo.id 不存在，跳过加载')
     return
   }
-  
-  console.log('调用API获取模板变量，templateId:', props.templateInfo.id)
   loading.value = true
   try {
     const res = await getTemplateVariables(props.templateInfo.id)
-    console.log('API返回结果:', res)
     if (res.data && res.data.data) {
       customVariables.value = res.data.data.customVariables || []
       builtinVariables.value = res.data.data.builtinVariables || []
       templateFunctions.value = res.data.data.templateFunctions || []
       variableStatistics.value = res.data.data.statistics
-      
-      console.log('解析后的变量数据:', {
-        customVariables: customVariables.value,
-        builtinVariables: builtinVariables.value,
-        templateFunctions: templateFunctions.value,
-        statistics: variableStatistics.value
-      })
-      
+       
       // 初始化内置变量到表单数据，避免触发不必要的更新
       const newFormData = { ...formData.value }
       builtinVariables.value.forEach(variable => {
@@ -326,7 +314,6 @@ watch(() => props.variables, (newVariables) => {
 // 监听templateInfo变化，当有数据时加载变量
 let lastTemplateId = null
 watch(() => props.templateInfo, (newTemplateInfo) => {
-  console.log('StepVariables 监听到 templateInfo 变化:', newTemplateInfo)
   if (newTemplateInfo?.id && newTemplateInfo.id !== lastTemplateId) {
     lastTemplateId = newTemplateInfo.id
     // 延迟一点加载，确保组件完全渲染
@@ -338,7 +325,6 @@ watch(() => props.templateInfo, (newTemplateInfo) => {
 
 // 组件挂载时不立即加载，等待 templateInfo 传入
 onMounted(() => {
-  console.log('StepVariables 组件挂载，templateInfo:', props.templateInfo)
   // 如果已经有 templateInfo，则加载数据
   if (props.templateInfo?.id) {
     lastTemplateId = props.templateInfo.id
