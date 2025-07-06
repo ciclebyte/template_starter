@@ -66,26 +66,12 @@
           <div v-else class="file-preview">
             <div class="file-header">
               <div class="file-info">
-                <span class="file-name">{{ currentFile.split('/').pop() }}</span>
-                <span class="file-path">{{ currentFile }}</span>
+                <span class="file-name">{{ currentFile }}</span>
               </div>
             </div>
             <div class="file-content">
               <div class="code-preview">
-                <div class="code-container">
-                  <div class="line-numbers">
-                    <div 
-                      v-for="(line, index) in codeLines" 
-                      :key="index" 
-                      class="line-number"
-                    >
-                      {{ index + 1 }}
-                    </div>
-                  </div>
-                  <div class="code-content">
-                    <pre><code :class="codeLanguageClass">{{ currentFileContent }}</code></pre>
-                  </div>
-                </div>
+                <div class="codemirror-container" ref="codeContainer"></div>
               </div>
             </div>
           </div>
@@ -96,7 +82,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, h, watch, nextTick } from 'vue'
+import { ref, onMounted, computed, h, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useMessage, NIcon, NTree } from 'naive-ui'
 import { 
   ArrowBack, 
@@ -108,7 +94,31 @@ import {
   FileTrayFullOutline,
   ChevronForward
 } from '@vicons/ionicons5'
-import { getTemplateFileTree, getTemplateFileContent } from '@/api/templateFiles'
+import { getTemplateFileTree, renderTemplate } from '@/api/templateFiles'
+
+// CodeMirror 核心模块
+import { EditorView, lineNumbers, highlightActiveLineGutter } from '@codemirror/view'
+import { EditorState } from '@codemirror/state'
+import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
+
+// Dracula 主题
+import { dracula } from '@uiw/codemirror-theme-dracula'
+
+// 语言支持
+import { javascript } from '@codemirror/lang-javascript'
+import { html } from '@codemirror/lang-html'
+import { css } from '@codemirror/lang-css'
+import { json } from '@codemirror/lang-json'
+import { markdown } from '@codemirror/lang-markdown'
+import { python } from '@codemirror/lang-python'
+import { java } from '@codemirror/lang-java'
+import { cpp } from '@codemirror/lang-cpp'
+import { rust } from '@codemirror/lang-rust'
+import { go } from '@codemirror/lang-go'
+import { sql } from '@codemirror/lang-sql'
+import { xml } from '@codemirror/lang-xml'
+import { yaml } from '@codemirror/lang-yaml'
+import { vue } from '@codemirror/lang-vue'
 
 const props = defineProps({
   templateInfo: {
@@ -131,6 +141,49 @@ const loading = ref(false)
 const currentFile = ref('')
 const currentFilePath = ref('')
 const currentFileContent = ref('')
+
+// CodeMirror 相关
+const codeContainer = ref(null)
+let editorView = null
+
+// 语言映射
+const languageMap = {
+  'js': javascript(),
+  'javascript': javascript(),
+  'ts': javascript({typescript: true}),
+  'typescript': javascript({typescript: true}),
+  'jsx': javascript({jsx: true}),
+  'tsx': javascript({typescript: true, jsx: true}),
+  'vue': vue(),
+  'html': html(),
+  'htm': html(),
+  'css': css(),
+  'scss': css(),
+  'sass': css(),
+  'less': css(),
+  'json': json(),
+  'md': markdown(),
+  'markdown': markdown(),
+  'py': python(),
+  'python': python(),
+  'java': java(),
+  'cpp': cpp(),
+  'cc': cpp(),
+  'cxx': cpp(),
+  'c': cpp(),
+  'rs': rust(),
+  'rust': rust(),
+  'go': go(),
+  'sql': sql(),
+  'xml': xml(),
+  'yaml': yaml(),
+  'yml': yaml()
+}
+
+function getLanguageExtension(filename) {
+  const ext = filename.split('.').pop()?.toLowerCase()
+  return languageMap[ext] || null
+}
 
 
 
@@ -238,37 +291,93 @@ const onSelectFile = async (keys) => {
     return
   }
   
-  const filePath = selectedNode.filePath || selectedNode.fileName || String(selectedKey)
   const fileId = selectedNode.id || selectedKey
-  currentFile.value = filePath
-  currentFilePath.value = filePath
   
-  // 加载文件内容
+  // 加载渲染后的文件内容
   try {
-    // 使用文件ID获取内容
-    const res = await getTemplateFileContent(fileId)
-    currentFileContent.value = res.data?.data?.fileContent || ''
+    // 使用渲染接口获取渲染后的内容
+    const res = await renderTemplate({
+      fileId: fileId,
+      testVariables: props.variables || {}
+    })
     
-    // 等待DOM更新后应用代码高亮
+    // 使用返回的fileName和fileContent
+    const fileName = res.data?.data?.fileName || selectedNode.fileName || ''
+    const fileContent = res.data?.data?.fileContent || ''
+    
+    currentFile.value = fileName
+    currentFilePath.value = fileName
+    currentFileContent.value = fileContent
+    
+    // 等待DOM更新后创建或更新CodeMirror编辑器
     await nextTick()
-    applyCodeHighlighting()
+    createOrUpdateEditor()
   } catch (error) {
-    console.error('加载文件内容失败:', error)
-    currentFileContent.value = '加载失败'
+    console.error('渲染文件失败:', error)
+    currentFileContent.value = '渲染失败'
   }
 }
 
-// 应用代码高亮
-const applyCodeHighlighting = () => {
-  // 这里可以集成Prism.js或其他代码高亮库
-  // 暂时使用简单的语法高亮
-  const codeElement = document.querySelector('.code-content code')
-  if (codeElement) {
-    // 移除之前的语言类
-    codeElement.className = codeElement.className.replace(/language-\w+/g, '')
-    // 添加新的语言类
-    codeElement.classList.add(codeLanguageClass.value)
+// 创建或更新CodeMirror编辑器
+const createOrUpdateEditor = async () => {
+  if (!codeContainer.value) return
+  
+  // 销毁现有编辑器
+  if (editorView) {
+    editorView.destroy()
+    editorView = null
   }
+  
+  // 获取语言扩展
+  const languageExt = currentFile.value ? getLanguageExtension(currentFile.value) : null
+  
+  // 创建编辑器扩展
+  const extensions = [
+    // Dracula 主题
+    dracula,
+    // 只读模式
+    EditorView.editable.of(false),
+    // 行号
+    lineNumbers(),
+    // 当前行行号高亮
+    highlightActiveLineGutter(),
+    // 语法高亮
+    syntaxHighlighting(defaultHighlightStyle),
+    // 确保滚动正常工作
+    EditorView.scrollMargins.of(() => ({ top: 10, bottom: 10 })),
+    // 强制启用滚动
+    EditorView.theme({
+      "&": { height: "100%" },
+      ".cm-scroller": { 
+        overflow: "auto !important",
+        height: "100% !important"
+      }
+    })
+  ]
+  
+  // 添加语言支持
+  if (languageExt) {
+    extensions.push(languageExt)
+  }
+  
+  // 创建编辑器状态
+  const state = EditorState.create({
+    doc: currentFileContent.value,
+    extensions
+  })
+  
+  // 创建编辑器视图
+  editorView = new EditorView({
+    state,
+    parent: codeContainer.value
+  })
+  
+  // 确保编辑器可以滚动
+  setTimeout(() => {
+    if (editorView && editorView.scrollDOM) {
+      editorView.requestMeasure()
+    }
+  }, 100)
 }
 
 // 更新展开状态
@@ -284,50 +393,7 @@ const renderLabel = ({ option }) => {
 // 渲染切换图标 - 使用默认的展开/折叠箭头
 const renderSwitcherIcon = () => h(NIcon, null, { default: () => h(ChevronForward) })
 
-// 代码行数计算
-const codeLines = computed(() => {
-  if (!currentFileContent.value) return []
-  return currentFileContent.value.split('\n')
-})
 
-// 根据文件扩展名获取语言类名
-const codeLanguageClass = computed(() => {
-  if (!currentFile.value) return ''
-  const extension = currentFile.value.split('.').pop()?.toLowerCase()
-  
-  const languageMap = {
-    'js': 'language-javascript',
-    'jsx': 'language-javascript',
-    'ts': 'language-typescript',
-    'tsx': 'language-typescript',
-    'vue': 'language-vue',
-    'html': 'language-html',
-    'css': 'language-css',
-    'scss': 'language-scss',
-    'sass': 'language-sass',
-    'less': 'language-less',
-    'json': 'language-json',
-    'xml': 'language-xml',
-    'yaml': 'language-yaml',
-    'yml': 'language-yaml',
-    'go': 'language-go',
-    'py': 'language-python',
-    'java': 'language-java',
-    'c': 'language-c',
-    'cpp': 'language-cpp',
-    'cs': 'language-csharp',
-    'php': 'language-php',
-    'rb': 'language-ruby',
-    'rs': 'language-rust',
-    'sql': 'language-sql',
-    'sh': 'language-bash',
-    'bash': 'language-bash',
-    'md': 'language-markdown',
-    'txt': 'language-plaintext'
-  }
-  
-  return languageMap[extension] || 'language-plaintext'
-})
 
 
 
@@ -357,6 +423,12 @@ onMounted(() => {
   if (props.templateInfo?.id) {
     console.log('StepPreview 组件挂载时直接加载文件树')
     loadTree()
+  }
+})
+
+onBeforeUnmount(() => {
+  if (editorView) {
+    editorView.destroy()
   }
 })
 </script>
@@ -517,20 +589,13 @@ onMounted(() => {
 
 .file-info {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
 }
 
 .file-name {
   font-size: 14px;
   font-weight: bold;
   color: #333;
-}
-
-.file-path {
-  font-size: 12px;
-  color: #666;
-  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
 }
 
 .file-content {
@@ -548,124 +613,35 @@ onMounted(() => {
   box-shadow: 0 2px 8px rgba(0,0,0,0.03);
 }
 
-.code-container {
-  display: flex;
-  min-height: 100%;
+.codemirror-container {
+  height: 100%;
+  min-height: 400px;
 }
 
-.line-numbers {
-  display: flex;
-  flex-direction: column;
-  background: #282a36;
-  border-right: 1px solid #44475a;
-  padding: 16px 8px 16px 16px;
-  user-select: none;
-  min-width: 50px;
-}
-
-.line-number {
-  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+/* CodeMirror 样式覆盖 - 确保与编辑页面一致 */
+:deep(.cm-editor) {
+  height: 100% !important;
   font-size: 15px;
-  line-height: 1.5;
-  color: #6272a4;
-  text-align: right;
-  padding-right: 8px;
+  outline: none !important;
 }
 
-.code-content {
-  flex: 1;
-  overflow: auto;
-  padding: 16px;
-}
-
-.code-content pre {
-  margin: 0;
+:deep(.cm-editor .cm-scroller) {
   font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
-  font-size: 15px;
-  line-height: 1.5;
-  color: #f8f8f2;
-  background: transparent;
+  overflow: auto !important;
+  height: 100% !important;
+  max-height: none !important;
 }
 
-.code-content code {
-  font-family: inherit;
-  background: transparent;
+:deep(.cm-editor .cm-line) {
+  padding: 0;
 }
 
-/* 代码高亮主题 - Dracula主题 */
-.code-content .language-javascript,
-.code-content .language-typescript,
-.code-content .language-vue,
-.code-content .language-html,
-.code-content .language-css,
-.code-content .language-scss,
-.code-content .language-sass,
-.code-content .language-less,
-.code-content .language-json,
-.code-content .language-xml,
-.code-content .language-yaml,
-.code-content .language-go,
-.code-content .language-python,
-.code-content .language-java,
-.code-content .language-c,
-.code-content .language-cpp,
-.code-content .language-csharp,
-.code-content .language-php,
-.code-content .language-ruby,
-.code-content .language-rust,
-.code-content .language-sql,
-.code-content .language-bash,
-.code-content .language-markdown {
-  color: #f8f8f2;
+/* 只读模式下的光标隐藏 */
+:deep(.cm-editor .cm-cursor) {
+  display: none !important;
 }
 
-/* 关键字高亮 - Dracula主题 */
-.code-content .keyword {
-  color: #ff79c6;
-}
-
-/* 字符串高亮 - Dracula主题 */
-.code-content .string {
-  color: #f1fa8c;
-}
-
-/* 注释高亮 - Dracula主题 */
-.code-content .comment {
-  color: #6272a4;
-}
-
-/* 数字高亮 - Dracula主题 */
-.code-content .number {
-  color: #bd93f9;
-}
-
-/* 函数名高亮 - Dracula主题 */
-.code-content .function {
-  color: #50fa7b;
-}
-
-/* 类名高亮 - Dracula主题 */
-.code-content .class-name {
-  color: #8be9fd;
-}
-
-/* 变量名高亮 - Dracula主题 */
-.code-content .variable {
-  color: #f8f8f2;
-}
-
-/* 属性名高亮 - Dracula主题 */
-.code-content .property {
-  color: #66d9ef;
-}
-
-/* 标签名高亮 - Dracula主题 */
-.code-content .tag {
-  color: #ff79c6;
-}
-
-/* 操作符高亮 - Dracula主题 */
-.code-content .operator {
-  color: #ff79c6;
+:deep(.cm-editor .cm-cursor-primary) {
+  display: none !important;
 }
 </style> 
