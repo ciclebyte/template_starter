@@ -11,7 +11,7 @@ export const useCategoryStore = defineStore('category', {
     async fetchCategories(force = false) {
       if (this.loaded && !force) return this.categoriesList
       try {
-        const res = await listCategories({})
+        const res = await listCategories({ page: 1, pageSize: 99 })
         this.categoriesList = res.data.data.categoriesList || []
         this.total = res.data.data.total || 0
         this.loaded = true

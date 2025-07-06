@@ -10,7 +10,7 @@ type CategoriesAddReq struct {
 	g.Meta      `path:"/categories/add" method:"post" tags:"分类" summary:"分类-新增"`
 	Name        string `json:"name" v:"required#分类名称，唯一不能为空"`
 	Description string `json:"description" v:"required#分类描述不能为空"`
-	Icon        string `json:"icon" v:"required#分类图标标识或URL不能为空"`
+	Icon        string `json:"icon"`
 	Sort        int    `json:"sort" v:"required#数字越大越靠前不能为空"`
 }
 
@@ -41,7 +41,7 @@ type CategoriesEditReq struct {
 	Id          int    `json:"id" v:"required#分类ID，自增主键不能为空"`
 	Name        string `json:"name" v:"required#分类名称，唯一不能为空"`
 	Description string `json:"description" v:"required#分类描述不能为空"`
-	Icon        string `json:"icon" v:"required#分类图标标识或URL不能为空"`
+	Icon        string `json:"icon"`
 	Sort        int    `json:"sort" v:"required#数字越大越靠前不能为空"`
 }
 

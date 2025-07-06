@@ -11,9 +11,9 @@ type LanguagesAddReq struct {
 	Name        string `json:"name" v:"required#语言名称（如JavaScript、Python）不能为空"`
 	DisplayName string `json:"displayName" v:"required#语言显示名称不能为空"`
 	Code        string `json:"code" v:"required#语言代码（如js、py）不能为空"`
-	Icon        string `json:"icon" v:"required#语言图标标识或URL不能为空"`
-	Color       string `json:"color" v:"required#语言代表色（十六进制）不能为空"`
-	IsPopular   int    `json:"isPopular" v:"required#是否热门语言不能为空"`
+	Icon        string `json:"icon"`
+	Color       string `json:"color"`
+	IsPopular   int    `json:"isPopular"`
 }
 
 type LanguagesAddRes struct {
@@ -44,9 +44,9 @@ type LanguagesEditReq struct {
 	Name        string `json:"name" v:"required#语言名称（如JavaScript、Python）不能为空"`
 	DisplayName string `json:"displayName" v:"required#语言显示名称不能为空"`
 	Code        string `json:"code" v:"required#语言代码（如js、py）不能为空"`
-	Icon        string `json:"icon" v:"required#语言图标标识或URL不能为空"`
-	Color       string `json:"color" v:"required#语言代表色（十六进制）不能为空"`
-	IsPopular   int    `json:"isPopular" v:"required#是否热门语言不能为空"`
+	Icon        string `json:"icon"`
+	Color       string `json:"color"`
+	IsPopular   int    `json:"isPopular"`
 }
 
 type LanguagesEditRes struct {

@@ -11,7 +11,7 @@ export const useLanguageStore = defineStore('language', {
     async fetchLanguages(force = false) {
       if (this.loaded && !force) return this.languagesList
       try {
-        const res = await listLanguages({})
+        const res = await listLanguages({ page: 1, pageSize: 99 })
         this.languagesList = res.data.data.languagesList || []
         this.total = res.data.data.total || 0
         this.loaded = true
