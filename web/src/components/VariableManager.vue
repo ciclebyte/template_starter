@@ -86,6 +86,97 @@
           </div>
         </n-tab-pane>
         
+        <n-tab-pane name="functions" tab="函数变量">
+          <div class="functions-content">
+            <div class="functions-header">
+              <div class="header-info">
+                <span class="header-title">Go Template 函数</span>
+                <span class="header-desc">点击函数可插入到编辑器中，支持选中文本智能替换</span>
+              </div>
+            </div>
+            
+            <!-- 常用时间函数 -->
+            <div class="function-section">
+              <div class="section-title">
+                <n-icon><Time /></n-icon>
+                常用时间函数
+              </div>
+              <div class="function-grid">
+                <div 
+                  v-for="func in timeFunctions" 
+                  :key="func.name"
+                  class="function-card"
+                  @click="insertFunction(func)"
+                >
+                  <div class="function-name">{{ func.label }}</div>
+                  <div class="function-code">{{ func.code }}</div>
+                  <div class="function-desc">{{ func.description }}</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 字符串处理函数 -->
+            <div class="function-section">
+              <div class="section-title">
+                <n-icon><Text /></n-icon>
+                字符串处理函数
+              </div>
+              <div class="function-grid">
+                <div 
+                  v-for="func in stringFunctions" 
+                  :key="func.name"
+                  class="function-card"
+                  @click="insertFunction(func)"
+                >
+                  <div class="function-name">{{ func.label }}</div>
+                  <div class="function-code">{{ func.code }}</div>
+                  <div class="function-desc">{{ func.description }}</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 随机值函数 -->
+            <div class="function-section">
+              <div class="section-title">
+                <n-icon><Shuffle /></n-icon>
+                随机值函数
+              </div>
+              <div class="function-grid">
+                <div 
+                  v-for="func in randomFunctions" 
+                  :key="func.name"
+                  class="function-card"
+                  @click="insertFunction(func)"
+                >
+                  <div class="function-name">{{ func.label }}</div>
+                  <div class="function-code">{{ func.code }}</div>
+                  <div class="function-desc">{{ func.description }}</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 条件函数 -->
+            <div class="function-section">
+              <div class="section-title">
+                <n-icon><CodeSlash /></n-icon>
+                条件函数
+              </div>
+              <div class="function-grid">
+                <div 
+                  v-for="func in conditionalFunctions" 
+                  :key="func.name"
+                  class="function-card"
+                  @click="insertFunction(func)"
+                >
+                  <div class="function-name">{{ func.label }}</div>
+                  <div class="function-code">{{ func.code }}</div>
+                  <div class="function-desc">{{ func.description }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </n-tab-pane>
+        
         <n-tab-pane name="testData" tab="测试数据">
           <div class="test-data-content">
             <div class="test-data-header">
@@ -200,7 +291,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { NButton, NIcon, NModal, NForm, NFormItem, NInput, NSelect, NSwitch, NSpace, NTag, useMessage } from 'naive-ui'
-import { Add, DocumentText, CodeSlash, Settings } from '@vicons/ionicons5'
+import { Add, DocumentText, CodeSlash, Settings, Time, Text, Shuffle } from '@vicons/ionicons5'
 
 const props = defineProps({
   variables: {
@@ -270,6 +361,43 @@ const builtinVariables = [
   { name: 'module_name', label: '模块名', description: '模块名称' },
   { name: 'namespace', label: '命名空间', description: '代码命名空间' },
   { name: 'port', label: '端口号', description: '服务端口号' }
+]
+
+// 函数定义
+const timeFunctions = [
+  { name: 'now', label: '当前时间', code: '{{now}}', description: '返回当前时间' },
+  { name: 'date', label: '格式化日期', code: '{{date "2006-01-02"}}', description: '按指定格式返回当前日期' },
+  { name: 'datetime', label: '格式化时间', code: '{{date "2006-01-02 15:04:05"}}', description: '按指定格式返回当前时间' },
+  { name: 'timestamp', label: '时间戳', code: '{{now | unixEpoch}}', description: '返回Unix时间戳' },
+  { name: 'year', label: '当前年份', code: '{{date "2006"}}', description: '返回当前年份' },
+  { name: 'month', label: '当前月份', code: '{{date "01"}}', description: '返回当前月份' },
+  { name: 'day', label: '当前日期', code: '{{date "02"}}', description: '返回当前日期' }
+]
+
+const stringFunctions = [
+  { name: 'lower', label: '转小写', code: '{{lower .变量名}}', description: '将变量转换为小写' },
+  { name: 'upper', label: '转大写', code: '{{upper .变量名}}', description: '将变量转换为大写' },
+  { name: 'title', label: '首字母大写', code: '{{title .变量名}}', description: '将变量首字母大写' },
+  { name: 'camelcase', label: '驼峰命名', code: '{{camelcase .变量名}}', description: '转换为驼峰命名格式' },
+  { name: 'snakecase', label: '下划线命名', code: '{{snakecase .变量名}}', description: '转换为下划线命名格式' },
+  { name: 'kebabcase', label: '短横线命名', code: '{{kebabcase .变量名}}', description: '转换为短横线命名格式' },
+  { name: 'trim', label: '去除空格', code: '{{trim .变量名}}', description: '去除变量首尾空格' },
+  { name: 'trunc', label: '截断字符串', code: '{{trunc 10 .变量名}}', description: '截断字符串到指定长度' }
+]
+
+const randomFunctions = [
+  { name: 'randInt', label: '随机整数', code: '{{randInt 1 100}}', description: '生成1-100之间的随机整数' },
+  { name: 'randAlpha', label: '随机字母', code: '{{randAlpha 10}}', description: '生成10位随机字母' },
+  { name: 'randAlphaNum', label: '随机字母数字', code: '{{randAlphaNum 8}}', description: '生成8位随机字母数字' },
+  { name: 'randNumeric', label: '随机数字', code: '{{randNumeric 6}}', description: '生成6位随机数字' },
+  { name: 'uuid', label: 'UUID', code: '{{uuid}}', description: '生成UUID' }
+]
+
+const conditionalFunctions = [
+  { name: 'default', label: '默认值', code: '{{default "默认值" .变量名}}', description: '如果变量为空则使用默认值' },
+  { name: 'if', label: '条件判断', code: '{{if .条件}}值1{{else}}值2{{end}}', description: '条件判断语句' },
+  { name: 'eq', label: '相等判断', code: '{{eq .变量1 .变量2}}', description: '判断两个变量是否相等' },
+  { name: 'ne', label: '不等判断', code: '{{ne .变量1 .变量2}}', description: '判断两个变量是否不相等' }
 ]
 
 // 获取测试数据存储键名
@@ -481,6 +609,20 @@ async function saveVariable() {
 function insertVariable(variable) {
   const template = `{{.${variable.name}}}`
   emit('insert', template)
+}
+
+// 插入函数
+function insertFunction(func) {
+  let code = func.code
+  
+  // 如果代码中包含"变量名"占位符，需要特殊处理
+  if (code.includes('变量名')) {
+    // 这里可以获取编辑器当前选中的文本，如果没有选中则插入占位符
+    // 暂时使用占位符，后续可以通过props传递选中文本
+    code = code.replace('变量名', '')
+  }
+  
+  emit('insert', code)
 }
 
 // 暴露方法给父组件
@@ -790,5 +932,98 @@ function cancelEdit() {
 
 .test-data-item .n-input {
   width: 100%;
+}
+
+/* 函数相关样式 */
+.functions-content {
+  height: 100%;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.functions-header {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.functions-header .header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.functions-header .header-title {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #333;
+}
+
+.functions-header .header-desc {
+  font-size: 13px;
+  color: #666;
+}
+
+.function-section {
+  margin-bottom: 32px;
+}
+
+.function-section .section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.function-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.function-card {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.function-card:hover {
+  background: #e9ecef;
+  border-color: #18a058;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.function-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.function-code {
+  font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+  font-size: 14px;
+  background: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  color: #d63384;
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+
+.function-desc {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.4;
 }
 </style> 
