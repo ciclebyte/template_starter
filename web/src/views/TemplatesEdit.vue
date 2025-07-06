@@ -3,6 +3,13 @@
     <div class="edit-header">
       <div class="header-left">
         <span class="edit-title">模板编辑</span>
+        <!-- 模板变量展开按钮 -->
+        <div class="variable-expand-trigger" @click="toggleVariablePanel">
+          <span class="trigger-text">模板变量</span>
+          <n-icon class="trigger-icon" :class="{ 'rotated': isVariablePanelOpen }">
+            <ChevronDown />
+          </n-icon>
+        </div>
       </div>
       <div class="header-actions">
         <n-button size="small" @click="showVariableManager = true">
@@ -16,6 +23,143 @@
             <n-icon><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12l-4.89 4.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z"/></svg></n-icon>
           </template>
         </n-button>
+      </div>
+    </div>
+    
+    <!-- 变量插入面板 -->
+    <div v-show="isVariablePanelOpen" class="variable-panel">
+      <div class="variable-tabs">
+        <div class="tab-header">
+          <div 
+            v-for="tab in variableTabs" 
+            :key="tab.key"
+            class="tab-item"
+            :class="{ active: activeVariableTab === tab.key }"
+            @click="activeVariableTab = tab.key"
+          >
+            {{ tab.label }}
+          </div>
+        </div>
+        
+        <!-- 内置函数 Tab -->
+        <div v-show="activeVariableTab === 'functions'" class="tab-content">
+          <div class="function-categories">
+            <div class="category-row">
+              <span class="category-label">时间函数</span>
+              <div class="category-tags">
+                <div 
+                  v-for="func in timeFunctions" 
+                  :key="func.name"
+                  class="variable-tag function"
+                  @click="insertFunction(func)"
+                  :title="`${func.label} - ${func.description}`"
+                >
+                  {{ func.label }}
+                </div>
+              </div>
+            </div>
+            
+            <div class="category-row">
+              <span class="category-label">字符串处理</span>
+              <div class="category-tags">
+                <div 
+                  v-for="func in stringFunctions" 
+                  :key="func.name"
+                  class="variable-tag function"
+                  @click="insertFunction(func)"
+                  :title="`${func.label} - ${func.description}`"
+                >
+                  {{ func.label }}
+                </div>
+              </div>
+            </div>
+            
+            <div class="category-row">
+              <span class="category-label">随机值</span>
+              <div class="category-tags">
+                <div 
+                  v-for="func in randomFunctions" 
+                  :key="func.name"
+                  class="variable-tag function"
+                  @click="insertFunction(func)"
+                  :title="`${func.label} - ${func.description}`"
+                >
+                  {{ func.label }}
+                </div>
+              </div>
+            </div>
+            
+            <div class="category-row">
+              <span class="category-label">条件函数</span>
+              <div class="category-tags">
+                <div 
+                  v-for="func in conditionalFunctions" 
+                  :key="func.name"
+                  class="variable-tag function"
+                  @click="insertFunction(func)"
+                  :title="`${func.label} - ${func.description}`"
+                >
+                  {{ func.label }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 内置变量 Tab -->
+        <div v-show="activeVariableTab === 'builtin'" class="tab-content">
+          <div class="variable-tags">
+            <div 
+              v-for="variable in quickVariables" 
+              :key="variable.name"
+              class="variable-tag builtin"
+              @click="insertVariable(variable.name)"
+              :title="`${variable.name} - ${variable.label}`"
+            >
+              {{ variable.label }}
+            </div>
+          </div>
+        </div>
+        
+        <!-- 用户变量 Tab -->
+        <div v-show="activeVariableTab === 'custom'" class="tab-content">
+          <div v-if="textVariables.length > 0" class="variable-section">
+            <div class="section-title">文本变量</div>
+            <div class="variable-tags">
+              <n-tag
+                v-for="variable in textVariables"
+                :key="variable.id"
+                class="variable-tag text"
+                @click="insertVariable(variable.name)"
+                :title="`${variable.name}${variable.description ? ' - ' + variable.description : ''}`"
+              >
+                {{ variable.name }}
+              </n-tag>
+            </div>
+          </div>
+          
+          <div v-if="conditionalVariables.length > 0" class="variable-section">
+            <div class="section-title">条件变量</div>
+            <div class="variable-tags">
+              <n-tag
+                v-for="variable in conditionalVariables"
+                :key="variable.id"
+                class="variable-tag conditional"
+                @click="insertVariable(variable.name)"
+                :title="`${variable.name}${variable.description ? ' - ' + variable.description : ''}`"
+              >
+                {{ variable.name }}
+              </n-tag>
+            </div>
+          </div>
+          
+          <div v-if="templateVariables.length === 0" class="empty-variables">
+            <div class="empty-text">暂无自定义变量</div>
+            <n-button text type="primary" size="small" @click="showVariableManager = true">
+              添加变量
+            </n-button>
+          </div>
+        </div>
       </div>
     </div>
     
@@ -57,96 +201,7 @@
       />
     </div>
 
-    <!-- 变量插入浮动面板 -->
-    <div 
-      class="variable-insert-panel" 
-      :class="{ expanded: isVariablePanelExpanded, dragging: isDragging }"
-      ref="variablePanelRef"
-      :style="{ left: panelPosition.x + 'px', top: panelPosition.y + 'px' }"
-      @mousedown="startDrag"
-    >
-      <!-- 变量插入标识 -->
-      <div class="variable-insert-trigger" @click="toggleVariablePanel">
-        <n-icon class="trigger-icon">
-          <Pricetag />
-        </n-icon>
-      </div>
-      
-      <!-- 变量插入内容区域 -->
-      <div v-show="isVariablePanelExpanded" class="variable-insert-content">
-        <!-- 内置变量 -->
-        <div class="variable-section">
-          <div class="section-title">内置变量</div>
-          <div class="variable-tags">
-            <div 
-              v-for="variable in quickVariables" 
-              :key="variable.name"
-              class="variable-tag"
-              @click="insertVariable(variable.name)"
-              :title="`${variable.name} - ${variable.label}`"
-            >
-              {{ variable.label }}
-            </div>
-          </div>
-        </div>
-        
-        <!-- 文本变量 -->
-        <div class="variable-section" v-if="textVariables.length > 0">
-          <div class="section-title">文本变量</div>
-          <div class="variable-tags">
-            <n-tag
-              v-for="variable in textVariables"
-              :key="variable.id"
-              class="variable-tag text"
-              @click="insertVariable(variable.name)"
-              :title="`${variable.name}${variable.description ? ' - ' + variable.description : ''}`"
-            >
-              {{ variable.name }}
-            </n-tag>
-          </div>
-        </div>
-        
-        <!-- 条件变量 -->
-        <div class="variable-section" v-if="conditionalVariables.length > 0">
-          <div class="section-title">条件变量</div>
-          <div class="variable-tags">
-            <n-tag
-              v-for="variable in conditionalVariables"
-              :key="variable.id"
-              class="variable-tag conditional"
-              @click="insertVariable(variable.name)"
-              :title="`${variable.name}${variable.description ? ' - ' + variable.description : ''}`"
-            >
-              {{ variable.name }}
-            </n-tag>
-          </div>
-        </div>
-        
-        <!-- 函数变量 -->
-        <div class="variable-section">
-          <div class="section-title">函数变量</div>
-          <div class="variable-tags">
-            <div 
-              v-for="func in quickFunctions" 
-              :key="func.name"
-              class="variable-tag function"
-              @click="insertFunction(func)"
-              :title="`${func.label} - ${func.description}`"
-            >
-              {{ func.label }}
-            </div>
-          </div>
-        </div>
-        
-        <!-- 空状态 -->
-        <div v-if="templateVariables.length === 0" class="empty-variables">
-          <div class="empty-text">暂无自定义变量</div>
-          <n-button text type="primary" size="small" @click="showVariableManager = true">
-            添加变量
-          </n-button>
-        </div>
-      </div>
-    </div>
+
 
     <!-- 变量管理弹框 -->
     <n-modal 
@@ -213,7 +268,7 @@ const templateVariables = ref([])
 const templateEditorRef = ref(null)
 const variableManagerRef = ref(null)
 const showVariableManager = ref(false)
-const isVariablePanelExpanded = ref(false)
+
 const variableValues = ref({})
 const currentFileNode = ref(null)
 const templatePreviewRef = ref(null)
@@ -246,6 +301,54 @@ const quickFunctions = [
   { name: 'default', label: '默认值', code: '{{default "默认值" .变量名}}', description: '如果变量为空则使用默认值' }
 ]
 
+// 完整的函数分类
+const timeFunctions = [
+  { name: 'now', label: '当前时间', code: '{{now}}', description: '返回当前时间' },
+  { name: 'date', label: '格式化日期', code: '{{date "2006-01-02"}}', description: '按指定格式返回当前日期' },
+  { name: 'datetime', label: '格式化时间', code: '{{date "2006-01-02 15:04:05"}}', description: '按指定格式返回当前时间' },
+  { name: 'timestamp', label: '时间戳', code: '{{now | unixEpoch}}', description: '返回Unix时间戳' },
+  { name: 'year', label: '当前年份', code: '{{date "2006"}}', description: '返回当前年份' },
+  { name: 'month', label: '当前月份', code: '{{date "01"}}', description: '返回当前月份' },
+  { name: 'day', label: '当前日期', code: '{{date "02"}}', description: '返回当前日期' }
+]
+
+const stringFunctions = [
+  { name: 'lower', label: '转小写', code: '{{lower .变量名}}', description: '将变量转换为小写' },
+  { name: 'upper', label: '转大写', code: '{{upper .变量名}}', description: '将变量转换为大写' },
+  { name: 'title', label: '首字母大写', code: '{{title .变量名}}', description: '将变量首字母大写' },
+  { name: 'camelcase', label: '驼峰命名', code: '{{camelcase .变量名}}', description: '转换为驼峰命名格式' },
+  { name: 'snakecase', label: '下划线命名', code: '{{snakecase .变量名}}', description: '转换为下划线命名格式' },
+  { name: 'kebabcase', label: '短横线命名', code: '{{kebabcase .变量名}}', description: '转换为短横线命名格式' },
+  { name: 'trim', label: '去除空格', code: '{{trim .变量名}}', description: '去除变量首尾空格' },
+  { name: 'trunc', label: '截断字符串', code: '{{trunc 10 .变量名}}', description: '截断字符串到指定长度' }
+]
+
+const randomFunctions = [
+  { name: 'randInt', label: '随机整数', code: '{{randInt 1 100}}', description: '生成1-100之间的随机整数' },
+  { name: 'randAlpha', label: '随机字母', code: '{{randAlpha 10}}', description: '生成10位随机字母' },
+  { name: 'randAlphaNum', label: '随机字母数字', code: '{{randAlphaNum 8}}', description: '生成8位随机字母数字' },
+  { name: 'randNumeric', label: '随机数字', code: '{{randNumeric 6}}', description: '生成6位随机数字' },
+  { name: 'uuid', label: 'UUID', code: '{{uuid}}', description: '生成UUID' }
+]
+
+const conditionalFunctions = [
+  { name: 'default', label: '默认值', code: '{{default "默认值" .变量名}}', description: '如果变量为空则使用默认值' },
+  { name: 'if', label: '条件判断', code: '{{if .条件}}值1{{else}}值2{{end}}', description: '条件判断语句' },
+  { name: 'eq', label: '相等判断', code: '{{eq .变量1 .变量2}}', description: '判断两个变量是否相等' },
+  { name: 'ne', label: '不等判断', code: '{{ne .变量1 .变量2}}', description: '判断两个变量是否不相等' }
+]
+
+// 变量面板状态
+const isVariablePanelOpen = ref(false)
+const activeVariableTab = ref('functions')
+
+// 变量标签页配置
+const variableTabs = [
+  { key: 'functions', label: '内置函数' },
+  { key: 'builtin', label: '内置变量' },
+  { key: 'custom', label: '用户变量' }
+]
+
 // 计算属性：按类型分组变量
 const textVariables = computed(() => {
   return templateVariables.value.filter(v => v.variableType === 'text' || !v.variableType)
@@ -255,77 +358,30 @@ const conditionalVariables = computed(() => {
   return templateVariables.value.filter(v => v.variableType === 'conditional')
 })
 
-// 新增拖拽功能
-const variablePanelRef = ref(null)
-const isDragging = ref(false)
-const dragStartPos = ref({ x: 0, y: 0 })
-const panelPosition = ref({ x: 1200, y: 120 })
 
-const startDrag = (event) => {
-  // 如果点击的是变量标签，不启动拖拽
-  if (event.target.closest('.variable-tag') || event.target.closest('.variable-insert-content')) {
-    return
-  }
-  
-  isDragging.value = true
-  // 记录鼠标相对于面板的偏移
-  const rect = variablePanelRef.value.getBoundingClientRect()
-  dragStartPos.value = {
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top
-  }
-  
-  document.addEventListener('mousemove', onDrag)
-  document.addEventListener('mouseup', stopDrag)
-  event.preventDefault()
-}
-
-const onDrag = (event) => {
-  if (!isDragging.value) return
-  
-  // 计算新位置：鼠标位置减去初始偏移
-  const newX = event.clientX - dragStartPos.value.x
-  const newY = event.clientY - dragStartPos.value.y
-  
-  // 限制在视窗范围内
-  const maxX = window.innerWidth - 60
-  const maxY = window.innerHeight - 60
-  
-  panelPosition.value = {
-    x: Math.max(0, Math.min(newX, maxX)),
-    y: Math.max(0, Math.min(newY, maxY))
-  }
-}
-
-const stopDrag = () => {
-  isDragging.value = false
-  document.removeEventListener('mousemove', onDrag)
-  document.removeEventListener('mouseup', stopDrag)
-}
 
 onMounted(async () => {
   await loadTree()
   await loadVariables()
   
-  // 设置默认位置：右侧中间偏上，考虑展开内容的大小
-  setTimeout(() => {
-    const screenWidth = window.innerWidth
-    const screenHeight = window.innerHeight
-    const contentWidth = 280  // 展开内容的最小宽度
-    const contentHeight = 500 // 展开内容的最大高度
-    
-    panelPosition.value = {
-      x: Math.max(screenWidth - contentWidth - 40, 20), // 确保展开后有足够空间
-      y: Math.max(Math.min(screenHeight * 0.3, screenHeight - contentHeight - 40), 20)  // 确保展开后不超出下边界
-    }
-  }, 100)
+  // 添加点击外部关闭下拉区域
+  document.addEventListener('click', handleClickOutside)
 })
 
 onUnmounted(() => {
-  // 清理拖拽事件监听器
-  document.removeEventListener('mousemove', onDrag)
-  document.removeEventListener('mouseup', stopDrag)
+  document.removeEventListener('click', handleClickOutside)
 })
+
+// 点击外部关闭变量面板
+function handleClickOutside(event) {
+  const trigger = document.querySelector('.variable-expand-trigger')
+  const panel = document.querySelector('.variable-panel')
+  if (trigger && !trigger.contains(event.target) && panel && !panel.contains(event.target)) {
+    isVariablePanelOpen.value = false
+  }
+}
+
+
 
 async function loadTree() {
   loadingTree.value = true
@@ -673,52 +729,12 @@ function insertFunction(func) {
   }
 }
 
-// 切换变量面板展开状态
+// 切换变量面板
 function toggleVariablePanel() {
-  isVariablePanelExpanded.value = !isVariablePanelExpanded.value
-  
-  // 如果展开，检查并调整位置确保内容不超出屏幕
-  if (isVariablePanelExpanded.value) {
-    nextTick(() => {
-      adjustPanelPosition()
-    })
-  }
+  isVariablePanelOpen.value = !isVariablePanelOpen.value
 }
 
-// 调整面板位置，确保展开内容不超出屏幕
-function adjustPanelPosition() {
-  const panel = variablePanelRef.value
-  if (!panel) return
-  
-  const rect = panel.getBoundingClientRect()
-  const contentHeight = 500 // 展开内容的最大高度
-  const contentWidth = 280  // 展开内容的最小宽度
-  
-  let newX = panelPosition.value.x
-  let newY = panelPosition.value.y
-  
-  // 检查右边界
-  if (rect.left + contentWidth > window.innerWidth) {
-    newX = window.innerWidth - contentWidth - 20
-  }
-  
-  // 检查下边界
-  if (rect.top + contentHeight > window.innerHeight) {
-    newY = window.innerHeight - contentHeight - 20
-  }
-  
-  // 检查左边界
-  if (newX < 20) {
-    newX = 20
-  }
-  
-  // 检查上边界
-  if (newY < 20) {
-    newY = 20
-  }
-  
-  panelPosition.value = { x: newX, y: newY }
-}
+
 
 // 新增变量（直接打开编辑对话框）
 function addVariable() {
@@ -758,7 +774,7 @@ function onApplyTestData(testData) {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
 }
 
 .edit-title {
@@ -771,6 +787,118 @@ function onApplyTestData(testData) {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* 变量展开按钮样式 */
+.variable-expand-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.variable-expand-trigger:hover {
+  background: #e9ecef;
+  border-color: #18a058;
+}
+
+.trigger-text {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+}
+
+.trigger-icon {
+  font-size: 16px;
+  color: #666;
+  transition: transform 0.2s;
+}
+
+.trigger-icon.rotated {
+  transform: rotate(180deg);
+}
+
+/* 变量面板样式 */
+.variable-panel {
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  overflow: hidden;
+}
+
+.variable-tabs {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-header {
+  display: flex;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.tab-item {
+  flex: 1;
+  padding: 12px 16px;
+  text-align: center;
+  cursor: pointer;
+  font-size: 14px;
+  color: #666;
+  transition: all 0.2s;
+  border-bottom: 2px solid transparent;
+}
+
+.tab-item:hover {
+  background: #e9ecef;
+  color: #333;
+}
+
+.tab-item.active {
+  color: #18a058;
+  border-bottom-color: #18a058;
+  background: #fff;
+}
+
+.tab-content {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  max-height: 400px;
+}
+
+.function-categories {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.category-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.category-label {
+  min-width: 80px;
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.category-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
 }
 
 .edit-close-btn {
@@ -831,72 +959,7 @@ function onApplyTestData(testData) {
   background: #f5f5f5;
 }
 
-/* 变量插入浮动面板 */
-.variable-insert-panel {
-  position: fixed;
-  z-index: 1000;
-  background: #fff;
-  border-radius: 50px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-  transition: all 0.3s ease;
-  overflow: hidden;
-  cursor: grab;
-  user-select: none;
-  /* 修复边缘毛刺 */
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
 
-.variable-insert-panel.dragging {
-  cursor: grabbing;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-  transform: scale(1.05) translateZ(0);
-}
-
-.variable-insert-panel.expanded {
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-}
-
-.variable-insert-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  cursor: pointer;
-  background: #18a058;
-  color: #fff;
-  border-radius: 50%;
-  transition: all 0.2s;
-  user-select: none;
-  /* 修复边缘毛刺 */
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-.variable-insert-trigger:hover {
-  background: #16a34a;
-  transform: scale(1.1) translateZ(0);
-  box-shadow: 0 4px 12px rgba(24, 160, 88, 0.3);
-}
-
-.trigger-icon {
-  font-size: 20px;
-}
-
-.variable-insert-content {
-  padding: 16px;
-  background: #fff;
-  border-top: 1px solid #f0f0f0;
-  max-height: 500px;
-  overflow-y: auto;
-  min-width: 280px;
-}
 
 .variable-section {
   margin-bottom: 16px;
@@ -916,16 +979,16 @@ function onApplyTestData(testData) {
 }
 
 .variable-tags {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   max-width: 100%;
 }
 
 .variable-tag {
   cursor: pointer;
-  font-size: 10px;
-  padding: 4px 6px;
+  font-size: 12px;
+  padding: 6px 12px;
   border-radius: 4px;
   transition: all 0.2s;
   user-select: none;
@@ -1015,22 +1078,5 @@ function onApplyTestData(testData) {
   overflow: hidden;
 }
 
-/* 滚动条样式 */
-.variable-insert-content::-webkit-scrollbar {
-  width: 4px;
-}
 
-.variable-insert-content::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 2px;
-}
-
-.variable-insert-content::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 2px;
-}
-
-.variable-insert-content::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
 </style> 
