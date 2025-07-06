@@ -122,12 +122,11 @@
             @contextmenu.prevent.stop="showDropdown(template, $event)"
           >
             <div class="template-logo">
-              <div v-if="template.icon" class="template-icon">
+              <div class="template-icon">
                 <n-icon size="48">
-                  <component :is="getIconComponent(template.icon)" />
+                  <component :is="getIconComponent(template.icon) || getDefaultIcon(template)" />
                 </n-icon>
               </div>
-              <img v-else :src="template.logo || DEFAULT_LOGO" :alt="template.name" />
               <div v-if="template.isFeatured" class="featured-badge">
                 <n-icon><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg></n-icon>
               </div>
@@ -374,7 +373,6 @@ const addForm = ref({
   categoryId: null,
   languages: [],
   primary_language: null,
-  logo: '',
   icon: '',
   introduction: ''
 })
@@ -407,7 +405,7 @@ const onLanguagesChange = (val) => {
 
 
 
-const DEFAULT_LOGO = '/vite.svg'
+
 
 const handleAddTemplate = async () => {
   // 类型转换
@@ -427,12 +425,12 @@ const handleAddTemplate = async () => {
     introduction: addForm.value.introduction,
     categoryId: addForm.value.categoryId,
     isFeatured: 0,
-    logo: addForm.value.logo || DEFAULT_LOGO,
+
     icon: addForm.value.icon,
     languages: languagesArr
   })
   showAddModal.value = false
-  addForm.value = { name: '', description: '', categoryId: null, languages: [], primary_language: null, logo: '', icon: '', introduction: '' }
+  addForm.value = { name: '', description: '', categoryId: null, languages: [], primary_language: null, icon: '', introduction: '' }
   // TODO: 刷新模板列表
 }
 
@@ -485,6 +483,59 @@ const getLanguageColor = (languageId) => {
 // 获取图标组件
 const getIconComponent = (iconName) => {
   return IonIcons[iconName] || null
+}
+
+// 获取默认图标
+const getDefaultIcon = (template) => {
+  // 根据模板名称或分类选择合适的默认图标
+  const name = template.name?.toLowerCase() || ''
+  const categoryId = template.categoryId
+  
+  // 根据分类选择默认图标
+  if (categoryId) {
+    const category = categoriesList.value.find(cat => cat.id === Number(categoryId))
+    if (category) {
+      const categoryName = category.name.toLowerCase()
+      if (categoryName.includes('web') || categoryName.includes('前端')) return IonIcons.GlobeOutline
+      if (categoryName.includes('mobile') || categoryName.includes('移动')) return IonIcons.PhonePortraitOutline
+      if (categoryName.includes('backend') || categoryName.includes('后端')) return IonIcons.ServerOutline
+      if (categoryName.includes('fullstack') || categoryName.includes('全栈')) return IonIcons.AppsOutline
+      if (categoryName.includes('ui') || categoryName.includes('界面')) return IonIcons.GridOutline
+      if (categoryName.includes('data') || categoryName.includes('数据')) return IonIcons.BarChartOutline
+    }
+  }
+  
+  // 根据模板名称选择默认图标
+  if (name.includes('web') || name.includes('前端') || name.includes('vue') || name.includes('react')) {
+    return IonIcons.GlobeOutline
+  }
+  if (name.includes('mobile') || name.includes('移动') || name.includes('app')) {
+    return IonIcons.PhonePortraitOutline
+  }
+  if (name.includes('backend') || name.includes('后端') || name.includes('api') || name.includes('server')) {
+    return IonIcons.ServerOutline
+  }
+  if (name.includes('fullstack') || name.includes('全栈')) {
+    return IonIcons.AppsOutline
+  }
+  if (name.includes('ui') || name.includes('界面') || name.includes('design')) {
+    return IonIcons.GridOutline
+  }
+  if (name.includes('data') || name.includes('数据') || name.includes('chart')) {
+    return IonIcons.BarChartOutline
+  }
+  if (name.includes('admin') || name.includes('管理')) {
+    return IonIcons.SettingsOutline
+  }
+  if (name.includes('blog') || name.includes('博客')) {
+    return IonIcons.DocumentTextOutline
+  }
+  if (name.includes('ecommerce') || name.includes('电商') || name.includes('shop')) {
+    return IonIcons.CartOutline
+  }
+  
+  // 默认图标
+  return IonIcons.DocumentOutline
 }
 
 
@@ -562,7 +613,6 @@ const editForm = ref({
   categoryId: null,
   languages: [],
   primary_language: null,
-  logo: '',
   icon: '',
   introduction: '',
   isFeatured: 0
@@ -586,7 +636,7 @@ const openEditModal = (template) => {
     editForm.value.languages = []
     editForm.value.primary_language = null
   }
-  editForm.value.logo = template.logo
+
   showEditModal.value = true
 }
 
@@ -616,7 +666,7 @@ const handleEditTemplate = async () => {
     introduction: editForm.value.introduction,
     categoryId: editForm.value.categoryId,
     isFeatured: editForm.value.isFeatured,
-    logo: editForm.value.logo || DEFAULT_LOGO,
+
     icon: editForm.value.icon,
     languages: languagesArr
   })
@@ -645,7 +695,7 @@ const handleToggleFeatured = async (template) => {
       introduction: template.introduction || '',
       categoryId: template.categoryId,
       isFeatured: newFeaturedStatus,
-      logo: template.logo || DEFAULT_LOGO,
+  
       languages: template.languages
     })
     // 更新本地数据

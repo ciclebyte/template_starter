@@ -26,12 +26,11 @@
             class="template-card"
           >
             <div class="template-logo">
-              <div v-if="template.icon" class="template-icon">
+              <div class="template-icon">
                 <n-icon size="48">
-                  <component :is="getIconComponent(template.icon)" />
+                  <component :is="getIconComponent(template.icon) || getDefaultIcon(template)" />
                 </n-icon>
               </div>
-              <img v-else :src="template.logo || '/vite.svg'" :alt="template.name" />
             </div>
             <div class="template-info">
               <h3>{{ template.name }}</h3>
@@ -86,7 +85,11 @@
                 class="template-card"
               >
                 <div class="template-logo">
-                  <img :src="template.logo || '/vite.svg'" :alt="template.name" />
+                  <div class="template-icon">
+                    <n-icon size="48">
+                      <component :is="getIconComponent(template.icon) || getDefaultIcon(template)" />
+                    </n-icon>
+                  </div>
                 </div>
                 <div class="template-info">
                   <h3>{{ template.name }}</h3>
@@ -160,6 +163,44 @@ const getLanguageColor = (languageId) => {
 // 获取图标组件
 const getIconComponent = (iconName) => {
   return IonIcons[iconName] || null
+}
+
+// 获取默认图标
+const getDefaultIcon = (template) => {
+  // 根据模板名称选择合适的默认图标
+  const name = template.name?.toLowerCase() || ''
+  
+  // 根据模板名称选择默认图标
+  if (name.includes('web') || name.includes('前端') || name.includes('vue') || name.includes('react')) {
+    return IonIcons.GlobeOutline
+  }
+  if (name.includes('mobile') || name.includes('移动') || name.includes('app')) {
+    return IonIcons.PhonePortraitOutline
+  }
+  if (name.includes('backend') || name.includes('后端') || name.includes('api') || name.includes('server')) {
+    return IonIcons.ServerOutline
+  }
+  if (name.includes('fullstack') || name.includes('全栈')) {
+    return IonIcons.AppsOutline
+  }
+  if (name.includes('ui') || name.includes('界面') || name.includes('design')) {
+    return IonIcons.GridOutline
+  }
+  if (name.includes('data') || name.includes('数据') || name.includes('chart')) {
+    return IonIcons.BarChartOutline
+  }
+  if (name.includes('admin') || name.includes('管理')) {
+    return IonIcons.SettingsOutline
+  }
+  if (name.includes('blog') || name.includes('博客')) {
+    return IonIcons.DocumentTextOutline
+  }
+  if (name.includes('ecommerce') || name.includes('电商') || name.includes('shop')) {
+    return IonIcons.CartOutline
+  }
+  
+  // 默认图标
+  return IonIcons.DocumentOutline
 }
 
 // 获取首页数据

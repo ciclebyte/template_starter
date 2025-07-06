@@ -41,17 +41,37 @@
               <n-form-item label="图标">
                 <div class="icon-selector-wrapper">
                   <div class="current-icon" @click="showIconSelector = true">
-                    <n-icon v-if="form.icon" size="24">
+                    <n-icon v-if="form.icon" size="32">
                       <component :is="getIconComponent(form.icon)" />
                     </n-icon>
-                    <span v-else class="no-icon">选择图标</span>
+                    <div v-else class="no-icon">
+                      <n-icon size="24" color="#ccc">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                      </n-icon>
+                      <span>选择图标</span>
+                    </div>
                   </div>
-                  <n-button size="small" @click="showIconSelector = true">
-                    选择图标
-                  </n-button>
-                  <n-button v-if="form.icon" size="small" @click="clearIcon">
-                    清除
-                  </n-button>
+                  <div class="icon-actions">
+                    <n-button 
+                      size="small" 
+                      type="primary" 
+                      ghost
+                      @click="showIconSelector = true"
+                    >
+                      选择图标
+                    </n-button>
+                    <n-button 
+                      v-if="form.icon" 
+                      size="small" 
+                      type="error" 
+                      ghost
+                      @click="clearIcon"
+                    >
+                      清除
+                    </n-button>
+                  </div>
                 </div>
               </n-form-item>
               <div v-if="form.languages.length > 0" style="margin-bottom: 12px;">
@@ -104,11 +124,12 @@
     v-model:show="showIconSelector"
     title="选择图标"
     preset="dialog"
-    style="width: 90vw; max-width: 800px;"
+    style="width: 90vw; max-width: 900px;"
   >
     <IconSelector @select="onIconSelect" />
     <template #action>
-      <n-button @click="showIconSelector = false">关闭</n-button>
+      <n-button @click="showIconSelector = false">取消</n-button>
+      <n-button type="primary" @click="showIconSelector = false">确定</n-button>
     </template>
   </n-modal>
 </template>
@@ -246,29 +267,63 @@ const handleSubmit = async () => {
 .icon-selector-wrapper {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 
 .current-icon {
-  width: 48px;
-  height: 48px;
+  width: 64px;
+  height: 64px;
   border: 2px dashed #d9d9d9;
-  border-radius: 8px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
+  background: #fafafa;
+  position: relative;
+  overflow: hidden;
 }
 
 .current-icon:hover {
   border-color: #18a058;
   background-color: #f6ffed;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(24, 160, 88, 0.15);
+}
+
+.current-icon:active {
+  transform: translateY(0);
 }
 
 .no-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
   color: #999;
   font-size: 12px;
+}
+
+.no-icon span {
+  font-weight: 500;
+}
+
+.icon-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.icon-actions .n-button {
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.icon-actions .n-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .markdown-editor-container :deep(.md-editor-content) {
