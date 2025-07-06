@@ -257,18 +257,47 @@
       @submit="handleEditLanguage"
       @cancel="handleCancelLanguage"
     />
+
+    <!-- 删除确认对话框 -->
+    <n-modal
+      v-model:show="showDeleteModal"
+      preset="dialog"
+      title="确认删除"
+      :show-icon="false"
+      :mask-closable="false"
+    >
+      <template #default>
+        <div class="delete-confirm-content">
+          <div class="delete-icon">🗑️</div>
+          <div class="delete-message">
+            确定要删除{{ getDeleteItemType() }} <strong>"{{ deleteTemplateInfo?.name }}"</strong> 吗？
+          </div>
+          <div class="delete-warning">
+            此操作不可恢复，删除后将无法找回。
+          </div>
+        </div>
+      </template>
+      <template #action>
+        <div class="delete-actions">
+          <n-button @click="showDeleteModal = false">取消</n-button>
+          <n-button type="error" @click="confirmDelete" :loading="deleteLoading">
+            确认删除
+          </n-button>
+        </div>
+      </template>
+    </n-modal>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, h, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { NIcon } from 'naive-ui'
+import { NIcon, useMessage, NModal, NButton } from 'naive-ui'
 import * as IonIcons from '@vicons/ionicons5'
 import { useLanguageStore } from '@/stores/languageStore'
 import { storeToRefs } from 'pinia'
 import { useCategoryStore } from '@/stores/categoryStore'
-import { addTemplate, listTemplates, editTemplate } from '@/api/templates'
+import { addTemplate, listTemplates, editTemplate, deleteTemplate } from '@/api/templates'
 import { deleteCategory } from '@/api/categories'
 import { deleteLanguage } from '@/api/languages'
 import { addTemplateLanguage } from '@/api/templateLanguages'
@@ -277,6 +306,7 @@ import CategoryForm from './components/CategoryForm.vue'
 import LanguageForm from './components/LanguageForm.vue'
 
 const router = useRouter()
+const message = useMessage()
 
 const languageStore = useLanguageStore()
 const { languagesList } = storeToRefs(languageStore)
@@ -352,6 +382,11 @@ const showAddCategoryModal = ref(false)
 const showEditCategoryModal = ref(false)
 const showAddLanguageModal = ref(false)
 const showEditLanguageModal = ref(false)
+
+// 删除确认对话框相关
+const showDeleteModal = ref(false)
+const deleteTemplateInfo = ref(null)
+const deleteLoading = ref(false)
 const categoryForm = ref({
   name: '',
   description: '',
@@ -594,7 +629,8 @@ const dropdownOptions = computed(() => [
     label: dropdownTemplate.value?.isFeatured ? '取消推荐' : '设为推荐', 
     key: 'toggleFeatured', 
     icon: () => h('span', { style: 'color:#f0a020' }, dropdownTemplate.value?.isFeatured ? '⭐' : '☆') 
-  }
+  },
+  { label: '删除模板', key: 'deleteTemplate', icon: () => h('span', { style: 'color:#d03050' }, '🗑️') }
 ])
 
 const categoryDropdownOptions = [
@@ -685,6 +721,8 @@ const handleDropdownSelect = async (key, template) => {
     router.push(`/templates/edit/${template.id}`)
   } else if (key === 'toggleFeatured') {
     await handleToggleFeatured(template)
+  } else if (key === 'deleteTemplate') {
+    await handleDeleteTemplate(template)
   }
   dropdownShow.value = false
 }
@@ -707,6 +745,66 @@ const handleToggleFeatured = async (template) => {
     allTemplates.value = res.data.data.templatesList || []
   } catch (error) {
     console.error('切换推荐状态失败:', error)
+  }
+}
+
+// 删除模板
+const handleDeleteTemplate = async (template) => {
+  // 设置要删除的模板信息
+  deleteTemplateInfo.value = template
+  // 显示删除确认对话框
+  showDeleteModal.value = true
+}
+
+// 确认删除
+// 获取删除项目类型
+const getDeleteItemType = () => {
+  if (!deleteTemplateInfo.value) return '项目'
+  if (deleteTemplateInfo.value.type === 'category') return '分类'
+  if (deleteTemplateInfo.value.type === 'language') return '语言'
+  return '模板'
+}
+
+// 确认删除
+const confirmDelete = async () => {
+  if (!deleteTemplateInfo.value) return
+  
+  try {
+    deleteLoading.value = true
+    
+    if (deleteTemplateInfo.value.type === 'category') {
+      // 删除分类
+      await deleteCategory({ id: deleteTemplateInfo.value.id })
+      message.success('分类删除成功')
+      // 清空缓存并重新请求分类列表
+      categoryStore.loaded = false
+      await categoryStore.fetchCategories(true)
+    } else if (deleteTemplateInfo.value.type === 'language') {
+      // 删除语言
+      await deleteLanguage({ id: deleteTemplateInfo.value.id })
+      message.success('语言删除成功')
+      // 清空缓存并重新请求语言列表
+      languageStore.loaded = false
+      await languageStore.fetchLanguages(true)
+    } else {
+      // 删除模板
+      await deleteTemplate({ id: deleteTemplateInfo.value.id })
+      message.success('模板删除成功')
+      // 刷新模板列表
+      const res = await listTemplates({})
+      allTemplates.value = res.data.data.templatesList || []
+    }
+    
+    // 关闭对话框并重置状态
+    showDeleteModal.value = false
+    deleteTemplateInfo.value = null
+  } catch (error) {
+    console.error('删除失败:', error)
+    const itemType = deleteTemplateInfo.value?.type === 'category' ? '分类' : 
+                    deleteTemplateInfo.value?.type === 'language' ? '语言' : '模板'
+    message.error(`删除${itemType}失败: ` + (error.response?.data?.message || error.message || '未知错误'))
+  } finally {
+    deleteLoading.value = false
   }
 }
 
@@ -787,18 +885,10 @@ const handleEditCategory = async () => {
 }
 
 const handleDeleteCategory = async (category) => {
-  try {
-    // 这里可以添加确认对话框
-    if (confirm(`确定要删除分类"${category.name}"吗？`)) {
-      // 调用删除API
-      await deleteCategory({ id: category.id })
-      // 清空缓存并重新请求分类列表
-      categoryStore.loaded = false
-      await categoryStore.fetchCategories(true)
-    }
-  } catch (error) {
-    console.error('删除分类失败:', error)
-  }
+  // 设置要删除的分类信息
+  deleteTemplateInfo.value = { ...category, type: 'category' }
+  // 显示删除确认对话框
+  showDeleteModal.value = true
 }
 
 // 语言相关处理函数
@@ -872,18 +962,10 @@ const handleEditLanguage = async () => {
 }
 
 const handleDeleteLanguage = async (language) => {
-  try {
-    // 这里可以添加确认对话框
-    if (confirm(`确定要删除语言"${language.name}"吗？`)) {
-      // 调用删除API
-      await deleteLanguage({ id: language.id })
-      // 清空缓存并重新请求语言列表
-      languageStore.loaded = false
-      await languageStore.fetchLanguages(true)
-    }
-  } catch (error) {
-    console.error('删除语言失败:', error)
-  }
+  // 设置要删除的语言信息
+  deleteTemplateInfo.value = { ...language, type: 'language' }
+  // 显示删除确认对话框
+  showDeleteModal.value = true
 }
 
 watch(languagesList, (val) => {
@@ -1356,5 +1438,51 @@ onMounted(async () => {
     grid-template-columns: 1fr;
     gap: 15px;
   }
+}
+
+/* 删除确认对话框样式 */
+.delete-confirm-content {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.delete-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  animation: shake 0.5s ease-in-out;
+}
+
+.delete-message {
+  font-size: 16px;
+  color: #333;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.delete-message strong {
+  color: #d03050;
+  font-weight: 600;
+}
+
+.delete-warning {
+  font-size: 14px;
+  color: #d03050;
+  background: #fff2f0;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #ffccc7;
+  margin-top: 12px;
+}
+
+.delete-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
 }
 </style> 
