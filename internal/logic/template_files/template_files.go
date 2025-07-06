@@ -889,154 +889,255 @@ func (s sTemplateFiles) RenderFileTree(ctx context.Context, req *api.TemplateFil
 
 // renderAndRebuildTree 渲染文件并重建树结构
 func (s sTemplateFiles) renderAndRebuildTree(files []*entity.TemplateFiles, variables map[string]interface{}) []*api.RenderFileInfo {
-	// 用于存储渲染后的文件，key为原始ID
-	renderedMap := make(map[int64]*api.RenderFileInfo)
-	// 用于存储路径到节点的映射，用于重建树结构
-	pathMap := make(map[string]*api.RenderFileInfo)
-	// 用于生成新的ID
-	nextId := int64(10000) // 使用一个较大的起始值避免冲突
+	fmt.Printf("=== 开始渲染和重建树形结构 ===\n")
+	fmt.Printf("总文件数: %d\n", len(files))
+	fmt.Printf("变量数据: %+v\n", variables)
 
-	// 1. 先渲染所有原始文件
-	for _, file := range files {
-		renderFile := &api.RenderFileInfo{
-			Id:          file.Id,
-			FilePath:    file.FilePath,
-			FileName:    file.FileName,
-			FileContent: file.FileContent,
-			FileSize:    int(file.FileSize),
-			IsDirectory: file.IsDirectory,
-			ParentId:    int(file.ParentId),
+	var result []*api.RenderFileInfo
+	var nextId int64 = 10000
+	pathToNode := make(map[string]*api.RenderFileInfo)
+	originalPathToFinalPath := make(map[string]string) // 记录原始路径到最终路径的映射
+
+	// 第一步：处理所有文件，渲染并创建基础节点
+	fmt.Printf("\n=== 第一步：处理所有文件 ===\n")
+	for i, file := range files {
+		fmt.Printf("\n--- 处理文件 %d/%d ---\n", i+1, len(files))
+		fmt.Printf("原始数据: ID=%d, 名称=%s, 路径=%s, 是否目录=%d, 父ID=%d\n",
+			file.Id, file.FileName, file.FilePath, file.IsDirectory, file.ParentId)
+
+		// 修复变量格式：将 {{/var}} 转换为 {{.var}}
+		fileNameToRender := file.FileName
+		filePathToRender := file.FilePath
+
+		if strings.Contains(fileNameToRender, "{{/") {
+			fileNameToRender = strings.ReplaceAll(fileNameToRender, "{{/", "{{.")
+			fmt.Printf("  修复文件名变量格式: %s\n", fileNameToRender)
+		}
+		if strings.Contains(filePathToRender, "{{/") {
+			filePathToRender = strings.ReplaceAll(filePathToRender, "{{/", "{{.")
+			fmt.Printf("  修复文件路径变量格式: %s\n", filePathToRender)
 		}
 
-		// 渲染文件名
-		if file.FileName != "" {
-			fileNameTmpl, err := template.New("fileName").Funcs(s.getTemplateFuncs()).Parse(file.FileName)
-			if err == nil {
-				var fileNameBuf bytes.Buffer
-				err = fileNameTmpl.Execute(&fileNameBuf, variables)
-				if err == nil {
-					renderFile.FileName = fileNameBuf.String()
+		// 渲染文件名和路径
+		renderedName := file.FileName
+		renderedPath := file.FilePath
+
+		if fileNameToRender != "" {
+			if tmpl, err := template.New("fileName").Funcs(s.getTemplateFuncs()).Parse(fileNameToRender); err == nil {
+				var buf bytes.Buffer
+				if tmpl.Execute(&buf, variables) == nil {
+					renderedName = buf.String()
+					fmt.Printf("  文件名渲染: %s -> %s\n", fileNameToRender, renderedName)
+				} else {
+					fmt.Printf("  文件名渲染失败: %v\n", err)
 				}
+			} else {
+				fmt.Printf("  文件名模板解析失败: %v\n", err)
 			}
 		}
 
-		// 渲染文件路径
-		if file.FilePath != "" {
-			filePathTmpl, err := template.New("filePath").Funcs(s.getTemplateFuncs()).Parse(file.FilePath)
-			if err == nil {
-				var filePathBuf bytes.Buffer
-				err = filePathTmpl.Execute(&filePathBuf, variables)
-				if err == nil {
-					renderFile.FilePath = filePathBuf.String()
+		if filePathToRender != "" {
+			if tmpl, err := template.New("filePath").Funcs(s.getTemplateFuncs()).Parse(filePathToRender); err == nil {
+				var buf bytes.Buffer
+				if tmpl.Execute(&buf, variables) == nil {
+					renderedPath = buf.String()
+					fmt.Printf("  文件路径渲染: %s -> %s\n", filePathToRender, renderedPath)
+				} else {
+					fmt.Printf("  文件路径渲染失败: %v\n", err)
 				}
+			} else {
+				fmt.Printf("  文件路径模板解析失败: %v\n", err)
 			}
 		}
 
 		// 渲染文件内容
-		if file.IsDirectory == 0 {
-			tmpl, err := template.New("template").Funcs(s.getTemplateFuncs()).Parse(file.FileContent)
-			if err == nil {
+		renderedContent := file.FileContent
+		if file.IsDirectory == 0 && file.FileContent != "" {
+			contentToRender := file.FileContent
+			if strings.Contains(contentToRender, "{{/") {
+				contentToRender = strings.ReplaceAll(contentToRender, "{{/", "{{.")
+			}
+
+			if tmpl, err := template.New("fileContent").Funcs(s.getTemplateFuncs()).Parse(contentToRender); err == nil {
 				var buf bytes.Buffer
-				err = tmpl.Execute(&buf, variables)
-				if err == nil {
-					renderFile.FileContent = buf.String()
-					renderFile.FileSize = len(renderFile.FileContent)
+				if tmpl.Execute(&buf, variables) == nil {
+					renderedContent = buf.String()
 				}
 			}
 		}
 
-		renderedMap[file.Id] = renderFile
-	}
+		// 检查是否需要分割目录名
+		fmt.Printf("  检查是否需要分割目录名: 是否目录=%d, 渲染后名称=%s, 包含点号=%t\n",
+			file.IsDirectory, renderedName, s.containsDots(renderedName))
 
-	// 2. 重建树结构
-	var result []*api.RenderFileInfo
-	var allNodes []*api.RenderFileInfo // 所有节点（目录+文件）
+		if file.IsDirectory == 1 && s.containsDots(renderedName) {
+			// 需要分割的目录，创建多级目录结构
+			fmt.Printf("  >>> 检测到需要分割的目录名: %s\n", renderedName)
 
-	// 1. 先处理所有目录和文件，构建路径链，收集所有节点
-	for _, renderFile := range renderedMap {
-		// 路径分割，确保每一级目录都存在
-		pathParts := s.splitPath(renderFile.FilePath)
-		currentPath := ""
-		var parentNode *api.RenderFileInfo = nil
-		for i, part := range pathParts {
-			if currentPath == "" {
-				currentPath = part
-			} else {
-				currentPath = currentPath + "/" + part
-			}
-			if node, exists := pathMap[currentPath]; exists {
-				parentNode = node
-				continue
-			}
-			// 新建目录节点（最后一级如果是文件则不建目录）
-			isDir := 1
-			if i == len(pathParts)-1 && renderFile.IsDirectory == 0 {
-				isDir = 0
-			}
-			newNode := &api.RenderFileInfo{
-				// 先不分配Id，后面统一分配
-				FilePath:    currentPath,
-				FileName:    part,
-				FileContent: "",
-				FileSize:    0,
-				IsDirectory: isDir,
-				ParentId:    0, // 先不设置
-			}
-			if parentNode != nil {
-				newNode.ParentId = -1 // 占位，后面修正
-			}
-			pathMap[currentPath] = newNode
-			allNodes = append(allNodes, newNode)
-			parentNode = newNode
-		}
-		// 如果是文件，补充内容
-		if renderFile.IsDirectory == 0 {
-			fileNode := pathMap[currentPath]
-			fileNode.FileContent = renderFile.FileContent
-			fileNode.FileSize = renderFile.FileSize
-		}
-	}
+			// 获取父路径
+			parentPath := s.getParentPath(renderedPath)
+			fmt.Printf("    父路径: %s\n", parentPath)
+			currentPath := parentPath
+			var parentId int64 = 0
 
-	// 2. 分配新ID
-	nextId = int64(10000)
-	idMapping := make(map[*api.RenderFileInfo]int64)
-	for _, node := range allNodes {
-		node.Id = nextId
-		idMapping[node] = nextId
-		nextId++
-	}
-
-	// 3. 修正ParentId
-	for _, node := range allNodes {
-		if node.ParentId == -1 {
-			// 找父目录
-			parentPath := s.getParentPath(node.FilePath)
+			// 如果父路径存在，找到父节点
 			if parentPath != "" {
-				if parentNode, ok := pathMap[parentPath]; ok {
-					node.ParentId = int(idMapping[parentNode])
+				if parentNode, exists := pathToNode[parentPath]; exists {
+					parentId = parentNode.Id
+					currentPath = parentPath
+					fmt.Printf("    找到父节点: ID=%d, 名称=%s\n", parentNode.Id, parentNode.FileName)
 				} else {
-					node.ParentId = 0
+					fmt.Printf("    父路径存在但找不到父节点: %s\n", parentPath)
 				}
 			} else {
-				node.ParentId = 0
+				fmt.Printf("    没有父路径\n")
 			}
+
+			// 分割目录名并创建中间节点
+			parts := strings.Split(renderedName, ".")
+			fmt.Printf("    分割结果: %v\n", parts)
+
+			for i, part := range parts {
+				fmt.Printf("    处理第 %d 部分: %s\n", i+1, part)
+
+				if currentPath == "" {
+					currentPath = part
+				} else {
+					currentPath = currentPath + "/" + part
+				}
+				fmt.Printf("    当前路径: %s\n", currentPath)
+
+				// 检查路径是否已存在
+				if existingNode, exists := pathToNode[currentPath]; exists {
+					fmt.Printf("    路径已存在，跳过: %s (ID: %d)\n", currentPath, existingNode.Id)
+					parentId = existingNode.Id
+					continue
+				}
+
+				// 创建新节点
+				newNode := &api.RenderFileInfo{
+					Id:          nextId,
+					FilePath:    currentPath,
+					FileName:    part,
+					FileContent: "",
+					FileSize:    0,
+					IsDirectory: 1,
+					ParentId:    int(parentId),
+				}
+
+				pathToNode[currentPath] = newNode
+				result = append(result, newNode)
+				fmt.Printf("    >>> 创建中间目录: %s (路径: %s, 父ID: %d, 新ID: %d)\n", part, currentPath, newNode.ParentId, nextId)
+				parentId = nextId
+				nextId++
+			}
+
+			// 记录最终路径，用于后续文件路径修正
+			finalPath := currentPath
+			originalPathToFinalPath[renderedPath] = finalPath
+			fmt.Printf("    >>> 记录路径映射: %s -> %s\n", renderedPath, finalPath)
+
+		} else {
+			// 普通文件或不需要分割的目录
+			// 检查是否需要修正路径（如果父目录被分割了）
+			finalPath := renderedPath
+
+			// 检查路径中是否包含需要替换的部分
+			for originalPath, mappedPath := range originalPathToFinalPath {
+				if strings.Contains(renderedPath, originalPath) {
+					finalPath = strings.Replace(renderedPath, originalPath, mappedPath, 1)
+					fmt.Printf("  >>> 修正文件路径: %s -> %s (替换: %s -> %s)\n", renderedPath, finalPath, originalPath, mappedPath)
+					break
+				}
+			}
+
+			// 确保目录属性正确
+			isDirectory := file.IsDirectory
+			if isDirectory == 1 {
+				fmt.Printf("  >>> 创建目录节点: %s (路径: %s)\n", renderedName, finalPath)
+			} else {
+				fmt.Printf("  >>> 创建文件节点: %s (路径: %s)\n", renderedName, finalPath)
+			}
+
+			newNode := &api.RenderFileInfo{
+				Id:          nextId,
+				FilePath:    finalPath,
+				FileName:    renderedName,
+				FileContent: renderedContent,
+				FileSize:    len(renderedContent),
+				IsDirectory: isDirectory,
+				ParentId:    0, // 先设为0，后面修正
+			}
+
+			pathToNode[finalPath] = newNode
+			result = append(result, newNode)
+			fmt.Printf("  >>> 普通节点创建完成: ID=%d, 是否目录=%d\n", nextId, isDirectory)
+			nextId++
 		}
 	}
 
-	// 4. 收集所有节点
-	result = allNodes
+	// 第二步：根据路径重新设置父ID
+	fmt.Printf("\n=== 第二步：重新设置父ID ===\n")
+	fmt.Printf("当前节点总数: %d\n", len(result))
+
+	for i, node := range result {
+		fmt.Printf("\n--- 处理节点 %d/%d ---\n", i+1, len(result))
+		fmt.Printf("节点: ID=%d, 名称=%s, 路径=%s, 当前父ID=%d\n", node.Id, node.FileName, node.FilePath, node.ParentId)
+
+		parentPath := s.getParentPath(node.FilePath)
+		fmt.Printf("计算父路径: %s\n", parentPath)
+
+		if parentPath != "" {
+			// 尝试多种路径格式匹配
+			var parentNode *api.RenderFileInfo
+			var found bool
+
+			// 尝试直接匹配
+			if parentNode, found = pathToNode[parentPath]; found {
+				node.ParentId = int(parentNode.Id)
+				fmt.Printf(">>> 设置父子关系: %s -> %s (ID: %d -> %d)\n", node.FileName, parentNode.FileName, node.Id, parentNode.Id)
+			} else {
+				// 尝试统一分隔符后匹配
+				normalizedParentPath := strings.ReplaceAll(parentPath, "\\", "/")
+				if parentNode, found = pathToNode[normalizedParentPath]; found {
+					node.ParentId = int(parentNode.Id)
+					fmt.Printf(">>> 设置父子关系(统一分隔符): %s -> %s (ID: %d -> %d)\n", node.FileName, parentNode.FileName, node.Id, parentNode.Id)
+				} else {
+					// 尝试反向分隔符匹配
+					reverseParentPath := strings.ReplaceAll(parentPath, "/", "\\")
+					if parentNode, found = pathToNode[reverseParentPath]; found {
+						node.ParentId = int(parentNode.Id)
+						fmt.Printf(">>> 设置父子关系(反向分隔符): %s -> %s (ID: %d -> %d)\n", node.FileName, parentNode.FileName, node.Id, parentNode.Id)
+					} else {
+						// 如果找不到父节点，设为根节点
+						node.ParentId = 0
+						fmt.Printf(">>> 找不到父节点，设为根节点: %s (父路径: %s, 尝试了: %s, %s)\n", node.FileName, parentPath, normalizedParentPath, reverseParentPath)
+					}
+				}
+			}
+		} else {
+			// 没有父路径，设为根节点
+			node.ParentId = 0
+			fmt.Printf(">>> 没有父路径，设为根节点: %s\n", node.FileName)
+		}
+	}
 
 	// 调试信息
+	fmt.Printf("\n=== 最终结果 ===\n")
 	fmt.Printf("渲染和重建完成，总文件数: %d\n", len(result))
-	fmt.Printf("ID映射表:\n")
-	for oldId, newId := range idMapping {
-		fmt.Printf("  原始ID %d -> 新ID %d\n", oldId, newId)
-	}
-	for _, file := range result {
-		fmt.Printf("文件: ID=%d, 名称=%s, 路径=%s, 父ID=%d, 是否目录=%d\n",
-			file.Id, file.FileName, file.FilePath, file.ParentId, file.IsDirectory)
+
+	fmt.Printf("\n所有节点列表:\n")
+	for i, file := range result {
+		fmt.Printf("%d. ID=%d, 名称=%s, 路径=%s, 父ID=%d, 是否目录=%d\n",
+			i+1, file.Id, file.FileName, file.FilePath, file.ParentId, file.IsDirectory)
 	}
 
+	fmt.Printf("\n路径映射表:\n")
+	for path, node := range pathToNode {
+		fmt.Printf("路径: %s -> 节点: ID=%d, 名称=%s\n", path, node.Id, node.FileName)
+	}
+
+	fmt.Printf("\n=== 渲染和重建树形结构完成 ===\n")
 	return result
 }
 
@@ -1138,11 +1239,16 @@ func (s sTemplateFiles) splitPath(path string) []string {
 
 // getParentPath 获取父路径
 func (s sTemplateFiles) getParentPath(path string) string {
-	parts := s.splitPath(path)
-	if len(parts) <= 1 {
+	// 统一路径分隔符
+	path = strings.ReplaceAll(path, "\\", "/")
+
+	// 找到最后一个斜杠的位置
+	lastSlash := strings.LastIndex(path, "/")
+	if lastSlash == -1 {
+		// 没有斜杠，说明是根路径
 		return ""
 	}
 
-	// 重新组合父路径
-	return strings.Join(parts[:len(parts)-1], "/")
+	// 返回父路径
+	return path[:lastSlash]
 }

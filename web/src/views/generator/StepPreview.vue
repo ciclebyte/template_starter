@@ -201,16 +201,15 @@ const treeDataComputed = computed(() => {
 function treeToNaive(tree) {
   if (!Array.isArray(tree)) return []
   
-  // 使用与模板编辑界面一致的排序逻辑
+  // 排序逻辑：目录在前，文件在后，同类型按名称排序
   const customSort = (a, b) => {
+    // 首先按目录/文件排序：目录在前，文件在后
     if ((b.isDirectory || 0) - (a.isDirectory || 0) !== 0) {
       return (b.isDirectory || 0) - (a.isDirectory || 0)
     }
+    // 同类型按名称排序
     const nameA = (a.fileName || a.label || '').toLowerCase()
     const nameB = (b.fileName || b.label || '').toLowerCase()
-    const aIsA = nameA.startsWith('a') ? 1 : 0
-    const bIsA = nameB.startsWith('a') ? 1 : 0
-    if (aIsA !== bIsA) return bIsA - aIsA
     return nameA.localeCompare(nameB)
   }
   
@@ -228,11 +227,11 @@ function treeToNaive(tree) {
     return {
       label: getDisplayName(node),
       key: nodeKey,
-      isLeaf: !node.children || node.children.length === 0,
+      isLeaf: node.isDirectory !== 1, // 目录永远不是叶子节点，文件永远是叶子节点
       filePath: node.filePath,
       fileName: node.fileName,
       prefix: () => h(NIcon, null, { 
-        default: () => h(node.children && node.children.length > 0 ? (isExpanded ? FolderOpenOutline : Folder) : FileTrayFullOutline)
+        default: () => h(node.isDirectory === 1 ? (isExpanded ? FolderOpenOutline : Folder) : FileTrayFullOutline)
       }),
       children: node.children ? treeToNaive(node.children) : []
     }

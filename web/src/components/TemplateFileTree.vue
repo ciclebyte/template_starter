@@ -90,15 +90,15 @@ const treeDataComputed = computed(() => {
 
 function treeToNaive(tree) {
   if (!Array.isArray(tree)) return []
+  // 排序逻辑：目录在前，文件在后，同类型按名称排序
   const customSort = (a, b) => {
+    // 首先按目录/文件排序：目录在前，文件在后
     if ((b.isDirectory || 0) - (a.isDirectory || 0) !== 0) {
       return (b.isDirectory || 0) - (a.isDirectory || 0)
     }
+    // 同类型按名称排序
     const nameA = (a.fileName || a.label || '').toLowerCase()
     const nameB = (b.fileName || b.label || '').toLowerCase()
-    const aIsA = nameA.startsWith('a') ? 1 : 0
-    const bIsA = nameB.startsWith('a') ? 1 : 0
-    if (aIsA !== bIsA) return bIsA - aIsA
     return nameA.localeCompare(nameB)
   }
   const sorted = [...tree].sort(customSort)
