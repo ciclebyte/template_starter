@@ -186,7 +186,7 @@ type TemplateFilesRenderFileTreeReq struct {
 type TemplateFilesRenderFileTreeRes struct {
 	g.Meta     `mime:"application/json" example:"string"`
 	TemplateId int64                  `json:"templateId"`
-	Files      []*RenderFileInfo      `json:"files"`      // 渲染后的文件列表
+	Tree       []*RenderFileInfo      `json:"tree"`       // 渲染后的文件树
 	Variables  map[string]interface{} `json:"variables"`  // 使用的变量
 	TotalFiles int                    `json:"totalFiles"` // 总文件数
 	TotalSize  int64                  `json:"totalSize"`  // 总文件大小
@@ -194,11 +194,12 @@ type TemplateFilesRenderFileTreeRes struct {
 
 // 渲染后的文件信息
 type RenderFileInfo struct {
-	Id          int64  `json:"id"`          // 文件ID
-	FilePath    string `json:"filePath"`    // 文件路径
-	FileName    string `json:"fileName"`    // 文件名
-	FileContent string `json:"fileContent"` // 渲染后的文件内容
-	FileSize    int    `json:"fileSize"`    // 文件大小
-	IsDirectory int    `json:"isDirectory"` // 是否为目录
-	ParentId    int    `json:"parentId"`    // 父目录ID
+	Id          int64             `json:"id"`          // 文件ID
+	FilePath    string            `json:"filePath"`    // 文件路径
+	FileName    string            `json:"fileName"`    // 文件名
+	FileContent string            `json:"fileContent"` // 渲染后的文件内容
+	FileSize    int               `json:"fileSize"`    // 文件大小
+	IsDirectory int               `json:"isDirectory"` // 是否为目录
+	ParentId    int               `json:"parentId"`    // 父目录ID
+	Children    []*RenderFileInfo `json:"children"`    // 子文件/目录
 }

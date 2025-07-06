@@ -94,7 +94,7 @@ import {
   FileTrayFullOutline,
   ChevronForward
 } from '@vicons/ionicons5'
-import { getTemplateFileTree, renderFileTree } from '@/api/templateFiles'
+import { renderFileTree } from '@/api/templateFiles'
 
 // CodeMirror 核心模块
 import { EditorView, lineNumbers, highlightActiveLineGutter } from '@codemirror/view'
@@ -143,7 +143,6 @@ const currentFilePath = ref('')
 const currentFileContent = ref('')
 
 // 渲染后的文件数据
-const renderedFiles = ref([])
 const renderedFilesMap = ref(new Map())
 
 // CodeMirror 相关
@@ -240,7 +239,7 @@ function treeToNaive(tree) {
   })
 }
 
-// 加载文件树和渲染数据
+// 加载渲染后的文件树
 const loadTree = async () => {
   console.log('StepPreview 开始加载文件树，templateInfo:', props.templateInfo)
   if (!props.templateInfo?.id) {
@@ -248,41 +247,34 @@ const loadTree = async () => {
     return
   }
   
-  console.log('调用API获取文件树，templateId:', props.templateInfo.id)
+  console.log('调用API获取渲染后的文件树，templateId:', props.templateInfo.id)
   loading.value = true
   try {
-    // 1. 获取文件树结构
-    const treeRes = await getTemplateFileTree(props.templateInfo.id)
-    console.log('文件树API返回结果:', treeRes)
-    const tree = treeRes.data?.data?.tree
-    if (tree && tree.length > 0) {
-      treeData.value = tree
-      console.log('设置文件树数据:', treeData.value)
-    } else {
-      treeData.value = []
-      console.log('文件树为空')
-    }
-    
-    // 2. 获取渲染后的文件内容
+    // 获取渲染后的文件树
     const renderRes = await renderFileTree({
       templateId: props.templateInfo.id,
       testVariables: props.variables || {}
     })
     console.log('渲染文件树API返回结果:', renderRes)
-    const files = renderRes.data?.data?.files || []
-    renderedFiles.value = files
+    const tree = renderRes.data?.data?.tree || []
+    treeData.value = tree
     
     // 构建文件映射，方便快速查找
     renderedFilesMap.value.clear()
-    files.forEach(file => {
-      renderedFilesMap.value.set(file.id, file)
-    })
+    const flattenFiles = (nodes) => {
+      nodes.forEach(node => {
+        renderedFilesMap.value.set(node.id, node)
+        if (node.children && node.children.length > 0) {
+          flattenFiles(node.children)
+        }
+      })
+    }
+    flattenFiles(tree)
     
-    console.log('设置渲染文件数据:', renderedFiles.value)
+    console.log('设置渲染文件树数据:', treeData.value)
   } catch (error) {
     console.error('加载文件树失败:', error)
     treeData.value = []
-    renderedFiles.value = []
   } finally {
     loading.value = false
   }

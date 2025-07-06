@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -865,45 +866,283 @@ func (s sTemplateFiles) RenderFileTree(ctx context.Context, req *api.TemplateFil
 
 		res = &api.TemplateFilesRenderFileTreeRes{
 			TemplateId: templateId,
-			Files:      []*api.RenderFileInfo{},
+			Tree:       []*api.RenderFileInfo{},
 			Variables:  req.TestVariables,
 			TotalFiles: 0,
 			TotalSize:  0,
 		}
 
-		// 2. 遍历所有文件进行渲染
-		for _, file := range files {
-			renderFile := &api.RenderFileInfo{
-				Id:          file.Id,
-				FilePath:    file.FilePath,
-				FileName:    file.FileName,
-				FileContent: file.FileContent, // 默认使用原始内容
-				FileSize:    int(file.FileSize),
-				IsDirectory: file.IsDirectory,
-				ParentId:    int(file.ParentId),
-			}
+		// 2. 渲染并重建文件树
+		renderedFiles := s.renderAndRebuildTree(files, req.TestVariables)
 
-			// 如果是文件且不是目录，则进行模板渲染
-			if file.IsDirectory == 0 {
-				// 创建模板
-				tmpl, err := template.New("template").Funcs(s.getTemplateFuncs()).Parse(file.FileContent)
-				if err == nil {
-					// 渲染模板
-					var buf bytes.Buffer
-					err = tmpl.Execute(&buf, req.TestVariables)
-					if err == nil {
-						renderFile.FileContent = buf.String()
-						renderFile.FileSize = len(renderFile.FileContent)
-					}
-					// 如果渲染失败，保持原始内容
-				}
-				// 如果模板解析失败，保持原始内容
-			}
+		// 3. 构建树形结构
+		res.Tree = s.buildTree(renderedFiles)
 
-			res.Files = append(res.Files, renderFile)
+		// 4. 计算统计信息
+		for _, file := range renderedFiles {
 			res.TotalFiles++
-			res.TotalSize += int64(renderFile.FileSize)
+			res.TotalSize += int64(file.FileSize)
 		}
 	})
 	return
+}
+
+// renderAndRebuildTree 渲染文件并重建树结构
+func (s sTemplateFiles) renderAndRebuildTree(files []*entity.TemplateFiles, variables map[string]interface{}) []*api.RenderFileInfo {
+	// 用于存储渲染后的文件，key为原始ID
+	renderedMap := make(map[int64]*api.RenderFileInfo)
+	// 用于存储路径到节点的映射，用于重建树结构
+	pathMap := make(map[string]*api.RenderFileInfo)
+	// 用于生成新的ID
+	nextId := int64(10000) // 使用一个较大的起始值避免冲突
+
+	// 1. 先渲染所有原始文件
+	for _, file := range files {
+		renderFile := &api.RenderFileInfo{
+			Id:          file.Id,
+			FilePath:    file.FilePath,
+			FileName:    file.FileName,
+			FileContent: file.FileContent,
+			FileSize:    int(file.FileSize),
+			IsDirectory: file.IsDirectory,
+			ParentId:    int(file.ParentId),
+		}
+
+		// 渲染文件名
+		if file.FileName != "" {
+			fileNameTmpl, err := template.New("fileName").Funcs(s.getTemplateFuncs()).Parse(file.FileName)
+			if err == nil {
+				var fileNameBuf bytes.Buffer
+				err = fileNameTmpl.Execute(&fileNameBuf, variables)
+				if err == nil {
+					renderFile.FileName = fileNameBuf.String()
+				}
+			}
+		}
+
+		// 渲染文件路径
+		if file.FilePath != "" {
+			filePathTmpl, err := template.New("filePath").Funcs(s.getTemplateFuncs()).Parse(file.FilePath)
+			if err == nil {
+				var filePathBuf bytes.Buffer
+				err = filePathTmpl.Execute(&filePathBuf, variables)
+				if err == nil {
+					renderFile.FilePath = filePathBuf.String()
+				}
+			}
+		}
+
+		// 渲染文件内容
+		if file.IsDirectory == 0 {
+			tmpl, err := template.New("template").Funcs(s.getTemplateFuncs()).Parse(file.FileContent)
+			if err == nil {
+				var buf bytes.Buffer
+				err = tmpl.Execute(&buf, variables)
+				if err == nil {
+					renderFile.FileContent = buf.String()
+					renderFile.FileSize = len(renderFile.FileContent)
+				}
+			}
+		}
+
+		renderedMap[file.Id] = renderFile
+	}
+
+	// 2. 重建树结构
+	var result []*api.RenderFileInfo
+	var allNodes []*api.RenderFileInfo // 所有节点（目录+文件）
+
+	// 1. 先处理所有目录和文件，构建路径链，收集所有节点
+	for _, renderFile := range renderedMap {
+		// 路径分割，确保每一级目录都存在
+		pathParts := s.splitPath(renderFile.FilePath)
+		currentPath := ""
+		var parentNode *api.RenderFileInfo = nil
+		for i, part := range pathParts {
+			if currentPath == "" {
+				currentPath = part
+			} else {
+				currentPath = currentPath + "/" + part
+			}
+			if node, exists := pathMap[currentPath]; exists {
+				parentNode = node
+				continue
+			}
+			// 新建目录节点（最后一级如果是文件则不建目录）
+			isDir := 1
+			if i == len(pathParts)-1 && renderFile.IsDirectory == 0 {
+				isDir = 0
+			}
+			newNode := &api.RenderFileInfo{
+				// 先不分配Id，后面统一分配
+				FilePath:    currentPath,
+				FileName:    part,
+				FileContent: "",
+				FileSize:    0,
+				IsDirectory: isDir,
+				ParentId:    0, // 先不设置
+			}
+			if parentNode != nil {
+				newNode.ParentId = -1 // 占位，后面修正
+			}
+			pathMap[currentPath] = newNode
+			allNodes = append(allNodes, newNode)
+			parentNode = newNode
+		}
+		// 如果是文件，补充内容
+		if renderFile.IsDirectory == 0 {
+			fileNode := pathMap[currentPath]
+			fileNode.FileContent = renderFile.FileContent
+			fileNode.FileSize = renderFile.FileSize
+		}
+	}
+
+	// 2. 分配新ID
+	nextId = int64(10000)
+	idMapping := make(map[*api.RenderFileInfo]int64)
+	for _, node := range allNodes {
+		node.Id = nextId
+		idMapping[node] = nextId
+		nextId++
+	}
+
+	// 3. 修正ParentId
+	for _, node := range allNodes {
+		if node.ParentId == -1 {
+			// 找父目录
+			parentPath := s.getParentPath(node.FilePath)
+			if parentPath != "" {
+				if parentNode, ok := pathMap[parentPath]; ok {
+					node.ParentId = int(idMapping[parentNode])
+				} else {
+					node.ParentId = 0
+				}
+			} else {
+				node.ParentId = 0
+			}
+		}
+	}
+
+	// 4. 收集所有节点
+	result = allNodes
+
+	// 调试信息
+	fmt.Printf("渲染和重建完成，总文件数: %d\n", len(result))
+	fmt.Printf("ID映射表:\n")
+	for oldId, newId := range idMapping {
+		fmt.Printf("  原始ID %d -> 新ID %d\n", oldId, newId)
+	}
+	for _, file := range result {
+		fmt.Printf("文件: ID=%d, 名称=%s, 路径=%s, 父ID=%d, 是否目录=%d\n",
+			file.Id, file.FileName, file.FilePath, file.ParentId, file.IsDirectory)
+	}
+
+	return result
+}
+
+// buildTree 构建树形结构
+func (s sTemplateFiles) buildTree(files []*api.RenderFileInfo) []*api.RenderFileInfo {
+	// 创建ID到节点的映射
+	idMap := make(map[int64]*api.RenderFileInfo)
+	var rootNodes []*api.RenderFileInfo
+
+	// 初始化所有节点
+	for _, file := range files {
+		file.Children = []*api.RenderFileInfo{}
+		idMap[file.Id] = file
+	}
+
+	// 构建父子关系
+	for _, file := range files {
+		if file.ParentId == 0 {
+			// 根节点
+			rootNodes = append(rootNodes, file)
+		} else {
+			// 子节点，添加到父节点的children中
+			parentId := int64(file.ParentId)
+			if parent, exists := idMap[parentId]; exists {
+				parent.Children = append(parent.Children, file)
+			} else {
+				// 如果找不到父节点，作为根节点处理
+				fmt.Printf("警告: 找不到父节点 ID=%d，将 %s 作为根节点\n", parentId, file.FileName)
+				rootNodes = append(rootNodes, file)
+			}
+		}
+	}
+
+	// 调试信息
+	fmt.Printf("构建树形结构完成，根节点数量: %d\n", len(rootNodes))
+	for i, root := range rootNodes {
+		fmt.Printf("根节点 %d: ID=%d, 名称=%s, 子节点数量=%d\n", i, root.Id, root.FileName, len(root.Children))
+	}
+
+	// 对每个节点的children进行排序
+	var sortChildren func(nodes []*api.RenderFileInfo)
+	sortChildren = func(nodes []*api.RenderFileInfo) {
+		for _, node := range nodes {
+			if len(node.Children) > 0 {
+				// 排序：目录在前，文件在后，同类型按名称排序
+				sort.Slice(node.Children, func(i, j int) bool {
+					if node.Children[i].IsDirectory != node.Children[j].IsDirectory {
+						return node.Children[i].IsDirectory > node.Children[j].IsDirectory
+					}
+					return node.Children[i].FileName < node.Children[j].FileName
+				})
+				sortChildren(node.Children)
+			}
+		}
+	}
+	sortChildren(rootNodes)
+
+	return rootNodes
+}
+
+// containsTemplateVariables 检查字符串是否包含模板变量
+func (s sTemplateFiles) containsTemplateVariables(str string) bool {
+	return strings.Contains(str, "{{") && strings.Contains(str, "}}")
+}
+
+// containsDots 检查字符串是否包含点号
+func (s sTemplateFiles) containsDots(str string) bool {
+	return strings.Contains(str, ".")
+}
+
+// splitPath 分割路径
+func (s sTemplateFiles) splitPath(path string) []string {
+	// 统一路径分隔符
+	path = strings.ReplaceAll(path, "\\", "/")
+
+	// 分割路径
+	parts := strings.Split(path, "/")
+
+	// 过滤空字符串并进一步分割包含点的部分
+	var result []string
+	for _, part := range parts {
+		if part != "" {
+			// 如果部分包含点，进一步分割
+			if strings.Contains(part, ".") {
+				dotParts := strings.Split(part, ".")
+				for _, dotPart := range dotParts {
+					if dotPart != "" {
+						result = append(result, dotPart)
+					}
+				}
+			} else {
+				result = append(result, part)
+			}
+		}
+	}
+
+	return result
+}
+
+// getParentPath 获取父路径
+func (s sTemplateFiles) getParentPath(path string) string {
+	parts := s.splitPath(path)
+	if len(parts) <= 1 {
+		return ""
+	}
+
+	// 重新组合父路径
+	return strings.Join(parts[:len(parts)-1], "/")
 }
