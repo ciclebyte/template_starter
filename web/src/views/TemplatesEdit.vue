@@ -108,15 +108,18 @@
         
         <!-- 内置变量 Tab -->
         <div v-show="activeVariableTab === 'builtin'" class="tab-content">
-          <div class="variable-tags">
-            <div 
-              v-for="variable in quickVariables" 
-              :key="variable.name"
-              class="variable-tag builtin"
-              @click="insertVariable(variable.name)"
-              :title="`${variable.name} - ${variable.label}`"
-            >
-              {{ variable.label }}
+          <div class="variable-section">
+            <div class="section-title">文本变量</div>
+            <div class="variable-tags">
+              <div 
+                v-for="variable in quickVariables" 
+                :key="variable.name"
+                class="variable-tag builtin"
+                @click="insertVariable(variable.name)"
+                :title="`${variable.name} - ${variable.label}`"
+              >
+                {{ variable.label }}
+              </div>
             </div>
           </div>
         </div>
@@ -278,14 +281,7 @@ const previewFileId = ref(null)
 const quickVariables = [
   { name: 'ProjectName', label: '项目名称' },
   { name: 'Author', label: '作者' },
-  { name: 'CurrentTime', label: '当前时间' },
-  { name: 'CurrentDate', label: '当前日期' },
-  { name: 'FileName', label: '文件名' },
-  { name: 'PackageName', label: '包名' },
-  { name: 'ClassName', label: '类名' },
-  { name: 'TableName', label: '表名' },
-  { name: 'ApiPath', label: 'API路径' },
-  { name: 'ConfigPrefix', label: '配置前缀' }
+  { name: 'PackageName', label: '包名' }
 ]
 
 // 快捷函数列表
@@ -363,23 +359,7 @@ const conditionalVariables = computed(() => {
 onMounted(async () => {
   await loadTree()
   await loadVariables()
-  
-  // 添加点击外部关闭下拉区域
-  document.addEventListener('click', handleClickOutside)
 })
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-})
-
-// 点击外部关闭变量面板
-function handleClickOutside(event) {
-  const trigger = document.querySelector('.variable-expand-trigger')
-  const panel = document.querySelector('.variable-panel')
-  if (trigger && !trigger.contains(event.target) && panel && !panel.contains(event.target)) {
-    isVariablePanelOpen.value = false
-  }
-}
 
 
 
@@ -845,14 +825,14 @@ function onApplyTestData(testData) {
 }
 
 .tab-item {
-  flex: 1;
-  padding: 12px 16px;
+  padding: 12px 20px;
   text-align: center;
   cursor: pointer;
   font-size: 14px;
   color: #666;
   transition: all 0.2s;
   border-bottom: 2px solid transparent;
+  white-space: nowrap;
 }
 
 .tab-item:hover {

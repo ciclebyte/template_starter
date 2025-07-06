@@ -85,3 +85,44 @@ type TemplatesDetailRes struct {
 	g.Meta        `mime:"application/json" example:"string"`
 	TemplatesInfo *model.TemplatesInfo `json:"data"`
 }
+
+// 变量统计信息
+type VariableStatistics struct {
+	TotalCustomVariables  int `json:"totalCustomVariables"`
+	TotalBuiltinVariables int `json:"totalBuiltinVariables"`
+	TotalFunctions        int `json:"totalFunctions"`
+	TotalFiles            int `json:"totalFiles"`
+}
+
+// 内置变量信息
+type BuiltinVariableInfo struct {
+	Name        string   `json:"name"`
+	Label       string   `json:"label"`
+	Description string   `json:"description"`
+	UsageCount  int      `json:"usageCount"`
+	Files       []string `json:"files"`
+}
+
+// 模板函数信息
+type TemplateFunctionInfo struct {
+	Name        string   `json:"name"`
+	Label       string   `json:"label"`
+	Description string   `json:"description"`
+	UsageCount  int      `json:"usageCount"`
+	Files       []string `json:"files"`
+}
+
+// 模板变量列表请求
+type TemplatesVariablesReq struct {
+	g.Meta     `path:"/templates/{templateId}/variables" method:"get" tags:"模板" summary:"模板-变量列表"`
+	TemplateId interface{} `json:"templateId" v:"required#模板ID不能为空"`
+}
+
+// 模板变量列表响应
+type TemplatesVariablesRes struct {
+	g.Meta            `mime:"application/json" example:"string"`
+	CustomVariables   []*model.TemplateVariablesInfo `json:"customVariables"`
+	BuiltinVariables  []*BuiltinVariableInfo         `json:"builtinVariables"`
+	TemplateFunctions []*TemplateFunctionInfo        `json:"templateFunctions"`
+	Statistics        *VariableStatistics            `json:"statistics"`
+}

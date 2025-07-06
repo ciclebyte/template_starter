@@ -64,3 +64,8 @@ func (c *templatesController) BatchDelete(ctx context.Context, req *api.Template
 	err = service.Templates().BatchDelete(ctx, int64Ids)
 	return
 }
+
+func (c *templatesController) GetVariables(ctx context.Context, req *api.TemplatesVariablesReq) (res *api.TemplatesVariablesRes, err error) {
+	res, err = service.Templates().GetVariables(ctx, gconv.Int64(req.TemplateId))
+	return
+}
