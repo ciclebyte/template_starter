@@ -53,3 +53,11 @@ export function listTemplates(params) {
     params
   })
 }
+
+// 模板-变量列表
+export function getTemplateVariables(templateId) {
+  return request({
+    url: `/api/v1/templates/${templateId}/variables`,
+    method: 'get'
+  })
+}

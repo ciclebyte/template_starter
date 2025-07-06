@@ -1,121 +1,26 @@
 <template>
   <div class="step-variables">
     <div class="variables-content">
+      <!-- 加载状态 -->
+      <div v-if="loading" class="loading-container">
+        <n-spin size="large">
+          <template #description>
+            正在加载模板变量信息...
+          </template>
+        </n-spin>
+      </div>
+      
       <!-- 变量配置表单 -->
-      <div class="variables-form">
+      <div v-else class="variables-form">
         <h2 class="form-title">配置项目变量</h2>
         <p class="form-desc">请填写以下信息来配置您的项目</p>
         
-        <!-- 基本信息 -->
-        <div class="variable-section">
-          <h3 class="section-title">
-            <n-icon><Person /></n-icon>
-            基本信息
-          </h3>
-          <div class="variable-grid">
-            <div class="variable-item">
-              <label>项目名称 *</label>
-              <n-input 
-                v-model:value="formData.project_name" 
-                placeholder="请输入项目名称"
-                :status="getValidationStatus('project_name')"
-              />
-              <div class="variable-desc">项目名称，用于package.json等配置文件</div>
-            </div>
-            
-            <div class="variable-item">
-              <label>项目描述</label>
-              <n-input 
-                v-model:value="formData.project_description" 
-                placeholder="请输入项目描述"
-                type="textarea"
-                :rows="3"
-              />
-              <div class="variable-desc">项目的详细描述信息</div>
-            </div>
-            
-            <div class="variable-item">
-              <label>作者 *</label>
-              <n-input 
-                v-model:value="formData.author" 
-                placeholder="请输入作者姓名"
-                :status="getValidationStatus('author')"
-              />
-              <div class="variable-desc">项目作者姓名</div>
-            </div>
-            
-            <div class="variable-item">
-              <label>作者邮箱</label>
-              <n-input 
-                v-model:value="formData.author_email" 
-                placeholder="请输入作者邮箱"
-                type="email"
-              />
-              <div class="variable-desc">作者联系邮箱</div>
-            </div>
-            
-            <div class="variable-item">
-              <label>GitHub用户名</label>
-              <n-input 
-                v-model:value="formData.author_github" 
-                placeholder="请输入GitHub用户名"
-              />
-              <div class="variable-desc">GitHub用户名，用于生成链接</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 项目配置 -->
-        <div class="variable-section">
-          <h3 class="section-title">
-            <n-icon><Settings /></n-icon>
-            项目配置
-          </h3>
-          <div class="variable-grid">
-            <div class="variable-item">
-              <label>包名</label>
-              <n-input 
-                v-model:value="formData.package_name" 
-                placeholder="com.example.project"
-              />
-              <div class="variable-desc">项目包名，如：com.example.project</div>
-            </div>
-            
-            <div class="variable-item">
-              <label>模块名</label>
-              <n-input 
-                v-model:value="formData.module_name" 
-                placeholder="main"
-              />
-              <div class="variable-desc">主要模块名称</div>
-            </div>
-            
-            <div class="variable-item">
-              <label>命名空间</label>
-              <n-input 
-                v-model:value="formData.namespace" 
-                placeholder="Example"
-              />
-              <div class="variable-desc">代码命名空间</div>
-            </div>
-            
-            <div class="variable-item">
-              <label>端口号</label>
-              <n-input 
-                v-model:value="formData.port" 
-                placeholder="8080"
-                type="number"
-              />
-              <div class="variable-desc">服务运行端口</div>
-            </div>
-          </div>
-        </div>
-
         <!-- 自定义变量 -->
         <div class="variable-section" v-if="customVariables.length > 0">
           <h3 class="section-title">
             <n-icon><CodeSlash /></n-icon>
             自定义变量
+            <span class="section-subtitle">({{ variableStatistics?.totalCustomVariables || 0 }} 个变量)</span>
           </h3>
           <div class="variable-grid">
             <div 
@@ -123,32 +28,87 @@
               :key="variable.name"
               class="variable-item"
             >
-              <label>{{ variable.label || variable.name }}</label>
+              <label>
+                {{ variable.description || variable.name }}
+                <span v-if="variable.isRequired" class="required-mark">*</span>
+              </label>
               <n-input 
                 v-model:value="formData[variable.name]" 
                 :placeholder="variable.description || '请输入值'"
                 :status="getValidationStatus(variable.name)"
+                :type="getInputType(variable.variableType)"
               />
               <div class="variable-desc">{{ variable.description }}</div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- 右侧预览 -->
-      <div class="variables-preview">
-        <h3 class="preview-title">实时预览</h3>
-        <div class="preview-content">
-          <div class="preview-file">
-            <div class="file-header">
-              <span class="file-name">package.json</span>
-            </div>
-            <div class="file-content">
-              <pre>{{ previewContent }}</pre>
+        <!-- 内置变量 -->
+        <div class="variable-section" v-if="builtinVariables.length > 0">
+          <h3 class="section-title">
+            <n-icon><Settings /></n-icon>
+            内置变量
+            <span class="section-subtitle">({{ variableStatistics?.totalBuiltinVariables || 0 }} 个变量)</span>
+          </h3>
+          <div class="variable-grid">
+            <div 
+              v-for="variable in builtinVariables" 
+              :key="variable.name"
+              class="variable-item builtin-variable"
+            >
+              <label>
+                {{ variable.label }}
+                <span class="usage-count">(使用 {{ variable.usageCount }} 次)</span>
+              </label>
+              <n-input 
+                v-model:value="formData[variable.name.toLowerCase()]" 
+                :placeholder="variable.description"
+              />
+              <div class="variable-desc">
+                {{ variable.description }}
+                <div class="usage-files" v-if="variable.files.length > 0">
+                  使用文件: {{ variable.files.join(', ') }}
+                </div>
+              </div>
             </div>
           </div>
         </div>
+
+
+
+        <!-- 模板函数信息 -->
+        <div class="variable-section" v-if="templateFunctions.length > 0">
+          <n-collapse>
+            <n-collapse-item title="模板函数信息" name="functions">
+              <template #header>
+                <div class="collapse-header">
+                  <n-icon><CodeSlash /></n-icon>
+                  <span>模板函数</span>
+                  <span class="section-subtitle">({{ variableStatistics?.totalFunctions || 0 }} 个函数)</span>
+                </div>
+              </template>
+              <div class="function-list">
+                <div 
+                  v-for="func in templateFunctions" 
+                  :key="func.name"
+                  class="function-item"
+                >
+                  <div class="function-info">
+                    <span class="function-name">{{ func.label }}</span>
+                    <span class="usage-count">(使用 {{ func.usageCount }} 次)</span>
+                  </div>
+                  <div class="function-desc">{{ func.description }}</div>
+                  <div class="usage-files" v-if="func.files.length > 0">
+                    使用文件: {{ func.files.join(', ') }}
+                  </div>
+                </div>
+              </div>
+            </n-collapse-item>
+          </n-collapse>
+        </div>
       </div>
+      
+
     </div>
 
     <!-- 底部操作 -->
@@ -175,7 +135,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { 
   Person, 
   Settings, 
@@ -183,6 +143,7 @@ import {
   ArrowBack, 
   ArrowForward 
 } from '@vicons/ionicons5'
+import { getTemplateVariables } from '@/api/templates'
 
 const props = defineProps({
   templateInfo: {
@@ -198,43 +159,46 @@ const props = defineProps({
 const emit = defineEmits(['prev', 'next', 'update-variables'])
 
 // 表单数据
-const formData = ref({
-  project_name: '',
-  project_description: '这是一个示例项目',
-  author: '',
-  author_email: 'developer@example.com',
-  author_github: 'developer',
-  package_name: 'com.example.project',
-  module_name: 'main',
-  namespace: 'Example',
-  port: '8080'
-})
+const formData = ref({})
 
-// 自定义变量（模拟数据）
-const customVariables = ref([
-  {
-    name: 'custom_feature',
-    label: '自定义功能',
-    description: '是否启用自定义功能'
-  }
-])
+// 变量数据
+const customVariables = ref([])
+const builtinVariables = ref([])
+const templateFunctions = ref([])
+const variableStatistics = ref(null)
+const loading = ref(false)
 
-// 表单验证
-const validationRules = {
-  project_name: {
-    required: true,
-    pattern: /^[a-zA-Z0-9_-]+$/,
-    message: '项目名称只能包含字母、数字、下划线和连字符'
-  },
-  author: {
-    required: true,
-    message: '作者姓名不能为空'
-  }
+// 动态验证规则
+const getValidationRules = () => {
+  const rules = {}
+  
+  // 为必填的自定义变量添加验证规则
+  customVariables.value.forEach(variable => {
+    if (variable.isRequired) {
+      rules[variable.name] = {
+        required: true,
+        message: `${variable.description || variable.name}不能为空`
+      }
+      
+      // 如果有验证正则表达式，添加模式验证
+      if (variable.validationRegex) {
+        try {
+          rules[variable.name].pattern = new RegExp(variable.validationRegex)
+          rules[variable.name].message = `${variable.description || variable.name}格式不正确`
+        } catch (e) {
+          console.warn('无效的验证正则表达式:', variable.validationRegex)
+        }
+      }
+    }
+  })
+  
+  return rules
 }
 
 // 验证状态
 const getValidationStatus = (fieldName) => {
-  const rule = validationRules[fieldName]
+  const rules = getValidationRules()
+  const rule = rules[fieldName]
   if (!rule) return undefined
   
   const value = formData.value[fieldName]
@@ -252,7 +216,9 @@ const getValidationStatus = (fieldName) => {
 
 // 表单是否有效
 const isFormValid = computed(() => {
-  for (const [fieldName, rule] of Object.entries(validationRules)) {
+  const rules = getValidationRules()
+  
+  for (const [fieldName, rule] of Object.entries(rules)) {
     const value = formData.value[fieldName]
     
     if (rule.required && !value) {
@@ -267,41 +233,120 @@ const isFormValid = computed(() => {
   return true
 })
 
-// 预览内容
-const previewContent = computed(() => {
-  const data = formData.value
-  return `{
-  "name": "${data.project_name || 'my-project'}",
-  "version": "1.0.0",
-  "description": "${data.project_description || '这是一个示例项目'}",
-  "author": "${data.author || '开发者'}",
-  "email": "${data.author_email || 'developer@example.com'}",
-  "github": "${data.author_github || 'developer'}",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
-  },
-  "dependencies": {
-    "express": "^4.18.2"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
+// 获取输入类型
+const getInputType = (variableType) => {
+  switch (variableType) {
+    case 'email':
+      return 'email'
+    case 'number':
+      return 'number'
+    case 'textarea':
+      return 'textarea'
+    case 'password':
+      return 'password'
+    default:
+      return 'text'
   }
-}`
-})
+}
 
-// 监听表单变化
+
+
+// 加载模板变量数据
+const loadTemplateVariables = async () => {
+  console.log('开始加载模板变量，templateInfo:', props.templateInfo)
+  if (!props.templateInfo?.id) {
+    console.log('templateInfo.id 不存在，跳过加载')
+    return
+  }
+  
+  console.log('调用API获取模板变量，templateId:', props.templateInfo.id)
+  loading.value = true
+  try {
+    const res = await getTemplateVariables(props.templateInfo.id)
+    console.log('API返回结果:', res)
+    if (res.data && res.data.data) {
+      customVariables.value = res.data.data.customVariables || []
+      builtinVariables.value = res.data.data.builtinVariables || []
+      templateFunctions.value = res.data.data.templateFunctions || []
+      variableStatistics.value = res.data.data.statistics
+      
+      console.log('解析后的变量数据:', {
+        customVariables: customVariables.value,
+        builtinVariables: builtinVariables.value,
+        templateFunctions: templateFunctions.value,
+        statistics: variableStatistics.value
+      })
+      
+      // 初始化内置变量到表单数据，避免触发不必要的更新
+      const newFormData = { ...formData.value }
+      builtinVariables.value.forEach(variable => {
+        const fieldName = variable.name.toLowerCase()
+        if (!newFormData[fieldName]) {
+          newFormData[fieldName] = ''
+        }
+      })
+      
+      // 初始化自定义变量到表单数据
+      customVariables.value.forEach(variable => {
+        if (!newFormData[variable.name]) {
+          newFormData[variable.name] = variable.defaultValue || ''
+        }
+      })
+      
+      // 一次性更新表单数据
+      formData.value = newFormData
+    }
+  } catch (error) {
+    console.error('加载模板变量失败:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 监听表单变化，使用防抖避免频繁触发
+let updateTimeout = null
 watch(formData, (newData) => {
-  emit('update-variables', newData)
+  if (updateTimeout) {
+    clearTimeout(updateTimeout)
+  }
+  updateTimeout = setTimeout(() => {
+    emit('update-variables', newData)
+  }, 100)
 }, { deep: true })
 
-// 初始化表单数据
+// 初始化表单数据，只在组件初始化时执行一次
+let isInitialized = false
 watch(() => props.variables, (newVariables) => {
-  if (newVariables && Object.keys(newVariables).length > 0) {
+  if (!isInitialized && newVariables && Object.keys(newVariables).length > 0) {
     formData.value = { ...formData.value, ...newVariables }
+    isInitialized = true
   }
 }, { immediate: true })
+
+// 监听templateInfo变化，当有数据时加载变量
+let lastTemplateId = null
+watch(() => props.templateInfo, (newTemplateInfo) => {
+  console.log('StepVariables 监听到 templateInfo 变化:', newTemplateInfo)
+  if (newTemplateInfo?.id && newTemplateInfo.id !== lastTemplateId) {
+    lastTemplateId = newTemplateInfo.id
+    // 延迟一点加载，确保组件完全渲染
+    setTimeout(() => {
+      loadTemplateVariables()
+    }, 100)
+  }
+}, { immediate: false })
+
+// 组件挂载时不立即加载，等待 templateInfo 传入
+onMounted(() => {
+  console.log('StepVariables 组件挂载，templateInfo:', props.templateInfo)
+  // 如果已经有 templateInfo，则加载数据
+  if (props.templateInfo?.id) {
+    lastTemplateId = props.templateInfo.id
+    setTimeout(() => {
+      loadTemplateVariables()
+    }, 100)
+  }
+})
 
 // 下一步
 const handleNext = () => {
@@ -321,14 +366,22 @@ const handleNext = () => {
 
 .variables-content {
   flex: 1;
-  display: flex;
-  gap: 32px;
   padding: 40px;
   overflow: hidden;
 }
 
-.variables-form {
+.loading-container {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+
+.variables-form {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
   overflow-y: auto;
 }
 
@@ -360,6 +413,13 @@ const handleNext = () => {
   border-bottom: 1px solid #f0f0f0;
 }
 
+.section-subtitle {
+  font-size: 14px;
+  font-weight: normal;
+  color: #666;
+  margin-left: 8px;
+}
+
 .variable-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -370,6 +430,13 @@ const handleNext = () => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.builtin-variable {
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
 }
 
 .variable-item label {
@@ -384,57 +451,69 @@ const handleNext = () => {
   line-height: 1.4;
 }
 
-.variables-preview {
-  width: 400px;
-  border-left: 1px solid #f0f0f0;
-  padding-left: 32px;
+.usage-count {
+  font-size: 12px;
+  color: #18a058;
+  font-weight: normal;
 }
 
-.preview-title {
+.usage-files {
+  font-size: 11px;
+  color: #666;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.required-mark {
+  color: #d03050;
+  margin-left: 4px;
+}
+
+.collapse-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 16px;
   font-weight: bold;
   color: #333;
-  margin-bottom: 16px;
 }
 
-.preview-content {
+.function-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.function-item {
+  padding: 16px;
   background: #f8f9fa;
   border-radius: 8px;
-  overflow: hidden;
+  border: 1px solid #e9ecef;
 }
 
-.preview-file {
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  overflow: hidden;
+.function-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
-.file-header {
-  background: #f0f0f0;
-  padding: 8px 12px;
-  border-bottom: 1px solid #e0e0e0;
+.function-name {
+  font-weight: bold;
+  color: #333;
+  font-size: 14px;
 }
 
-.file-name {
+.function-desc {
   font-size: 12px;
   color: #666;
-  font-family: 'Monaco', 'Menlo', monospace;
-}
-
-.file-content {
-  padding: 16px;
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.file-content pre {
-  margin: 0;
-  font-size: 12px;
   line-height: 1.4;
-  color: #333;
-  font-family: 'Monaco', 'Menlo', monospace;
-  white-space: pre-wrap;
+  margin-bottom: 8px;
 }
+
+
+
+
 
 .step-actions {
   padding: 24px 40px;
