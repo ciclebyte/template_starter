@@ -125,22 +125,33 @@
             <div class="template-info">
               <h3>{{ template.name }}</h3>
               <p>{{ template.description }}</p>
-              <div class="template-languages">
-                <n-tag 
-                  v-for="lang in template.languages" 
-                  :key="lang.id"
-                  :color="{ color: lang.color }"
-                  size="small"
-                >
-                  {{ lang.display_name }}
-                </n-tag>
+              <div class="template-tags">
+                <!-- 分类标签 -->
+                <div class="template-category" v-if="getCategoryName(template.categoryId)">
+                  <n-tag 
+                    type="success" 
+                    size="small"
+                    class="category-tag"
+                  >
+                    {{ getCategoryName(template.categoryId) }}
+                  </n-tag>
+                </div>
+                <!-- 语言标签 -->
+                <div class="template-languages">
+                  <n-tag 
+                    v-for="lang in template.languages" 
+                    :key="lang.id"
+                    :color="{ color: getLanguageColor(lang.languageId) }"
+                    size="small"
+                    class="language-tag"
+                  >
+                    {{ getLanguageName(lang.languageId) }}
+                  </n-tag>
+                </div>
               </div>
               <div class="template-actions">
                 <n-button type="primary" @click="useTemplate(template)">
                   使用模板
-                </n-button>
-                <n-button @click="previewTemplate(template)">
-                  预览
                 </n-button>
               </div>
             </div>
@@ -295,7 +306,7 @@ const filteredTemplates = computed(() => {
 
   // 按分类筛选
   if (selectedCategory.value !== 'all') {
-    filtered = filtered.filter(t => t.category_id === Number(selectedCategory.value))
+    filtered = filtered.filter(t => t.categoryId === Number(selectedCategory.value))
   }
 
   // 按标签筛选
@@ -349,7 +360,7 @@ const addFormRef = ref(null)
 const addForm = ref({
   name: '',
   description: '',
-  category_id: null,
+  categoryId: null,
   languages: [],
   primary_language: null,
   logo: '',
@@ -358,7 +369,7 @@ const addForm = ref({
 const addRules = {
   name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
   description: [{ required: true, message: '请输入模板描述', trigger: 'blur' }],
-  category_id: [{ required: true, type: 'number', message: '请选择分类', trigger: 'change' }],
+  categoryId: [{ required: true, type: 'number', message: '请选择分类', trigger: 'change' }],
   languages: [{ required: true, type: 'array', min: 1, message: '请选择支持的语言', trigger: 'change' }],
   primary_language: [{ required: true, type: 'number', message: '请选择主语言', trigger: 'change' }]
 }
@@ -382,17 +393,13 @@ const onLanguagesChange = (val) => {
   }
 }
 
-// 工具方法：获取语言名称
-const getLanguageName = (id) => {
-  const lang = languagesList.value.find(l => Number(l.id) === Number(id))
-  return lang ? lang.name : id
-}
+
 
 const DEFAULT_LOGO = '/vite.svg'
 
 const handleAddTemplate = async () => {
   // 类型转换
-  addForm.value.category_id = Number(addForm.value.category_id)
+  addForm.value.categoryId = Number(addForm.value.categoryId)
   addForm.value.primary_language = Number(addForm.value.primary_language)
   addForm.value.languages = addForm.value.languages.map(Number)
   await addFormRef.value?.validate()
@@ -406,13 +413,13 @@ const handleAddTemplate = async () => {
     name: addForm.value.name,
     description: addForm.value.description,
     introduction: addForm.value.introduction,
-    categoryId: addForm.value.category_id,
+    categoryId: addForm.value.categoryId,
     isFeatured: 0,
     logo: addForm.value.logo || DEFAULT_LOGO,
     languages: languagesArr
   })
   showAddModal.value = false
-  addForm.value = { name: '', description: '', category_id: null, languages: [], primary_language: null, logo: '', introduction: '' }
+  addForm.value = { name: '', description: '', categoryId: null, languages: [], primary_language: null, logo: '', introduction: '' }
   // TODO: 刷新模板列表
 }
 
@@ -441,10 +448,28 @@ const useTemplate = (template) => {
   router.push(`/templates/generate/${template.id}`)
 }
 
-const previewTemplate = (template) => {
-  console.log('预览模板:', template.name)
-  // TODO: 跳转到模板预览页面
+// 获取分类名称
+const getCategoryName = (categoryId) => {
+  if (!categoryId) return null
+  const category = categoriesList.value.find(cat => cat.id === Number(categoryId))
+  return category ? category.name : null
 }
+
+// 获取语言名称
+const getLanguageName = (languageId) => {
+  if (!languageId) return ''
+  const language = languagesList.value.find(lang => lang.id === Number(languageId))
+  return language ? language.name : ''
+}
+
+// 获取语言颜色
+const getLanguageColor = (languageId) => {
+  if (!languageId) return '#666'
+  const language = languagesList.value.find(lang => lang.id === Number(languageId))
+  return language ? language.color : '#666'
+}
+
+
 
 const dropdownShow = ref(false)
 const dropdownTemplate = ref(null)
@@ -511,7 +536,7 @@ const editForm = ref({
   id: null,
   name: '',
   description: '',
-  category_id: null,
+  categoryId: null,
   languages: [],
   primary_language: null,
   logo: '',
@@ -522,7 +547,7 @@ const openEditModal = (template) => {
   editForm.value.id = template.id
   editForm.value.name = template.name
   editForm.value.description = template.description
-  editForm.value.category_id = template.categoryId || template.category_id
+  editForm.value.categoryId = template.categoryId || template.category_id
   editForm.value.introduction = template.introduction || ''
   // 语言回显
   if (template.languages && template.languages.length > 0) {
@@ -549,7 +574,7 @@ watch(
 
 const handleEditTemplate = async () => {
   // 类型转换
-  editForm.value.category_id = Number(editForm.value.category_id)
+  editForm.value.categoryId = Number(editForm.value.categoryId)
   editForm.value.primary_language = Number(editForm.value.primary_language)
   editForm.value.languages = editForm.value.languages.map(Number)
   await editFormRef.value?.validate()
@@ -562,7 +587,7 @@ const handleEditTemplate = async () => {
     name: editForm.value.name,
     description: editForm.value.description,
     introduction: editForm.value.introduction,
-    categoryId: editForm.value.category_id,
+    categoryId: editForm.value.categoryId,
     isFeatured: 0,
     logo: editForm.value.logo || DEFAULT_LOGO,
     languages: languagesArr
@@ -768,6 +793,8 @@ onMounted(async () => {
   const res = await listTemplates({})
   allTemplates.value = res.data.data.templatesList || []
   console.log('onMounted languagesList:', languagesList.value)
+  console.log('onMounted categoriesList:', categoriesList.value)
+  console.log('onMounted allTemplates:', allTemplates.value)
   // 可以在这里加载数据
 })
 </script>
@@ -987,8 +1014,8 @@ onMounted(async () => {
 
 .templates-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 30px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 20px;
   margin-bottom: 40px;
 }
 
@@ -1052,23 +1079,51 @@ onMounted(async () => {
   line-height: 1.5;
 }
 
-.template-languages {
+.template-tags {
   margin-bottom: 20px;
 }
 
-.template-languages .n-tag {
-  margin-right: 8px;
-  margin-bottom: 8px;
+.template-category {
+  margin-bottom: 12px;
+}
+
+.category-tag {
   border-radius: 8px;
   font-weight: 500;
   font-size: 12px;
   padding: 3px 10px;
   transition: all 0.2s ease;
+  background: #f0f9f4;
+  color: #18a058;
+  border: 1px solid #d9f2e6;
 }
 
-.template-languages .n-tag:hover {
+.category-tag:hover {
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(24, 160, 88, 0.15);
+  background: #e6f7ed;
+}
+
+.template-languages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.language-tag {
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 12px;
+  padding: 3px 10px;
+  transition: all 0.2s ease;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+}
+
+.language-tag:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  background: #f1f3f4;
 }
 
 .template-actions {
@@ -1102,14 +1157,35 @@ onMounted(async () => {
 }
 
 /* 响应式设计 */
+@media (max-width: 1200px) {
+  .templates-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+  }
+}
+
+@media (max-width: 992px) {
+  .templates-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+}
+
 @media (max-width: 768px) {
   .templates-grid {
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
   }
   
   .template-actions {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .templates-grid {
+    grid-template-columns: 1fr;
+    gap: 15px;
   }
 }
 </style> 

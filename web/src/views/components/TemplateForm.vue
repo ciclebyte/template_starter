@@ -19,8 +19,8 @@
               <n-form-item label="描述" path="description">
                 <n-input v-model:value="form.description" placeholder="请输入模板描述" />
               </n-form-item>
-              <n-form-item label="分类" path="category_id">
-                <n-select v-model:value="form.category_id" :options="categorySelectOptions" placeholder="请选择分类" />
+              <n-form-item label="分类" path="categoryId">
+                <n-select v-model:value="form.categoryId" :options="categorySelectOptions" placeholder="请选择分类" />
               </n-form-item>
               <n-form-item label="支持语言" path="languages">
                 <n-select
