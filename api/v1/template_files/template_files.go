@@ -175,3 +175,30 @@ type TemplateFilesRenderRes struct {
 	FileContent string                 `json:"fileContent"` // 渲染后的内容
 	Variables   map[string]interface{} `json:"variables"`   // 使用的变量
 }
+
+// 渲染文件树接口
+type TemplateFilesRenderFileTreeReq struct {
+	g.Meta        `path:"/templateFiles/renderFileTree" method:"post" tags:"模板文件" summary:"模板文件-渲染文件树"`
+	TemplateId    interface{}            `json:"templateId" v:"required#模板ID不能为空"`
+	TestVariables map[string]interface{} `json:"testVariables"` // 测试变量值
+}
+
+type TemplateFilesRenderFileTreeRes struct {
+	g.Meta     `mime:"application/json" example:"string"`
+	TemplateId int64                  `json:"templateId"`
+	Files      []*RenderFileInfo      `json:"files"`      // 渲染后的文件列表
+	Variables  map[string]interface{} `json:"variables"`  // 使用的变量
+	TotalFiles int                    `json:"totalFiles"` // 总文件数
+	TotalSize  int64                  `json:"totalSize"`  // 总文件大小
+}
+
+// 渲染后的文件信息
+type RenderFileInfo struct {
+	Id          int64  `json:"id"`          // 文件ID
+	FilePath    string `json:"filePath"`    // 文件路径
+	FileName    string `json:"fileName"`    // 文件名
+	FileContent string `json:"fileContent"` // 渲染后的文件内容
+	FileSize    int    `json:"fileSize"`    // 文件大小
+	IsDirectory int    `json:"isDirectory"` // 是否为目录
+	ParentId    int    `json:"parentId"`    // 父目录ID
+}

@@ -103,3 +103,8 @@ func (c *templateFilesController) UploadCode(ctx context.Context, req *api.Templ
 func (c *templateFilesController) Render(ctx context.Context, req *api.TemplateFilesRenderReq) (res *api.TemplateFilesRenderRes, err error) {
 	return service.TemplateFiles().Render(ctx, req)
 }
+
+// RenderFileTree 渲染文件树
+func (c *templateFilesController) RenderFileTree(ctx context.Context, req *api.TemplateFilesRenderFileTreeReq) (res *api.TemplateFilesRenderFileTreeRes, err error) {
+	return service.TemplateFiles().RenderFileTree(ctx, req)
+}

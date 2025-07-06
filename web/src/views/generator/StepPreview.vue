@@ -94,7 +94,7 @@ import {
   FileTrayFullOutline,
   ChevronForward
 } from '@vicons/ionicons5'
-import { getTemplateFileTree, renderTemplate } from '@/api/templateFiles'
+import { getTemplateFileTree, renderFileTree } from '@/api/templateFiles'
 
 // CodeMirror 核心模块
 import { EditorView, lineNumbers, highlightActiveLineGutter } from '@codemirror/view'
@@ -141,6 +141,10 @@ const loading = ref(false)
 const currentFile = ref('')
 const currentFilePath = ref('')
 const currentFileContent = ref('')
+
+// 渲染后的文件数据
+const renderedFiles = ref([])
+const renderedFilesMap = ref(new Map())
 
 // CodeMirror 相关
 const codeContainer = ref(null)
@@ -236,7 +240,7 @@ function treeToNaive(tree) {
   })
 }
 
-// 加载文件树
+// 加载文件树和渲染数据
 const loadTree = async () => {
   console.log('StepPreview 开始加载文件树，templateInfo:', props.templateInfo)
   if (!props.templateInfo?.id) {
@@ -247,9 +251,10 @@ const loadTree = async () => {
   console.log('调用API获取文件树，templateId:', props.templateInfo.id)
   loading.value = true
   try {
-    const res = await getTemplateFileTree(props.templateInfo.id)
-    console.log('文件树API返回结果:', res)
-    const tree = res.data?.data?.tree
+    // 1. 获取文件树结构
+    const treeRes = await getTemplateFileTree(props.templateInfo.id)
+    console.log('文件树API返回结果:', treeRes)
+    const tree = treeRes.data?.data?.tree
     if (tree && tree.length > 0) {
       treeData.value = tree
       console.log('设置文件树数据:', treeData.value)
@@ -257,9 +262,27 @@ const loadTree = async () => {
       treeData.value = []
       console.log('文件树为空')
     }
+    
+    // 2. 获取渲染后的文件内容
+    const renderRes = await renderFileTree({
+      templateId: props.templateInfo.id,
+      testVariables: props.variables || {}
+    })
+    console.log('渲染文件树API返回结果:', renderRes)
+    const files = renderRes.data?.data?.files || []
+    renderedFiles.value = files
+    
+    // 构建文件映射，方便快速查找
+    renderedFilesMap.value.clear()
+    files.forEach(file => {
+      renderedFilesMap.value.set(file.id, file)
+    })
+    
+    console.log('设置渲染文件数据:', renderedFiles.value)
   } catch (error) {
     console.error('加载文件树失败:', error)
     treeData.value = []
+    renderedFiles.value = []
   } finally {
     loading.value = false
   }
@@ -267,7 +290,7 @@ const loadTree = async () => {
 
 // 选择文件
 const onSelectFile = async (keys) => {
-  if (!keys || keys.length === 0 || !props.templateInfo?.id) return
+  if (!keys || keys.length === 0) return
   
   const selectedKey = keys[0]
   
@@ -293,28 +316,19 @@ const onSelectFile = async (keys) => {
   
   const fileId = selectedNode.id || selectedKey
   
-  // 加载渲染后的文件内容
-  try {
-    // 使用渲染接口获取渲染后的内容
-    const res = await renderTemplate({
-      fileId: fileId,
-      testVariables: props.variables || {}
-    })
-    
-    // 使用返回的fileName和fileContent
-    const fileName = res.data?.data?.fileName || selectedNode.fileName || ''
-    const fileContent = res.data?.data?.fileContent || ''
-    
-    currentFile.value = fileName
-    currentFilePath.value = fileName
-    currentFileContent.value = fileContent
+  // 从渲染后的文件映射中获取内容
+  const renderedFile = renderedFilesMap.value.get(fileId)
+  if (renderedFile) {
+    currentFile.value = renderedFile.fileName
+    currentFilePath.value = renderedFile.filePath
+    currentFileContent.value = renderedFile.fileContent
     
     // 等待DOM更新后创建或更新CodeMirror编辑器
     await nextTick()
     createOrUpdateEditor()
-  } catch (error) {
-    console.error('渲染文件失败:', error)
-    currentFileContent.value = '渲染失败'
+  } else {
+    console.error('未找到渲染后的文件:', fileId)
+    currentFileContent.value = '文件未找到'
   }
 }
 

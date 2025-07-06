@@ -852,3 +852,58 @@ func (s sTemplateFiles) Render(ctx context.Context, req *api.TemplateFilesRender
 	})
 	return
 }
+
+// RenderFileTree 渲染整个文件树
+func (s sTemplateFiles) RenderFileTree(ctx context.Context, req *api.TemplateFilesRenderFileTreeReq) (res *api.TemplateFilesRenderFileTreeRes, err error) {
+	err = g.Try(ctx, func(ctx context.Context) {
+		templateId := gconv.Int64(req.TemplateId)
+
+		// 1. 获取模板下的所有文件
+		var files []*entity.TemplateFiles
+		err = dao.TemplateFiles.Ctx(ctx).Where("template_id = ?", templateId).Scan(&files)
+		liberr.ErrIsNil(ctx, err, "获取模板文件失败")
+
+		res = &api.TemplateFilesRenderFileTreeRes{
+			TemplateId: templateId,
+			Files:      []*api.RenderFileInfo{},
+			Variables:  req.TestVariables,
+			TotalFiles: 0,
+			TotalSize:  0,
+		}
+
+		// 2. 遍历所有文件进行渲染
+		for _, file := range files {
+			renderFile := &api.RenderFileInfo{
+				Id:          file.Id,
+				FilePath:    file.FilePath,
+				FileName:    file.FileName,
+				FileContent: file.FileContent, // 默认使用原始内容
+				FileSize:    int(file.FileSize),
+				IsDirectory: file.IsDirectory,
+				ParentId:    int(file.ParentId),
+			}
+
+			// 如果是文件且不是目录，则进行模板渲染
+			if file.IsDirectory == 0 {
+				// 创建模板
+				tmpl, err := template.New("template").Funcs(s.getTemplateFuncs()).Parse(file.FileContent)
+				if err == nil {
+					// 渲染模板
+					var buf bytes.Buffer
+					err = tmpl.Execute(&buf, req.TestVariables)
+					if err == nil {
+						renderFile.FileContent = buf.String()
+						renderFile.FileSize = len(renderFile.FileContent)
+					}
+					// 如果渲染失败，保持原始内容
+				}
+				// 如果模板解析失败，保持原始内容
+			}
+
+			res.Files = append(res.Files, renderFile)
+			res.TotalFiles++
+			res.TotalSize += int64(renderFile.FileSize)
+		}
+	})
+	return
+}

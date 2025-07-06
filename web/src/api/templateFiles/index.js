@@ -130,3 +130,12 @@ export function renderTemplate(data) {
     data
   })
 }
+
+// 渲染文件树
+export function renderFileTree(data) {
+  return request({
+    url: '/api/v1/templateFiles/renderFileTree',
+    method: 'post',
+    data
+  })
+}
