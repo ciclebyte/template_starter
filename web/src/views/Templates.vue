@@ -431,7 +431,9 @@ const handleAddTemplate = async () => {
   })
   showAddModal.value = false
   addForm.value = { name: '', description: '', categoryId: null, languages: [], primary_language: null, icon: '', introduction: '' }
-  // TODO: 刷新模板列表
+  // 刷新模板列表
+  const res = await listTemplates({})
+  allTemplates.value = res.data.data.templatesList || []
 }
 
 // 方法
@@ -671,7 +673,9 @@ const handleEditTemplate = async () => {
     languages: languagesArr
   })
   showEditModal.value = false
-  // TODO: 刷新模板列表
+  // 刷新模板列表
+  const res = await listTemplates({})
+  allTemplates.value = res.data.data.templatesList || []
 }
 
 const handleDropdownSelect = async (key, template) => {
@@ -698,11 +702,9 @@ const handleToggleFeatured = async (template) => {
   
       languages: template.languages
     })
-    // 更新本地数据
-    const index = allTemplates.value.findIndex(t => t.id === template.id)
-    if (index !== -1) {
-      allTemplates.value[index].isFeatured = newFeaturedStatus
-    }
+    // 刷新模板列表以确保数据一致性
+    const res = await listTemplates({})
+    allTemplates.value = res.data.data.templatesList || []
   } catch (error) {
     console.error('切换推荐状态失败:', error)
   }
