@@ -21,6 +21,7 @@ type ITemplateFiles interface {
 	UploadCode(ctx context.Context, req *api.TemplateFilesUploadCodeReq) (res *api.TemplateFilesUploadCodeRes, err error)
 	Render(ctx context.Context, req *api.TemplateFilesRenderReq) (res *api.TemplateFilesRenderRes, err error)
 	RenderFileTree(ctx context.Context, req *api.TemplateFilesRenderFileTreeReq) (res *api.TemplateFilesRenderFileTreeRes, err error)
+	DownloadZip(ctx context.Context, req *api.TemplateFilesDownloadZipReq) (err error)
 }
 
 var localTemplateFiles ITemplateFiles

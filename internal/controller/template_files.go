@@ -108,3 +108,9 @@ func (c *templateFilesController) Render(ctx context.Context, req *api.TemplateF
 func (c *templateFilesController) RenderFileTree(ctx context.Context, req *api.TemplateFilesRenderFileTreeReq) (res *api.TemplateFilesRenderFileTreeRes, err error) {
 	return service.TemplateFiles().RenderFileTree(ctx, req)
 }
+
+// DownloadZip 下载ZIP包
+func (c *templateFilesController) DownloadZip(ctx context.Context, req *api.TemplateFilesDownloadZipReq) (res *api.TemplateFilesDownloadZipRes, err error) {
+	err = service.TemplateFiles().DownloadZip(ctx, req)
+	return
+}

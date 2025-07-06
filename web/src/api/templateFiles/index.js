@@ -139,3 +139,13 @@ export function renderFileTree(data) {
     data
   })
 }
+
+// 下载ZIP包
+export function downloadZip(data) {
+  return request({
+    url: '/api/v1/templateFiles/downloadZip',
+    method: 'post',
+    data,
+    responseType: 'blob' // 重要：设置响应类型为blob
+  })
+}

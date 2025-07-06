@@ -203,3 +203,16 @@ type RenderFileInfo struct {
 	ParentId    int               `json:"parentId"`    // 父目录ID
 	Children    []*RenderFileInfo `json:"children"`    // 子文件/目录
 }
+
+// 模板文件ZIP下载接口
+type TemplateFilesDownloadZipReq struct {
+	g.Meta        `path:"/templateFiles/downloadZip" method:"post" tags:"模板文件" summary:"模板文件-下载ZIP包"`
+	TemplateId    interface{}            `json:"templateId" v:"required#模板ID不能为空"`
+	TestVariables map[string]interface{} `json:"testVariables"` // 测试变量值
+	FileName      string                 `json:"fileName"`      // 可选的ZIP文件名，默认为模板名
+}
+
+type TemplateFilesDownloadZipRes struct {
+	g.Meta `mime:"application/zip" example:"string"`
+	// 直接返回ZIP文件流
+}

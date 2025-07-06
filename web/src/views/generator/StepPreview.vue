@@ -94,7 +94,7 @@ import {
   FileTrayFullOutline,
   ChevronForward
 } from '@vicons/ionicons5'
-import { renderFileTree } from '@/api/templateFiles'
+import { renderFileTree, downloadZip } from '@/api/templateFiles'
 
 // CodeMirror 核心模块
 import { EditorView, lineNumbers, highlightActiveLineGutter } from '@codemirror/view'
@@ -403,9 +403,34 @@ const renderSwitcherIcon = () => h(NIcon, null, { default: () => h(ChevronForwar
 
 
 // 生成项目
-const generateProject = () => {
-  message.success('项目生成功能开发中...')
-  // TODO: 实现项目生成逻辑
+const generateProject = async () => {
+  try {
+    message.loading('正在生成项目...', { duration: 0 })
+    
+    const response = await downloadZip({
+      templateId: props.templateInfo.id,
+      testVariables: props.variables || {},
+      fileName: props.templateInfo.name
+    })
+    
+    // 创建下载链接
+    const blob = new Blob([response.data], { type: 'application/zip' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${props.templateInfo.name}.zip`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    
+    message.destroyAll()
+    message.success('项目生成成功！')
+  } catch (error) {
+    message.destroyAll()
+    console.error('生成项目失败:', error)
+    message.error('生成项目失败，请重试')
+  }
 }
 
 

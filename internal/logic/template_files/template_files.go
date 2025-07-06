@@ -855,14 +855,24 @@ func (s sTemplateFiles) Render(ctx context.Context, req *api.TemplateFilesRender
 }
 
 // RenderFileTree 渲染整个文件树
+// renderTemplateFiles 通用模板文件渲染函数
+func (s sTemplateFiles) renderTemplateFiles(ctx context.Context, templateId int64, variables map[string]interface{}) ([]*api.RenderFileInfo, error) {
+	// 1. 获取模板下的所有文件
+	var files []*entity.TemplateFiles
+	err := dao.TemplateFiles.Ctx(ctx).Where("template_id = ?", templateId).Scan(&files)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. 渲染并重建文件树
+	renderedFiles := s.renderAndRebuildTree(files, variables)
+
+	return renderedFiles, nil
+}
+
 func (s sTemplateFiles) RenderFileTree(ctx context.Context, req *api.TemplateFilesRenderFileTreeReq) (res *api.TemplateFilesRenderFileTreeRes, err error) {
 	err = g.Try(ctx, func(ctx context.Context) {
 		templateId := gconv.Int64(req.TemplateId)
-
-		// 1. 获取模板下的所有文件
-		var files []*entity.TemplateFiles
-		err = dao.TemplateFiles.Ctx(ctx).Where("template_id = ?", templateId).Scan(&files)
-		liberr.ErrIsNil(ctx, err, "获取模板文件失败")
 
 		res = &api.TemplateFilesRenderFileTreeRes{
 			TemplateId: templateId,
@@ -872,8 +882,9 @@ func (s sTemplateFiles) RenderFileTree(ctx context.Context, req *api.TemplateFil
 			TotalSize:  0,
 		}
 
-		// 2. 渲染并重建文件树
-		renderedFiles := s.renderAndRebuildTree(files, req.TestVariables)
+		// 使用通用渲染函数
+		renderedFiles, err := s.renderTemplateFiles(ctx, templateId, req.TestVariables)
+		liberr.ErrIsNil(ctx, err, "渲染模板文件失败")
 
 		// 3. 构建树形结构
 		res.Tree = s.buildTree(renderedFiles)
@@ -1139,6 +1150,101 @@ func (s sTemplateFiles) renderAndRebuildTree(files []*entity.TemplateFiles, vari
 
 	fmt.Printf("\n=== 渲染和重建树形结构完成 ===\n")
 	return result
+}
+
+// DownloadZip 下载ZIP包
+func (s sTemplateFiles) DownloadZip(ctx context.Context, req *api.TemplateFilesDownloadZipReq) (err error) {
+	err = g.Try(ctx, func(ctx context.Context) {
+		templateId := gconv.Int64(req.TemplateId)
+
+		// 1. 获取模板信息
+		var templateInfo entity.Templates
+		err := dao.Templates.Ctx(ctx).Where("id = ?", templateId).Scan(&templateInfo)
+		liberr.ErrIsNil(ctx, err, "获取模板信息失败")
+
+		// 2. 使用通用渲染函数获取渲染后的文件
+		renderedFiles, err := s.renderTemplateFiles(ctx, templateId, req.TestVariables)
+		liberr.ErrIsNil(ctx, err, "渲染模板文件失败")
+
+		// 3. 确定ZIP文件名
+		zipFileName := req.FileName
+		if zipFileName == "" {
+			zipFileName = templateInfo.Name
+		}
+		if !strings.HasSuffix(zipFileName, ".zip") {
+			zipFileName += ".zip"
+		}
+
+		// 4. 创建临时目录
+		tempDir := g.Cfg().MustGet(ctx, "server.tempPath", "").String()
+		if tempDir == "" {
+			tempDir = os.TempDir()
+		}
+		if err := os.MkdirAll(tempDir, 0755); err != nil {
+			liberr.ErrIsNil(ctx, err, "创建临时目录失败")
+		}
+
+		// 5. 创建ZIP文件
+		timestamp := gtime.Timestamp()
+		zipPath := filepath.Join(tempDir, fmt.Sprintf("template_%d_%d.zip", templateId, timestamp))
+
+		zipFile, err := os.Create(zipPath)
+		liberr.ErrIsNil(ctx, err, "创建ZIP文件失败")
+		defer zipFile.Close()
+
+		zipWriter := zip.NewWriter(zipFile)
+		defer zipWriter.Close()
+
+		// 6. 将渲染后的文件添加到ZIP中
+		fileCount := 0
+		for _, file := range renderedFiles {
+			if file.IsDirectory == 1 {
+				// 跳过目录，只添加文件
+				continue
+			}
+
+			// 统一路径分隔符为正斜杠
+			zipPath := strings.ReplaceAll(file.FilePath, "\\", "/")
+
+			// 创建ZIP文件条目
+			zipEntry, err := zipWriter.Create(zipPath)
+			if err != nil {
+				fmt.Printf("创建ZIP条目失败: %s, 错误: %v\n", zipPath, err)
+				continue
+			}
+
+			// 写入文件内容
+			_, err = zipEntry.Write([]byte(file.FileContent))
+			if err != nil {
+				fmt.Printf("写入ZIP文件内容失败: %s, 错误: %v\n", zipPath, err)
+				continue
+			}
+
+			fileCount++
+			fmt.Printf("成功添加文件到ZIP: %s\n", zipPath)
+		}
+
+		fmt.Printf("ZIP文件创建完成，共添加 %d 个文件\n", fileCount)
+
+		// 7. 关闭ZIP写入器
+		zipWriter.Close()
+
+		// 8. 设置响应头并返回ZIP文件
+		response := g.RequestFromCtx(ctx).Response
+		response.Header().Set("Content-Type", "application/zip")
+		response.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", zipFileName))
+		response.Header().Set("Content-Transfer-Encoding", "binary")
+
+		// 9. 读取ZIP文件并写入响应
+		zipData, err := os.ReadFile(zipPath)
+		liberr.ErrIsNil(ctx, err, "读取ZIP文件失败")
+
+		response.Write(zipData)
+
+		// 10. 清理临时文件
+		os.Remove(zipPath)
+	})
+	return
 }
 
 // buildTree 构建树形结构
