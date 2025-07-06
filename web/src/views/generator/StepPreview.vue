@@ -53,25 +53,6 @@
       
       <!-- 右侧：预览区域 -->
       <div class="preview-container">
-        <div class="preview-header-bar">
-          <div class="preview-tabs">
-            <div 
-              v-for="tab in openedTabs" 
-              :key="tab.key"
-              class="preview-tab"
-              :class="{ active: activeTab === tab.key }"
-              @click="onTabChange(tab.key)"
-            >
-              <span class="tab-name">{{ tab.name }}</span>
-              <n-icon 
-                class="tab-close" 
-                @click.stop="onTabClose(tab.key)"
-              >
-                <Close />
-              </n-icon>
-            </div>
-          </div>
-        </div>
         
         <div class="preview-content">
           <div v-if="!currentFile" class="no-file-selected">
@@ -84,11 +65,27 @@
           </div>
           <div v-else class="file-preview">
             <div class="file-header">
-              <span class="file-name">{{ currentFile }}</span>
+              <div class="file-info">
+                <span class="file-name">{{ currentFile.split('/').pop() }}</span>
+                <span class="file-path">{{ currentFile }}</span>
+              </div>
             </div>
             <div class="file-content">
               <div class="code-preview">
-                <pre><code>{{ currentFileContent }}</code></pre>
+                <div class="code-container">
+                  <div class="line-numbers">
+                    <div 
+                      v-for="(line, index) in codeLines" 
+                      :key="index" 
+                      class="line-number"
+                    >
+                      {{ index + 1 }}
+                    </div>
+                  </div>
+                  <div class="code-content">
+                    <pre><code :class="codeLanguageClass">{{ currentFileContent }}</code></pre>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -99,7 +96,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, h, watch } from 'vue'
+import { ref, onMounted, computed, h, watch, nextTick } from 'vue'
 import { useMessage, NIcon, NTree } from 'naive-ui'
 import { 
   ArrowBack, 
@@ -135,9 +132,7 @@ const currentFile = ref('')
 const currentFilePath = ref('')
 const currentFileContent = ref('')
 
-// 标签页管理
-const openedTabs = ref([])
-const activeTab = ref('')
+
 
 // 展开状态
 const expandedKeys = ref(new Set())
@@ -169,8 +164,13 @@ function treeToNaive(tree) {
     const nodeKey = node.key || node.id
     const isExpanded = expandedKeys.value.has(String(nodeKey))
     
+    // 获取显示名称：直接使用fileName，后端已提供正确的文件名
+    const getDisplayName = (node) => {
+      return node.fileName || node.name || ''
+    }
+    
     return {
-      label: node.fileName || node.name,
+      label: getDisplayName(node),
       key: nodeKey,
       isLeaf: !node.children || node.children.length === 0,
       filePath: node.filePath,
@@ -243,26 +243,31 @@ const onSelectFile = async (keys) => {
   currentFile.value = filePath
   currentFilePath.value = filePath
   
-  // 添加到标签页
-  const tabKey = filePath
-  const existingTab = openedTabs.value.find(tab => tab.key === tabKey)
-  if (!existingTab) {
-    const fileName = typeof filePath === 'string' ? filePath.split('/').pop() || filePath : String(filePath)
-    openedTabs.value.push({
-      key: tabKey,
-      name: fileName
-    })
-  }
-  activeTab.value = tabKey
-  
   // 加载文件内容
   try {
     // 使用文件ID获取内容
     const res = await getTemplateFileContent(fileId)
     currentFileContent.value = res.data?.data?.fileContent || ''
+    
+    // 等待DOM更新后应用代码高亮
+    await nextTick()
+    applyCodeHighlighting()
   } catch (error) {
     console.error('加载文件内容失败:', error)
     currentFileContent.value = '加载失败'
+  }
+}
+
+// 应用代码高亮
+const applyCodeHighlighting = () => {
+  // 这里可以集成Prism.js或其他代码高亮库
+  // 暂时使用简单的语法高亮
+  const codeElement = document.querySelector('.code-content code')
+  if (codeElement) {
+    // 移除之前的语言类
+    codeElement.className = codeElement.className.replace(/language-\w+/g, '')
+    // 添加新的语言类
+    codeElement.classList.add(codeLanguageClass.value)
   }
 }
 
@@ -279,36 +284,52 @@ const renderLabel = ({ option }) => {
 // 渲染切换图标 - 使用默认的展开/折叠箭头
 const renderSwitcherIcon = () => h(NIcon, null, { default: () => h(ChevronForward) })
 
-// 标签页切换
-const onTabChange = (tabKey) => {
-  activeTab.value = tabKey
-  const tab = openedTabs.value.find(t => t.key === tabKey)
-  if (tab) {
-    currentFile.value = tab.key
-    currentFilePath.value = tab.key
-  }
-}
+// 代码行数计算
+const codeLines = computed(() => {
+  if (!currentFileContent.value) return []
+  return currentFileContent.value.split('\n')
+})
 
-// 关闭标签页
-const onTabClose = (tabKey) => {
-  const index = openedTabs.value.findIndex(tab => tab.key === tabKey)
-  if (index > -1) {
-    openedTabs.value.splice(index, 1)
-    
-    // 如果关闭的是当前标签页，切换到其他标签页
-    if (activeTab.value === tabKey) {
-      if (openedTabs.value.length > 0) {
-        const nextTab = openedTabs.value[index] || openedTabs.value[index - 1]
-        onTabChange(nextTab.key)
-      } else {
-        currentFile.value = ''
-        currentFilePath.value = ''
-        currentFileContent.value = ''
-        activeTab.value = ''
-      }
-    }
+// 根据文件扩展名获取语言类名
+const codeLanguageClass = computed(() => {
+  if (!currentFile.value) return ''
+  const extension = currentFile.value.split('.').pop()?.toLowerCase()
+  
+  const languageMap = {
+    'js': 'language-javascript',
+    'jsx': 'language-javascript',
+    'ts': 'language-typescript',
+    'tsx': 'language-typescript',
+    'vue': 'language-vue',
+    'html': 'language-html',
+    'css': 'language-css',
+    'scss': 'language-scss',
+    'sass': 'language-sass',
+    'less': 'language-less',
+    'json': 'language-json',
+    'xml': 'language-xml',
+    'yaml': 'language-yaml',
+    'yml': 'language-yaml',
+    'go': 'language-go',
+    'py': 'language-python',
+    'java': 'language-java',
+    'c': 'language-c',
+    'cpp': 'language-cpp',
+    'cs': 'language-csharp',
+    'php': 'language-php',
+    'rb': 'language-ruby',
+    'rs': 'language-rust',
+    'sql': 'language-sql',
+    'sh': 'language-bash',
+    'bash': 'language-bash',
+    'md': 'language-markdown',
+    'txt': 'language-plaintext'
   }
-}
+  
+  return languageMap[extension] || 'language-plaintext'
+})
+
+
 
 // 生成项目
 const generateProject = () => {
@@ -452,66 +473,7 @@ onMounted(() => {
   background: #fff;
 }
 
-.preview-header-bar {
-  height: 48px;
-  background: #f8f9fa;
-  border-bottom: 1px solid #e0e0e0;
-  display: flex;
-  align-items: center;
-  padding: 0 16px;
-}
 
-.preview-tabs {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex: 1;
-  overflow-x: auto;
-}
-
-.preview-tab {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-bottom: none;
-  border-radius: 6px 6px 0 0;
-  cursor: pointer;
-  transition: all 0.2s;
-  min-width: 120px;
-  max-width: 200px;
-}
-
-.preview-tab:hover {
-  background: #f5f5f5;
-}
-
-.preview-tab.active {
-  background: #fff;
-  border-color: #18a058;
-  color: #18a058;
-}
-
-.tab-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
-}
-
-.tab-close {
-  font-size: 14px;
-  color: #999;
-  cursor: pointer;
-  transition: color 0.2s;
-}
-
-.tab-close:hover {
-  color: #d03050;
-}
 
 .preview-content {
   flex: 1;
@@ -550,14 +512,25 @@ onMounted(() => {
   border-bottom: 1px solid #e0e0e0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 0 16px;
+}
+
+.file-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .file-name {
   font-size: 14px;
   font-weight: bold;
   color: #333;
+}
+
+.file-path {
+  font-size: 12px;
+  color: #666;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
 }
 
 .file-content {
@@ -570,19 +543,129 @@ onMounted(() => {
 .code-preview {
   flex: 1;
   overflow: auto;
-  padding: 16px;
   background: #1e1e1e;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
 }
 
-.code-preview pre {
-  margin: 0;
-  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-  font-size: 14px;
+.code-container {
+  display: flex;
+  min-height: 100%;
+}
+
+.line-numbers {
+  display: flex;
+  flex-direction: column;
+  background: #282a36;
+  border-right: 1px solid #44475a;
+  padding: 16px 8px 16px 16px;
+  user-select: none;
+  min-width: 50px;
+}
+
+.line-number {
+  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+  font-size: 15px;
   line-height: 1.5;
-  color: #d4d4d4;
+  color: #6272a4;
+  text-align: right;
+  padding-right: 8px;
 }
 
-.code-preview code {
+.code-content {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+}
+
+.code-content pre {
+  margin: 0;
+  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #f8f8f2;
+  background: transparent;
+}
+
+.code-content code {
   font-family: inherit;
+  background: transparent;
+}
+
+/* 代码高亮主题 - Dracula主题 */
+.code-content .language-javascript,
+.code-content .language-typescript,
+.code-content .language-vue,
+.code-content .language-html,
+.code-content .language-css,
+.code-content .language-scss,
+.code-content .language-sass,
+.code-content .language-less,
+.code-content .language-json,
+.code-content .language-xml,
+.code-content .language-yaml,
+.code-content .language-go,
+.code-content .language-python,
+.code-content .language-java,
+.code-content .language-c,
+.code-content .language-cpp,
+.code-content .language-csharp,
+.code-content .language-php,
+.code-content .language-ruby,
+.code-content .language-rust,
+.code-content .language-sql,
+.code-content .language-bash,
+.code-content .language-markdown {
+  color: #f8f8f2;
+}
+
+/* 关键字高亮 - Dracula主题 */
+.code-content .keyword {
+  color: #ff79c6;
+}
+
+/* 字符串高亮 - Dracula主题 */
+.code-content .string {
+  color: #f1fa8c;
+}
+
+/* 注释高亮 - Dracula主题 */
+.code-content .comment {
+  color: #6272a4;
+}
+
+/* 数字高亮 - Dracula主题 */
+.code-content .number {
+  color: #bd93f9;
+}
+
+/* 函数名高亮 - Dracula主题 */
+.code-content .function {
+  color: #50fa7b;
+}
+
+/* 类名高亮 - Dracula主题 */
+.code-content .class-name {
+  color: #8be9fd;
+}
+
+/* 变量名高亮 - Dracula主题 */
+.code-content .variable {
+  color: #f8f8f2;
+}
+
+/* 属性名高亮 - Dracula主题 */
+.code-content .property {
+  color: #66d9ef;
+}
+
+/* 标签名高亮 - Dracula主题 */
+.code-content .tag {
+  color: #ff79c6;
+}
+
+/* 操作符高亮 - Dracula主题 */
+.code-content .operator {
+  color: #ff79c6;
 }
 </style> 
