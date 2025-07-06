@@ -182,13 +182,9 @@
       <div class="editor-container">
         <TemplateEditor
           ref="templateEditorRef"
-          :filePath="currentFilePath"
-          :fileContent="currentFileContent"
-          :openedTabs="openedTabs"
-          :activeTab="activeTab"
-          :fileMap="fileMap"
-          @tabChange="onTabChange"
-          @tabClose="onTabClose"
+          :currentFileName="currentFileName"
+          :currentFileId="currentFileId"
+          :currentFileContent="currentFileContent"
           @contentChange="onEditorContentChange"
           @insertVariable="onInsertVariable"
           @preview="onPreview"
@@ -261,9 +257,8 @@ const noTreeData = ref(false)
 const currentFile = ref('')
 const currentFilePath = ref('')
 const currentFileContent = ref('')
-const openedTabs = ref([])
-const activeTab = ref('')
-const fileMap = ref({})
+const currentFileName = ref('')
+const currentFileId = ref('')
 const templateFileStore = useTemplateFileStore()
 
 // 变量相关
@@ -409,84 +404,37 @@ async function onSelectFile(key) {
   const node = findNodeByKey(treeData.value, key)
   console.log('找到的 node:', node)
   currentFileNode.value = node
+  
   if (node && node.isDirectory === 0) {
     try {
       const res = await getTemplateFileContent(key)
       console.log('接口返回:', res)
       console.log('接口返回的 fileContent:', res.data?.data?.fileContent)
       const content = res.data.data.fileContent
+      
+      // 设置当前文件信息
       currentFileContent.value = content
+      currentFileName.value = node.fileName || node.label || String(key)
+      currentFileId.value = String(key)
       templateFileStore.setCurrentFileContent(content)
-
-      // 自动打开tab
-      let tab = openedTabs.value.find(t => t.key === String(key))
-      if (!tab) {
-        openedTabs.value.push({
-          key: String(key),
-          name: node.fileName || node.label || String(key),
-          content
-        })
-        tab = openedTabs.value[openedTabs.value.length - 1]
-      } else {
-        tab.content = content
-      }
-      activeTab.value = String(key)
-      // 调试：打印tab信息
-      console.log('新建/切换 tab:', tab)
-      console.log('tab.name:', tab?.name)
-      // 这里 getLanguage 需要和 TemplateEditor.vue 保持一致
-      // 你可以在这里 import getLanguage 或直接写一份
-      // 这里只做演示
-      if (typeof tab?.name === 'string') {
-        let lang = 'plaintext'
-        if (tab.name.endsWith('.vue')) lang = 'vue'
-        else if (tab.name.endsWith('.js')) lang = 'javascript'
-        else if (tab.name.endsWith('.ts')) lang = 'typescript'
-        else if (tab.name.endsWith('.json')) lang = 'json'
-        else if (tab.name.endsWith('.md')) lang = 'markdown'
-        else if (tab.name.endsWith('.html')) lang = 'html'
-        else if (tab.name.endsWith('.go')) lang = 'go'
-        else if (tab.name.endsWith('.java')) lang = 'java'
-        else if (tab.name.endsWith('.py')) lang = 'python'
-        else if (tab.name.endsWith('.c')) lang = 'c'
-        else if (tab.name.endsWith('.cpp')) lang = 'cpp'
-        else if (tab.name.endsWith('.cs')) lang = 'csharp'
-        else if (tab.name.endsWith('.php')) lang = 'php'
-        else if (tab.name.endsWith('.rb')) lang = 'ruby'
-        else if (tab.name.endsWith('.sh')) lang = 'shell'
-        else if (tab.name.endsWith('.xml')) lang = 'xml'
-        else if (tab.name.endsWith('.yml') || tab.name.endsWith('.yaml')) lang = 'yaml'
-        console.log('getLanguage(tab.name):', lang)
-      }
+      
     } catch (e) {
       currentFileContent.value = ''
+      currentFileName.value = ''
+      currentFileId.value = ''
       templateFileStore.setCurrentFileContent('')
     }
   } else {
     currentFileContent.value = ''
+    currentFileName.value = ''
+    currentFileId.value = ''
     templateFileStore.setCurrentFileContent('')
   }
 }
 
-function onTabChange(key) {
-  activeTab.value = String(key)
-  currentFile.value = String(key)
-}
-
-function onTabClose(key) {
-  const idx = openedTabs.value.findIndex(tab => tab.key === String(key))
-  if (idx !== -1) {
-    openedTabs.value.splice(idx, 1)
-    if (openedTabs.value.length > 0) {
-      const next = openedTabs.value[Math.max(0, idx - 1)]
-      activeTab.value = next.key
-      currentFile.value = next.key
-    }
-  }
-}
-
-function onEditorContentChange({ key, content }) {
-  fileMap.value[key] = content
+function onEditorContentChange({ content }) {
+  currentFileContent.value = content
+  templateFileStore.setCurrentFileContent(content)
 }
 
 function onTreeReload(payload) {
@@ -534,10 +482,9 @@ async function onRenameFile(payload) {
     // 重新加载文件树
     await loadTree()
     
-    // 如果重命名的文件在打开的标签页中，更新标签页名称
-    const tabIndex = openedTabs.value.findIndex(tab => tab.key === String(id))
-    if (tabIndex !== -1) {
-      openedTabs.value[tabIndex].name = newName.trim()
+    // 如果重命名的是当前文件，更新当前文件名
+    if (currentFileId.value === String(id)) {
+      currentFileName.value = newName.trim()
     }
   } catch (error) {
     console.error('重命名失败:', error)

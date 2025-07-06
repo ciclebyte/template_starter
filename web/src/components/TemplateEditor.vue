@@ -1,13 +1,36 @@
 <template>
   <div class="edit-editor">
-    <div class="editor-tabs">
-      <n-tabs type="card" :value="activeTab" @update:value="onTabChange" closable @close="onTabClose">
-        <n-tab v-for="tab in openedTabs" :key="tab.key" :name="tab.key">
-          {{ tab.name }}
-        </n-tab>
-      </n-tabs>
+    <!-- 文件头部 -->
+    <div v-if="currentFileName" class="file-header">
+      <div class="file-info">
+        <span class="file-name">{{ currentFileName }}</span>
+      </div>
+      <div class="file-actions">
+        <n-button size="small" @click="saveCurrentFile">
+          <template #icon>
+            <n-icon><Save /></n-icon>
+          </template>
+          保存
+        </n-button>
+        <n-button size="small" @click="triggerPreview">
+          <template #icon>
+            <n-icon><Eye /></n-icon>
+          </template>
+          预览
+        </n-button>
+      </div>
     </div>
-    <div class="codemirror-container" ref="editorContainer"></div>
+    
+    <!-- 编辑器容器 -->
+    <div v-if="!currentFileName" class="no-file-selected">
+      <div class="no-file-icon">
+        <n-icon size="48" color="#ccc">
+          <Document />
+        </n-icon>
+      </div>
+      <div class="no-file-text">请选择左侧文件进行编辑</div>
+    </div>
+    <div v-else class="codemirror-container" ref="editorContainer"></div>
     
     <!-- HTML 预览弹框 -->
     <n-modal v-model:show="showHtmlPreviewModal" preset="card" :style="modalStyle">
@@ -41,11 +64,9 @@
 
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
-import { NTabs, NTab, useNotification } from 'naive-ui'
-import { useTemplateFileStore } from '@/stores/templateFileStore'
-import { storeToRefs } from 'pinia'
+import { NButton, NIcon, useNotification } from 'naive-ui'
 import { editTemplateFile } from '@/api/templateFiles'
-import { useRoute } from 'vue-router'
+import { Save, Eye, Document } from '@vicons/ionicons5'
 
 // CodeMirror 核心模块 - 按照官方示例导入
 import { EditorView, keymap, highlightSpecialChars, drawSelection, 
@@ -78,20 +99,21 @@ import { yaml } from '@codemirror/lang-yaml'
 import { vue } from '@codemirror/lang-vue'
 
 const props = defineProps({
-  openedTabs: {
-    type: Array,
-    default: () => []
-  },
-  activeTab: {
+  currentFileName: {
     type: String,
     default: ''
   },
-  fileMap: {
-    type: Object,
-    default: () => ({})
+  currentFileId: {
+    type: [String, Number],
+    default: ''
+  },
+  currentFileContent: {
+    type: String,
+    default: ''
   }
 })
-const emit = defineEmits(['tabChange', 'tabClose', 'contentChange', 'insertVariable', 'preview'])
+
+const emit = defineEmits(['contentChange', 'insertVariable', 'preview'])
 
 const editorContainer = ref(null)
 const htmlPreviewFrame = ref(null)
@@ -99,10 +121,6 @@ const showHtmlPreviewModal = ref(false)
 const isFullscreen = ref(false)
 let editorView = null
 
-const templateFileStore = useTemplateFileStore()
-const { currentFileContent } = storeToRefs(templateFileStore)
-
-const route = useRoute()
 const notification = useNotification()
 
 // 计算属性
@@ -161,21 +179,21 @@ function getLanguageExtension(filename) {
   return languageMap[ext] || null
 }
 
-function onTabChange(key) {
-  emit('tabChange', key)
-}
-
-function onTabClose(key) {
-  emit('tabClose', key)
-}
-
 async function saveCurrentFile() {
-  const tab = props.openedTabs.find(t => t.key === props.activeTab)
-  if (!tab) return
+  if (!props.currentFileId) {
+    notification.warning({
+      title: '无法保存',
+      content: '请先选择一个文件',
+      duration: 2500
+    })
+    return
+  }
+  
   try {
+    const content = editorView ? editorView.state.doc.toString() : props.currentFileContent
     await editTemplateFile({
-      id: tab.key,
-      fileContent: tab.content
+      id: props.currentFileId,
+      fileContent: content
     })
     notification.success({
       title: '保存成功',
@@ -209,19 +227,22 @@ function insertVariable(template) {
   dispatch(transaction)
   
   // 触发内容变化事件
-  const tab = props.openedTabs.find(t => t.key === props.activeTab)
-  if (tab) {
-    tab.content = editorView.state.doc.toString()
-    emit('contentChange', { key: tab.key, content: tab.content })
-  }
+  const content = editorView.state.doc.toString()
+  emit('contentChange', { content })
 }
 
 // 触发预览
 function triggerPreview() {
-  const tab = props.openedTabs.find(t => t.key === props.activeTab)
-  if (tab) {
-    emit('preview', { fileId: tab.key, fileName: tab.name })
+  if (!props.currentFileId) {
+    notification.warning({
+      title: '无法预览',
+      content: '请先选择一个文件',
+      duration: 2500
+    })
+    return
   }
+  
+  emit('preview', { fileId: props.currentFileId, fileName: props.currentFileName })
 }
 
 // 暴露方法给父组件
@@ -229,14 +250,12 @@ defineExpose({
   insertVariable
 })
 
-
-
 function runHtmlFile() {
-  const tab = props.openedTabs.find(t => t.key === props.activeTab)
-  if (!tab) return
+  const content = editorView ? editorView.state.doc.toString() : props.currentFileContent
+  if (!content) return
   
   // 直接预览，不做校验
-  showHtmlPreview(tab.content)
+  showHtmlPreview(content)
 }
 
 function showHtmlPreview(content) {
@@ -310,29 +329,6 @@ function toggleFullscreen() {
   isFullscreen.value = !isFullscreen.value
 }
 
-// 移除全局快捷键监听，使用 CodeMirror 内部的快捷键绑定
-// function handleKeydown(e) {
-//   // 只有在编辑器获得焦点时才处理快捷键
-//   if (!editorView || !editorView.hasFocus()) {
-//     return
-//   }
-//   
-//   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-//     e.preventDefault()
-//     e.stopPropagation()
-//     saveCurrentFile()
-//     return false
-//   }
-//   
-//   // 预览快捷键
-//   if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
-//     e.preventDefault()
-//     e.stopPropagation()
-//     triggerPreview()
-//     return false
-//   }
-// }
-
 function updateEditorContent(content, filename = '') {
   if (!editorView) return
 
@@ -340,7 +336,7 @@ function updateEditorContent(content, filename = '') {
   
   const newState = EditorState.create({
     doc: content || '',
-    extensions: createEditorExtensions(languageExt)
+    extensions: createEditorExtensionsWithListener(languageExt)
   })
 
   editorView.setState(newState)
@@ -394,15 +390,16 @@ function createEditorExtensions(languageExtension = null) {
       "&": { height: "100%" },
       ".cm-scroller": { 
         overflow: "auto !important",
-        height: "100% !important"
+        fontFamily: "monospace"
       }
     }),
-    
-    // 快捷键配置
+    // 语法高亮
+    syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+    // 快捷键
     keymap.of([
-      // 保存快捷键 - 重新添加，确保优先级
+      // 保存快捷键
       {
-        key: 'Ctrl-s',
+        key: "Ctrl-s",
         run: () => {
           saveCurrentFile()
           return true
@@ -410,23 +407,21 @@ function createEditorExtensions(languageExtension = null) {
       },
       // 预览快捷键
       {
-        key: 'Ctrl-r',
+        key: "Ctrl-r",
         run: () => {
           triggerPreview()
           return true
         }
       },
-      // 基础快捷键
-      ...closeBracketsKeymap,
+      // 默认快捷键
       ...defaultKeymap,
-      ...searchKeymap,
       ...historyKeymap,
       ...foldKeymap,
       ...completionKeymap,
-      // Tab 缩进
-      indentWithTab
+      ...closeBracketsKeymap,
+      ...searchKeymap,
+      { key: "Tab", run: indentWithTab }
     ]),
-    
     // 右键菜单
     EditorView.domEventHandlers({
       contextmenu: (event, view) => {
@@ -439,35 +434,31 @@ function createEditorExtensions(languageExtension = null) {
         view.focus()
         return false
       }
-    }),
-    
-    // 内容变化监听
-    EditorView.updateListener.of((update) => {
-      if (update.docChanged) {
-        const content = update.state.doc.toString()
-        const tab = props.openedTabs.find(t => t.key === props.activeTab)
-        if (tab && tab.content !== content) {
-          tab.content = content
-          emit('contentChange', { key: tab.key, content: tab.content })
-        }
-      }
     })
   ]
-  
+
   // 添加语言支持
   if (languageExtension) {
     extensions.push(languageExtension)
   }
-  
+
   return extensions
+}
+
+function createEditorExtensionsWithListener(languageExtension = null) {
+  return [
+    ...createEditorExtensions(languageExtension),
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged) {
+        const content = update.state.doc.toString()
+        emit('contentChange', { content })
+      }
+    })
+  ]
 }
 
 function showContextMenu(event, view) {
   const { clientX, clientY } = event
-  
-  // 获取当前文件扩展名
-  const tab = props.openedTabs.find(t => t.key === props.activeTab)
-  const fileExt = tab ? tab.name.split('.').pop()?.toLowerCase() : ''
   
   // 创建右键菜单
   const menu = document.createElement('div')
@@ -573,186 +564,160 @@ function showContextMenu(event, view) {
   }, 0)
 }
 
-watch(() => [props.activeTab, props.openedTabs, currentFileContent.value], async () => {
-  const tab = props.openedTabs.find(t => t.key === props.activeTab)
-  if (tab && editorView) {
-    const currentContent = editorView.state.doc.toString()
-    if (currentContent !== tab.content) {
-      updateEditorContent(tab.content, tab.name)
+// 监听文件内容变化
+watch(() => props.currentFileContent, (newContent) => {
+  if (editorView && newContent !== editorView.state.doc.toString()) {
+    updateEditorContent(newContent, props.currentFileName)
+  }
+}, { immediate: false })
+
+// 监听文件名变化，创建或更新编辑器
+watch(() => props.currentFileName, (newFileName) => {
+  if (newFileName) {
+    // 有文件名时，创建或更新编辑器
+    if (editorView) {
+      // 更新现有编辑器
+      const languageExt = getLanguageExtension(newFileName)
+      const newState = EditorState.create({
+        doc: editorView.state.doc.toString(),
+        extensions: createEditorExtensionsWithListener(languageExt)
+      })
+      editorView.setState(newState)
+    } else if (editorContainer.value) {
+      // 创建新编辑器
+      const languageExt = getLanguageExtension(newFileName)
+      const state = EditorState.create({
+        doc: props.currentFileContent || '',
+        extensions: createEditorExtensionsWithListener(languageExt)
+      })
+      editorView = new EditorView({
+        state,
+        parent: editorContainer.value
+      })
+    }
+  } else {
+    // 没有文件名时，销毁编辑器
+    if (editorView) {
+      editorView.destroy()
+      editorView = null
     }
   }
 })
 
-watch(currentFileContent, (val) => {
-  const tab = props.openedTabs.find(t => t.key === props.activeTab)
-  if (tab && tab.content !== val) {
-    tab.content = val
-    if (editorView) {
-      const currentContent = editorView.state.doc.toString()
-      if (currentContent !== val) {
-        updateEditorContent(val, tab.name)
-      }
-    }
+onMounted(() => {
+  // 只有在有文件名时才创建编辑器
+  if (editorContainer.value && props.currentFileName) {
+    const languageExt = getLanguageExtension(props.currentFileName)
+    
+    const state = EditorState.create({
+      doc: props.currentFileContent || '',
+      extensions: createEditorExtensionsWithListener(languageExt)
+    })
+
+    editorView = new EditorView({
+      state,
+      parent: editorContainer.value
+    })
   }
-})
-
-onMounted(async () => {
-  await nextTick()
-
-  // 创建 CodeMirror 编辑器
-  const tab = props.openedTabs.find(t => t.key === props.activeTab)
-  const languageExt = tab ? getLanguageExtension(tab.name) : null
-  
-  const state = EditorState.create({
-    doc: tab ? tab.content : '',
-    extensions: createEditorExtensions(languageExt)
-  })
-
-  editorView = new EditorView({
-    state,
-    parent: editorContainer.value
-  })
-
-  // 确保编辑器可以滚动
-  setTimeout(() => {
-    if (editorView && editorView.scrollDOM) {
-      // 强制触发滚动更新
-      editorView.requestMeasure()
-      
-      // 确保滚动容器正确配置
-      const scroller = editorView.dom.querySelector('.cm-scroller')
-      if (scroller) {
-        scroller.style.overflow = 'auto'
-        scroller.style.height = '100%'
-      }
-    }
-  }, 200)
-
-  // 自动聚焦编辑器
-  setTimeout(() => {
-    if (editorView) {
-      editorView.focus()
-    }
-  }, 100)
-
-  // 移除全局快捷键监听
-  // window.addEventListener('keydown', handleKeydown)
 })
 
 onBeforeUnmount(() => {
   if (editorView) {
     editorView.destroy()
   }
-  // 移除全局快捷键监听
-  // window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
 <style scoped>
 .edit-editor {
-  flex: 1;
-  background: #f8fafc;
-  padding: 24px 24px 0 24px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  height: 100%;
+  background: #fff;
 }
 
-.editor-tabs {
-  margin-bottom: 4px;
+/* 文件头部样式 */
+.file-header {
+  height: 48px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
 }
 
+.file-info {
+  display: flex;
+  align-items: center;
+}
+
+.file-name {
+  font-size: 14px;
+  font-weight: bold;
+  color: #333;
+}
+
+.file-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 编辑器容器 */
 .codemirror-container {
   flex: 1;
-  min-height: 400px;
+  overflow: auto;
   background: #1e1e1e;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.03);
-  overflow: hidden;
-  position: relative;
+  min-height: 400px;
+}
+
+/* 空状态样式 */
+.no-file-selected {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  background: #fff;
 }
 
-
-
-:deep(.cm-editor .cm-scroller .cm-content) {
-  padding: 16px;
+.no-file-icon {
+  margin-bottom: 16px;
 }
 
-/* 只有CodeMirror的滚动容器可以滚动 */
-:deep(.cm-editor) {
-  height: 100% !important;
-  overflow: hidden !important;
+.no-file-text {
+  font-size: 16px;
+  color: #999;
 }
 
-:deep(.cm-editor .cm-scroller) {
-  overflow: auto !important;
-  height: 100% !important;
-  max-height: none !important;
+/* 模态框样式 */
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
 }
 
-:deep(.cm-editor .cm-scroller .cm-content) {
-  padding: 16px;
+.modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-/* CodeMirror 基础样式 - 适配 Dracula 主题 */
-:deep(.cm-editor) {
-  height: 100% !important;
-  font-size: 15px;
-  outline: none !important;
+.html-preview-container {
+  height: 100%;
+  overflow: hidden;
 }
 
-:deep(.cm-editor .cm-scroller) {
-  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
-  overflow: auto !important;
-  height: 100% !important;
-  max-height: none !important;
-}
-
-
-
-:deep(.cm-editor .cm-line) {
-  padding: 0;
-}
-
-/* 选中样式 - 适配 Dracula 主题 */
-:deep(.cm-selectionBackground) {
-  background: rgba(68, 71, 90, 0.6) !important;
-}
-
-/* 匹配文本高亮 - 与选中文本匹配的其他位置 */
-:deep(.cm-selectionMatch) {
-  background: rgba(255, 184, 108, 0.3) !important;
-  border-radius: 2px;
-}
-
-/* 确保匹配高亮不会覆盖主要选择 */
-:deep(.cm-selectionBackground .cm-selectionMatch) {
-  background: rgba(68, 71, 90, 0.6) !important;
-}
-
-:deep(.cm-editor .cm-activeLine) {
-  background: rgba(255, 255, 255, 0.05) !important;
-}
-
-:deep(.cm-editor .cm-activeLineGutter) {
-  background: rgba(255, 255, 255, 0.05) !important;
-}
-
-/* 确保光标可见 */
-:deep(.cm-editor .cm-cursor) {
-  border-left: 2px solid #007acc !important;
-  border-right: none !important;
-  width: 2px !important;
-  background: transparent !important;
-}
-
-:deep(.cm-editor .cm-cursor-primary) {
-  border-left: 2px solid #007acc !important;
-  border-right: none !important;
-  width: 2px !important;
-  background: transparent !important;
+.html-preview-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 4px;
 }
 
 /* 右键菜单样式 */
@@ -762,34 +727,5 @@ onBeforeUnmount(() => {
 
 .context-menu-item:hover {
   background: #3c3c3c !important;
-}
-
-/* HTML 预览弹框样式 */
-.html-preview-container {
-  width: 100%;
-  height: 100%;
-  min-height: 60vh;
-}
-
-.html-preview-frame {
-  width: 100%;
-  height: 100%;
-  border: none;
-  border-radius: 4px;
-  background: #ffffff;
-}
-
-/* 弹框头部样式 */
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  padding: 8px 0;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 4px;
 }
 </style> 
