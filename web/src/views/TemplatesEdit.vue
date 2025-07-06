@@ -122,6 +122,22 @@
           </div>
         </div>
         
+        <!-- 函数变量 -->
+        <div class="variable-section">
+          <div class="section-title">函数变量</div>
+          <div class="variable-tags">
+            <div 
+              v-for="func in quickFunctions" 
+              :key="func.name"
+              class="variable-tag function"
+              @click="insertFunction(func)"
+              :title="`${func.label} - ${func.description}`"
+            >
+              {{ func.label }}
+            </div>
+          </div>
+        </div>
+        
         <!-- 空状态 -->
         <div v-if="templateVariables.length === 0" class="empty-variables">
           <div class="empty-text">暂无自定义变量</div>
@@ -215,6 +231,19 @@ const quickVariables = [
   { name: 'TableName', label: '表名' },
   { name: 'ApiPath', label: 'API路径' },
   { name: 'ConfigPrefix', label: '配置前缀' }
+]
+
+// 快捷函数列表
+const quickFunctions = [
+  { name: 'now', label: '当前时间', code: '{{now}}', description: '返回当前时间' },
+  { name: 'date', label: '格式化日期', code: '{{date "2006-01-02"}}', description: '按指定格式返回当前日期' },
+  { name: 'lower', label: '转小写', code: '{{lower .变量名}}', description: '将变量转换为小写' },
+  { name: 'upper', label: '转大写', code: '{{upper .变量名}}', description: '将变量转换为大写' },
+  { name: 'camelcase', label: '驼峰命名', code: '{{camelcase .变量名}}', description: '转换为驼峰命名格式' },
+  { name: 'snakecase', label: '下划线命名', code: '{{snakecase .变量名}}', description: '转换为下划线命名格式' },
+  { name: 'randInt', label: '随机整数', code: '{{randInt 1 100}}', description: '生成1-100之间的随机整数' },
+  { name: 'uuid', label: 'UUID', code: '{{uuid}}', description: '生成UUID' },
+  { name: 'default', label: '默认值', code: '{{default "默认值" .变量名}}', description: '如果变量为空则使用默认值' }
 ]
 
 // 计算属性：按类型分组变量
@@ -628,6 +657,22 @@ function insertVariable(variableName) {
   }
 }
 
+// 插入函数
+function insertFunction(func) {
+  let code = func.code
+  
+  // 如果代码中包含"变量名"占位符，需要特殊处理
+  if (code.includes('变量名')) {
+    // 这里可以获取编辑器当前选中的文本，如果没有选中则插入占位符
+    // 暂时使用占位符，后续可以通过props传递选中文本
+    code = code.replace('变量名', '')
+  }
+  
+  if (templateEditorRef.value) {
+    templateEditorRef.value.insertVariable(code)
+  }
+}
+
 // 切换变量面板展开状态
 function toggleVariablePanel() {
   isVariablePanelExpanded.value = !isVariablePanelExpanded.value
@@ -923,6 +968,17 @@ function onApplyTestData(testData) {
   background: #e69500;
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(240, 160, 32, 0.3);
+}
+
+.variable-tag.function {
+  background: #722ed1;
+  color: #fff;
+}
+
+.variable-tag.function:hover {
+  background: #531dab;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(114, 46, 209, 0.3);
 }
 
 .empty-variables {
