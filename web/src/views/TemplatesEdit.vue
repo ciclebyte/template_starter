@@ -196,7 +196,7 @@
         ref="templatePreviewRef"
         :current-file="currentFileNode"
         :file-id="previewFileId"
-        :test-variables="variableValues"
+        :variables="variableValues"
       />
     </div>
 
@@ -354,6 +354,7 @@ const conditionalVariables = computed(() => {
 onMounted(async () => {
   await loadTree()
   await loadVariables()
+  loadTestData()
 })
 
 
@@ -384,6 +385,25 @@ async function loadVariables() {
   } catch (e) {
     templateVariables.value = []
     console.error('加载变量失败:', e)
+  }
+}
+
+// 加载测试数据
+function loadTestData() {
+  const templateId = route.params.id
+  const testDataKey = `template_test_data_${templateId}`
+  const savedTestData = localStorage.getItem(testDataKey)
+  if (savedTestData) {
+    try {
+      variableValues.value = JSON.parse(savedTestData)
+      console.log('初始化时加载测试数据:', variableValues.value)
+    } catch (e) {
+      console.error('解析测试数据失败:', e)
+      variableValues.value = {}
+    }
+  } else {
+    console.log('未找到测试数据，使用空对象')
+    variableValues.value = {}
   }
 }
 
@@ -672,7 +692,8 @@ function addVariable() {
 
 // 应用测试数据
 function onApplyTestData(testData) {
-  // 测试数据已经保存到 localStorage，这里只需要通知用户
+  // 更新本地变量值
+  variableValues.value = testData
   console.log('测试数据已应用:', testData)
   message.success('测试数据已应用并保存')
 }
