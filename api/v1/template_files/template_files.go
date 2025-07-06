@@ -43,14 +43,7 @@ type TemplateFilesBatchDelRes struct {
 type TemplateFilesEditReq struct {
 	g.Meta      `path:"/templateFiles/edit" method:"put" tags:"模板文件" summary:"模板文件-修改"`
 	Id          interface{} `json:"id" v:"required#文件ID，自增主键不能为空"`
-	TemplateId  interface{} `json:"templateId" v:"required#所属模板ID不能为空"`
-	FileName    string      `json:"fileName" v:"required#文件名不能为空"`
-	FileContent string      `json:"fileContent"`
-	FileSize    int         `json:"fileSize"`
-	IsDirectory int         `json:"isDirectory" v:"required#是否为目录不能为空"`
-	Md5         string      `json:"md5"`
-	Sort        int         `json:"sort"`
-	ParentId    int         `json:"parentId"`
+	FileContent string      `json:"fileContent" v:"required#文件内容不能为空"`
 }
 
 type TemplateFilesEditRes struct {

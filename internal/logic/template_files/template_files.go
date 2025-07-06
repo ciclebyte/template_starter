@@ -83,25 +83,15 @@ func (s sTemplateFiles) Add(ctx context.Context, req *api.TemplateFilesAddReq) (
 
 func (s sTemplateFiles) Edit(ctx context.Context, req *api.TemplateFilesEditReq) (err error) {
 	err = g.Try(ctx, func(ctx context.Context) {
+		// 检查文件是否存在
 		_, err = s.GetById(ctx, gconv.Int64(req.Id))
 		liberr.ErrIsNil(ctx, err, "获取模板文件失败")
-		//TODO 根据名称等查询是否存在
 
-		// 动态生成文件路径
-		filePath := s.generateFilePath(ctx, req.TemplateId, req.ParentId, req.FileName)
-
-		//编辑
+		// 只更新文件内容和相关字段
 		_, err = dao.TemplateFiles.Ctx(ctx).WherePri(req.Id).Update(do.TemplateFiles{
-			Id:          req.Id,          // 文件ID，自增主键
-			TemplateId:  req.TemplateId,  // 所属模板ID
-			FilePath:    filePath,        // 文件路径（相对路径）
-			FileName:    req.FileName,    // 文件名
-			FileContent: req.FileContent, // 文件内容
-			FileSize:    req.FileSize,    // 文件大小（字节）
-			IsDirectory: req.IsDirectory, // 是否为目录
-			Md5:         req.Md5,         // md5
-			Sort:        req.Sort,        // 排序
-			ParentId:    req.ParentId,    // 父目录ID，如果是文件则指向所属目录
+			FileContent: req.FileContent,                         // 文件内容
+			FileSize:    len(req.FileContent),                    // 重新计算文件大小
+			Md5:         gmd5.MustEncryptString(req.FileContent), // 重新计算MD5
 		})
 		liberr.ErrIsNil(ctx, err, "修改模板文件失败")
 	})

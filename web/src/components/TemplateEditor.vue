@@ -172,14 +172,10 @@ function onTabClose(key) {
 async function saveCurrentFile() {
   const tab = props.openedTabs.find(t => t.key === props.activeTab)
   if (!tab) return
-  const templateId = route.params.id
   try {
     await editTemplateFile({
       id: tab.key,
-      templateId,
-      fileName: tab.name,
-      fileContent: tab.content,
-      isDirectory: 0
+      fileContent: tab.content
     })
     notification.success({
       title: '保存成功',
@@ -314,18 +310,28 @@ function toggleFullscreen() {
   isFullscreen.value = !isFullscreen.value
 }
 
-function handleKeydown(e) {
-  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-    e.preventDefault()
-    saveCurrentFile()
-  }
-  
-  // 预览快捷键
-  if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
-    e.preventDefault()
-    triggerPreview()
-  }
-}
+// 移除全局快捷键监听，使用 CodeMirror 内部的快捷键绑定
+// function handleKeydown(e) {
+//   // 只有在编辑器获得焦点时才处理快捷键
+//   if (!editorView || !editorView.hasFocus()) {
+//     return
+//   }
+//   
+//   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+//     e.preventDefault()
+//     e.stopPropagation()
+//     saveCurrentFile()
+//     return false
+//   }
+//   
+//   // 预览快捷键
+//   if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+//     e.preventDefault()
+//     e.stopPropagation()
+//     triggerPreview()
+//     return false
+//   }
+// }
 
 function updateEditorContent(content, filename = '') {
   if (!editorView) return
@@ -394,11 +400,19 @@ function createEditorExtensions(languageExtension = null) {
     
     // 快捷键配置
     keymap.of([
-      // 保存快捷键
+      // 保存快捷键 - 重新添加，确保优先级
       {
         key: 'Ctrl-s',
         run: () => {
           saveCurrentFile()
+          return true
+        }
+      },
+      // 预览快捷键
+      {
+        key: 'Ctrl-r',
+        run: () => {
+          triggerPreview()
           return true
         }
       },
@@ -621,14 +635,16 @@ onMounted(async () => {
     }
   }, 100)
 
-  window.addEventListener('keydown', handleKeydown)
+  // 移除全局快捷键监听
+  // window.addEventListener('keydown', handleKeydown)
 })
 
 onBeforeUnmount(() => {
   if (editorView) {
     editorView.destroy()
   }
-  window.removeEventListener('keydown', handleKeydown)
+  // 移除全局快捷键监听
+  // window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
