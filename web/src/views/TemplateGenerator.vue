@@ -35,7 +35,7 @@
     <!-- 步骤内容 -->
     <div class="generator-content">
       <!-- 步骤1: 模板介绍 -->
-      <div v-show="currentStep === 1" class="step-content">
+      <div v-if="currentStep === 1" class="step-content">
         <StepIntro 
           :template-info="templateInfo"
           @next="nextStep"
@@ -43,9 +43,8 @@
       </div>
 
       <!-- 步骤2: 变量配置 -->
-      <div v-show="currentStep === 2" class="step-content">
+      <div v-if="currentStep === 2" class="step-content">
         <StepVariables 
-          v-if="currentStep === 2"
           :template-info="templateInfo"
           :variables="variables"
           @prev="prevStep"
@@ -55,7 +54,7 @@
       </div>
 
       <!-- 步骤3: 预览确认 -->
-      <div v-show="currentStep === 3" class="step-content">
+      <div v-if="currentStep === 3" class="step-content">
         <StepPreview 
           :template-info="templateInfo"
           :variables="variables"
@@ -101,6 +100,7 @@ const loadTemplateInfo = async () => {
     console.log('getTemplateDetail 返回：', res)
     templateInfo.value = res.data.data.data
     console.log('设置 templateInfo:', templateInfo.value)
+    console.log('templateInfo.value.id:', templateInfo.value?.id)
   } catch (error) {
     message.error('加载模板信息失败')
     console.error(error)
@@ -109,11 +109,16 @@ const loadTemplateInfo = async () => {
 
 // 步骤导航
 const nextStep = () => {
+  console.log('=== 步骤切换开始 ===')
   console.log('切换到下一步，当前步骤:', currentStep.value)
+  console.log('切换前templateInfo:', templateInfo.value)
+  console.log('切换前templateInfo.id:', templateInfo.value?.id)
   if (currentStep.value < 3) {
     currentStep.value++
     console.log('切换到步骤:', currentStep.value)
-    console.log('当前templateInfo:', templateInfo.value)
+    console.log('切换后templateInfo:', templateInfo.value)
+    console.log('切换后templateInfo.id:', templateInfo.value?.id)
+    console.log('=== 步骤切换完成 ===')
   }
 }
 
