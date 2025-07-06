@@ -213,11 +213,6 @@ func (s *sTemplateFiles) UploadZip(ctx context.Context, templateId int64) (succe
 		if file == nil {
 			liberr.ErrIsNil(ctx, fmt.Errorf("未找到上传的ZIP文件"), "请选择ZIP文件")
 		}
-
-		// 打印调试信息
-		fmt.Printf("上传文件信息: 文件名=%s, 大小=%d, Content-Type=%s\n",
-			file.Filename, file.Size, file.Header.Get("Content-Type"))
-
 		// 检查文件大小（1MB = 1024 * 1024 字节）
 		if file.Size > 1024*1024 {
 			liberr.ErrIsNil(ctx, fmt.Errorf("文件大小超过1MB限制"), "ZIP文件大小不能超过1MB")
@@ -241,8 +236,6 @@ func (s *sTemplateFiles) UploadZip(ctx context.Context, templateId int64) (succe
 			liberr.ErrIsNil(ctx, err, "创建临时目录失败")
 		}
 
-		fmt.Printf("临时目录: %s\n", tempDir)
-
 		// 使用安全的文件名
 		safeFileName := strings.ReplaceAll(file.Filename, "/", "_")
 		safeFileName = strings.ReplaceAll(safeFileName, "\\", "_")
@@ -257,10 +250,6 @@ func (s *sTemplateFiles) UploadZip(ctx context.Context, templateId int64) (succe
 
 		// 保存上传的文件到临时目录
 		zipPath := filepath.Join(tempDir, uniqueFileName)
-		fmt.Printf("保存文件到: %s\n", zipPath)
-
-		// 检查保存前的文件信息
-		fmt.Printf("保存前文件大小: %d 字节\n", file.Size)
 
 		// 使用标准库保存文件，而不是 GoFrame 的 file.Save
 		src, err := file.Open()
