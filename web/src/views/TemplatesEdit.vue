@@ -405,39 +405,77 @@ function loadTestData() {
 }
 
 function findNodeByKey(list, key) {
+  console.log('查找节点:', { key, listLength: list?.length })
+  
   for (const item of list) {
-    if (String(item.key || item.id) === String(key)) return item
+    const itemKey = String(item.key || item.id)
+    const targetKey = String(key)
+    
+    console.log('检查节点:', { 
+      itemKey, 
+      targetKey, 
+      matches: itemKey === targetKey,
+      fileName: item.fileName,
+      isDirectory: item.isDirectory 
+    })
+    
+    if (itemKey === targetKey) {
+      console.log('找到匹配节点:', item)
+      return item
+    }
+    
     if (item.children) {
       const found = findNodeByKey(item.children, key)
-      if (found) return found
+      if (found) {
+        console.log('在子节点中找到:', found)
+        return found
+      }
     }
   }
+  
+  console.log('未找到匹配的节点')
   return null
 }
 
 async function onSelectFile(key) {
+  console.log('选择文件:', { key, treeDataLength: treeData.value.length })
+  
   currentFile.value = key
   const node = findNodeByKey(treeData.value, key)
   currentFileNode.value = node
   
+  console.log('找到节点:', { node, isDirectory: node?.isDirectory })
+  
   if (node && node.isDirectory === 0) {
     try {
+      // 先设置文件名，避免编辑器被销毁
+      const fileName = node.fileName || node.label || String(key)
+      console.log('设置文件名:', fileName)
+      
+      currentFileName.value = fileName
+      currentFileId.value = String(key)
+      
+      // 然后异步加载文件内容
+      console.log('开始加载文件内容...')
       const res = await getTemplateFileContent(key)
       const content = res.data.data.fileContent
       
-      // 设置当前文件信息
+      console.log('文件内容加载完成:', { contentLength: content?.length })
+      
+      // 设置文件内容
       currentFileContent.value = content
-      currentFileName.value = node.fileName || node.label || String(key)
-      currentFileId.value = String(key)
       templateFileStore.setCurrentFileContent(content)
       
     } catch (e) {
+      console.error('加载文件内容失败:', e)
       currentFileContent.value = ''
       currentFileName.value = ''
       currentFileId.value = ''
       templateFileStore.setCurrentFileContent('')
     }
   } else {
+    // 对于目录，清空所有文件信息
+    console.log('选择的是目录，清空文件信息')
     currentFileContent.value = ''
     currentFileName.value = ''
     currentFileId.value = ''

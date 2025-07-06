@@ -330,23 +330,32 @@ function toggleFullscreen() {
 }
 
 function updateEditorContent(content, filename = '') {
-  if (!editorView) return
+  if (!editorView) {
+    console.warn('编辑器未初始化，无法更新内容')
+    return
+  }
 
-  const languageExt = getLanguageExtension(filename)
-  
-  const newState = EditorState.create({
-    doc: content || '',
-    extensions: createEditorExtensionsWithListener(languageExt)
-  })
+  try {
+    const languageExt = getLanguageExtension(filename)
+    
+    const newState = EditorState.create({
+      doc: content || '',
+      extensions: createEditorExtensionsWithListener(languageExt)
+    })
 
-  editorView.setState(newState)
-  
-  // 确保滚动正常工作
-  setTimeout(() => {
-    if (editorView && editorView.scrollDOM) {
-      editorView.requestMeasure()
-    }
-  }, 100)
+    editorView.setState(newState)
+    
+    // 确保滚动正常工作
+    setTimeout(() => {
+      if (editorView && editorView.scrollDOM) {
+        editorView.requestMeasure()
+      }
+    }, 100)
+    
+    console.log('编辑器内容更新成功:', { filename, contentLength: content?.length })
+  } catch (error) {
+    console.error('更新编辑器内容失败:', error)
+  }
 }
 
 function createEditorExtensions(languageExtension = null) {
@@ -565,21 +574,53 @@ function showContextMenu(event, view) {
 }
 
 // 监听文件内容变化
-watch(() => props.currentFileContent, (newContent) => {
-  if (editorView && newContent !== editorView.state.doc.toString()) {
-    updateEditorContent(newContent, props.currentFileName)
+watch(() => props.currentFileContent, (newContent, oldContent) => {
+  console.log('文件内容变化:', { 
+    hasEditor: !!editorView, 
+    hasContainer: !!editorContainer.value,
+    newContentLength: newContent?.length, 
+    oldContentLength: oldContent?.length 
+  })
+  
+  if (editorView && newContent !== undefined && newContent !== editorView.state.doc.toString()) {
+    // 使用 nextTick 确保 DOM 更新完成后再更新编辑器内容
+    nextTick(() => {
+      if (editorView) {
+        updateEditorContent(newContent, props.currentFileName)
+      }
+    })
+  } else if (!editorView && newContent && props.currentFileName) {
+    // 如果编辑器还没有创建但有内容，尝试创建编辑器
+    console.log('尝试为内容创建编辑器')
+    nextTick(() => {
+      if (editorContainer.value && !editorView) {
+        const languageExt = getLanguageExtension(props.currentFileName)
+        const state = EditorState.create({
+          doc: newContent || '',
+          extensions: createEditorExtensionsWithListener(languageExt)
+        })
+        editorView = new EditorView({
+          state,
+          parent: editorContainer.value
+        })
+        console.log('为内容创建编辑器成功')
+      }
+    })
   }
 }, { immediate: false })
 
 // 监听文件名变化，创建或更新编辑器
-watch(() => props.currentFileName, (newFileName) => {
+watch(() => props.currentFileName, (newFileName, oldFileName) => {
+  console.log('文件名变化:', { oldFileName, newFileName, hasEditor: !!editorView, hasContainer: !!editorContainer.value })
+  
   if (newFileName) {
     // 有文件名时，创建或更新编辑器
     if (editorView) {
-      // 更新现有编辑器
+      // 更新现有编辑器的语言支持
       const languageExt = getLanguageExtension(newFileName)
+      const currentContent = editorView.state.doc.toString()
       const newState = EditorState.create({
-        doc: editorView.state.doc.toString(),
+        doc: currentContent,
         extensions: createEditorExtensionsWithListener(languageExt)
       })
       editorView.setState(newState)
@@ -594,31 +635,72 @@ watch(() => props.currentFileName, (newFileName) => {
         state,
         parent: editorContainer.value
       })
+      console.log('文件名变化时创建编辑器成功')
+    } else {
+      // 容器还没有准备好，等待 nextTick
+      console.log('容器未准备好，等待 nextTick')
+      nextTick(() => {
+        if (editorContainer.value && !editorView) {
+          const languageExt = getLanguageExtension(newFileName)
+          const state = EditorState.create({
+            doc: props.currentFileContent || '',
+            extensions: createEditorExtensionsWithListener(languageExt)
+          })
+          editorView = new EditorView({
+            state,
+            parent: editorContainer.value
+          })
+          console.log('nextTick 后创建编辑器成功')
+        }
+      })
     }
-  } else {
-    // 没有文件名时，销毁编辑器
+  } else if (oldFileName && !newFileName) {
+    // 只有在从有文件名变为无文件名时才销毁编辑器
+    // 避免在初始化过程中错误销毁
     if (editorView) {
       editorView.destroy()
       editorView = null
     }
   }
-})
+}, { immediate: false })
 
 onMounted(() => {
-  // 只有在有文件名时才创建编辑器
-  if (editorContainer.value && props.currentFileName) {
-    const languageExt = getLanguageExtension(props.currentFileName)
+  console.log('TemplateEditor mounted:', { 
+    hasContainer: !!editorContainer.value, 
+    fileName: props.currentFileName,
+    hasContent: !!props.currentFileContent 
+  })
+  
+  // 使用 nextTick 确保 DOM 元素准备好
+  nextTick(() => {
+    console.log('TemplateEditor nextTick:', { 
+      hasContainer: !!editorContainer.value, 
+      fileName: props.currentFileName,
+      hasContent: !!props.currentFileContent 
+    })
     
-    const state = EditorState.create({
-      doc: props.currentFileContent || '',
-      extensions: createEditorExtensionsWithListener(languageExt)
-    })
+    // 只有在有文件名和容器时才创建编辑器
+    if (editorContainer.value && props.currentFileName) {
+      const languageExt = getLanguageExtension(props.currentFileName)
+      
+      const state = EditorState.create({
+        doc: props.currentFileContent || '',
+        extensions: createEditorExtensionsWithListener(languageExt)
+      })
 
-    editorView = new EditorView({
-      state,
-      parent: editorContainer.value
-    })
-  }
+      editorView = new EditorView({
+        state,
+        parent: editorContainer.value
+      })
+      
+      console.log('编辑器初始化成功:', { fileName: props.currentFileName })
+    } else {
+      console.log('编辑器初始化跳过:', { 
+        hasContainer: !!editorContainer.value, 
+        fileName: props.currentFileName 
+      })
+    }
+  })
 })
 
 onBeforeUnmount(() => {
