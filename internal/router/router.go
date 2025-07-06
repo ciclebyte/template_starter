@@ -21,6 +21,7 @@ func (router *Router) BindController(ctx context.Context, group *ghttp.RouterGro
 			controller.TemplateVariables,
 			controller.TemplateLanguages,
 			controller.TemplateFiles,
+			controller.Index,
 		)
 
 		//自动绑定定义的控制器

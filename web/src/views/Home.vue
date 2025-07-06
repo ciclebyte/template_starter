@@ -3,63 +3,42 @@
     <!-- 英雄区域 -->
     <div class="hero-section">
       <div class="hero-content">
-        <h1>快速启动您的项目</h1>
+        <h1>Template Starter</h1>
         <p>从数百个精心设计的项目模板中选择，一键生成完整项目结构</p>
-        <div class="hero-search">
-          <n-input-group>
-            <n-input placeholder="搜索模板..." size="large" />
-            <n-button type="primary" size="large">搜索</n-button>
-          </n-input-group>
-        </div>
-      </div>
-    </div>
-
-    <!-- 热门分类 -->
-    <div class="categories-section">
-      <div class="container">
-        <h2 class="section-title">
-          <span class="category-icon-mark">📂</span>
-          热门分类
-        </h2>
-        <div class="categories-grid">
-          <div 
-            v-for="category in categories" 
-            :key="category.id" 
-            class="category-card"
-          >
-            <span class="category-badge">分类</span>
-            <div class="category-icon">{{ category.icon }}</div>
-            <h3>{{ category.name }}</h3>
-            <p>{{ category.description }}</p>
-          </div>
-        </div>
       </div>
     </div>
 
     <!-- 推荐模板 -->
-    <div class="templates-section">
+    <div class="templates-section" v-if="featuredTemplates && featuredTemplates.length > 0">
       <div class="container">
-        <h2>推荐模板</h2>
-        <div class="templates-grid">
+        <h2 class="section-title">
+          <span class="category-icon-mark">⭐</span>
+          推荐模板
+        </h2>
+        <div v-if="loading" class="loading-container">
+          <n-spin size="large" />
+          <p>加载中...</p>
+        </div>
+        <div v-else class="templates-grid">
           <div 
-            v-for="template in templates" 
+            v-for="template in featuredTemplates" 
             :key="template.id" 
             class="template-card"
           >
             <div class="template-logo">
-              <img :src="template.logo" :alt="template.name" />
+              <img :src="template.logo || '/vite.svg'" :alt="template.name" />
             </div>
             <div class="template-info">
               <h3>{{ template.name }}</h3>
               <p>{{ template.description }}</p>
               <div class="template-languages">
                 <n-tag 
-                  v-for="lang in languagesList" 
+                  v-for="lang in template.languages" 
                   :key="lang.id"
-                  :color="{ color: lang.color }"
+                  :color="{ color: getLanguageColor(lang.languageId) }"
                   size="small"
                 >
-                  {{ lang.displayName }}
+                  {{ getLanguageName(lang.languageId) }}
                 </n-tag>
               </div>
               <n-button type="primary" @click="useTemplate(template)">
@@ -70,91 +49,140 @@
         </div>
       </div>
     </div>
+
+    <!-- 分类模板 -->
+    <div class="categories-templates-section">
+      <div class="container">
+        <div v-if="loading" class="loading-container">
+          <n-spin size="large" />
+          <p>加载中...</p>
+        </div>
+        <div v-else-if="categories.length === 0" class="empty-container">
+          <p>暂无分类数据</p>
+        </div>
+        <div v-else>
+          <div 
+            v-for="category in categories" 
+            :key="category.id" 
+            class="category-section"
+            v-show="category.templates && category.templates.length > 0"
+          >
+            <div class="category-header">
+              <h2 class="category-title">
+                {{ category.name }}
+              </h2>
+              <p class="category-description">{{ category.description }}</p>
+              <span class="template-count-badge">{{ category.templateCount }} 个模板</span>
+            </div>
+            <div class="templates-grid">
+              <div 
+                v-for="template in category.templates" 
+                :key="template.id" 
+                class="template-card"
+              >
+                <div class="template-logo">
+                  <img :src="template.logo || '/vite.svg'" :alt="template.name" />
+                </div>
+                <div class="template-info">
+                  <h3>{{ template.name }}</h3>
+                  <p>{{ template.description }}</p>
+                  <div class="template-languages">
+                    <n-tag 
+                      v-for="lang in template.languages" 
+                      :key="lang.id"
+                      :color="{ color: getLanguageColor(lang.languageId) }"
+                      size="small"
+                    >
+                      {{ getLanguageName(lang.languageId) }}
+                    </n-tag>
+                  </div>
+                  <n-button type="primary" @click="useTemplate(template)">
+                    使用模板
+                  </n-button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { listLanguages } from '@/api/languages'
+import { useRouter } from 'vue-router'
+import { getIndexData } from '@/api/indexData'
 import { useLanguageStore } from '@/stores/languageStore'
 import { storeToRefs } from 'pinia'
 
-// 模拟数据 - 分类
-const categories = ref([
-  {
-    id: 1,
-    name: 'Web应用',
-    description: '前端和后端Web应用模板',
-    icon: '🌐',
-    sort: 1
-  },
-  {
-    id: 2,
-    name: '移动应用',
-    description: '移动端应用开发模板',
-    icon: '📱',
-    sort: 2
-  },
-  {
-    id: 3,
-    name: '桌面应用',
-    description: '桌面应用程序模板',
-    icon: '💻',
-    sort: 3
-  },
-  {
-    id: 4,
-    name: 'API服务',
-    description: '后端API服务模板',
-    icon: '🔌',
-    sort: 4
-  }
-])
-
-// 模拟数据 - 模板
-const templates = ref([
-  {
-    id: 1,
-    name: 'Vue全栈应用',
-    description: '基于Vue3 + Node.js的完整全栈应用模板',
-    category_id: 1,
-    is_featured: true,
-    logo: '/vite.svg',
-    languages: [
-      { id: 1, name: 'JavaScript', display_name: 'JS', color: '#f7df1e' },
-      { id: 2, name: 'Vue', display_name: 'Vue', color: '#42b883' }
-    ]
-  },
-  {
-    id: 2,
-    name: 'React管理后台',
-    description: '企业级React管理后台模板',
-    category_id: 1,
-    is_featured: true,
-    logo: '/vite.svg',
-    languages: [
-      { id: 1, name: 'JavaScript', display_name: 'JS', color: '#f7df1e' },
-      { id: 3, name: 'React', display_name: 'React', color: '#61dafb' }
-    ]
-  }
-])
-
+const router = useRouter()
 const languageStore = useLanguageStore()
 const { languagesList } = storeToRefs(languageStore)
+
+// 响应式数据
+const loading = ref(false)
+const statistics = ref({
+  totalTemplates: 0,
+  totalCategories: 0,
+  totalLanguages: 0,
+  featuredCount: 0
+})
+const categories = ref([])
+const featuredTemplates = ref([])
 
 // 使用模板
 const useTemplate = (template) => {
   console.log('使用模板:', template.name)
-  // TODO: 跳转到模板使用页面
+  router.push(`/templates/generate/${template.id}`)
 }
 
-// 页面加载时调用语言列表接口
+// 获取语言名称
+const getLanguageName = (languageId) => {
+  if (!languageId) return ''
+  const language = languagesList.value.find(lang => lang.id === Number(languageId))
+  return language ? language.name : ''
+}
+
+// 获取语言颜色
+const getLanguageColor = (languageId) => {
+  if (!languageId) return '#666'
+  const language = languagesList.value.find(lang => lang.id === Number(languageId))
+  return language ? language.color : '#666'
+}
+
+// 获取首页数据
+const fetchIndexData = async () => {
+  loading.value = true
+  try {
+    const response = await getIndexData({
+      categoryLimit: 6,
+      featuredLimit: 8
+    })
+    
+    if (response.data && response.data.data) {
+      statistics.value = response.data.data.statistics || {}
+      categories.value = response.data.data.categories || []
+      featuredTemplates.value = response.data.data.featuredTemplates || []
+    }
+    
+    console.log('首页数据:', response.data)
+  } catch (error) {
+    console.error('获取首页数据失败:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 页面加载时获取数据
 onMounted(async () => {
   try {
+    // 先获取语言列表
     await languageStore.fetchLanguages()
-    console.log('语言列表（pinia）:', languagesList.value)
-  } catch (e) {
-    console.error('语言列表接口调用失败', e)
+    // 再获取首页数据
+    await fetchIndexData()
+  } catch (error) {
+    console.error('页面初始化失败:', error)
   }
 })
 </script>
@@ -184,13 +212,8 @@ onMounted(async () => {
 
 .hero-content p {
   font-size: 1.2rem;
-  margin-bottom: 40px;
+  margin-bottom: 0;
   opacity: 0.9;
-}
-
-.hero-search {
-  max-width: 500px;
-  margin: 0 auto;
 }
 
 .container {
@@ -199,56 +222,74 @@ onMounted(async () => {
   padding: 0 20px;
 }
 
-.categories-section {
+.categories-templates-section {
   padding: 60px 0;
   background: #fff;
 }
 
-.categories-section h2 {
-  text-align: center;
+.category-section {
+  margin-bottom: 60px;
+}
+
+.category-section:last-child {
+  margin-bottom: 0;
+}
+
+.category-header {
+  text-align: left;
   margin-bottom: 40px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.category-title {
   font-size: 2rem;
-}
-
-.categories-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 30px;
-}
-
-.category-card {
-  background: #f8f9fa;
-  border-radius: 12px;
-  padding: 30px;
-  text-align: center;
-  transition: all 0.3s ease;
-  position: relative;
-  cursor: pointer;
-}
-
-.category-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-}
-
-.category-icon {
-  font-size: 3rem;
-  margin-bottom: 20px;
-}
-
-.category-card h3 {
   margin-bottom: 10px;
   color: #333;
 }
 
-.category-card p {
+.category-description {
   color: #666;
-  margin-bottom: 20px;
+  font-size: 1.1rem;
+  margin-bottom: 15px;
+}
+
+.template-count-badge {
+  background: #18a058;
+  color: white;
+  padding: 6px 16px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 500;
+  display: inline-block;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 0;
+  color: #666;
+}
+
+.loading-container p {
+  margin-top: 16px;
+  font-size: 14px;
+}
+
+.empty-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 0;
+  color: #999;
+  font-size: 14px;
 }
 
 .templates-section {
   padding: 60px 0;
-  background: #f5f5f5;
+  background: #f8f9fa;
 }
 
 .templates-section h2 {
@@ -259,16 +300,41 @@ onMounted(async () => {
 
 .templates-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 30px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 1200px) {
+  .templates-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 992px) {
+  .templates-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .templates-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .templates-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .template-card {
   background: white;
   border-radius: 12px;
-  padding: 30px;
+  padding: 20px;
   box-shadow: 0 5px 15px rgba(0,0,0,0.1);
   transition: transform 0.3s ease;
+  min-width: 0;
 }
 
 .template-card:hover {

@@ -45,13 +45,11 @@ const route = useRoute()
 const menuOptions = [
   {
     label: '首页',
-    key: 'home',
-    icon: () => h('span', '🏠')
+    key: 'home'
   },
   {
     label: '模板',
-    key: 'templates',
-    icon: () => h('span', '📁')
+    key: 'templates'
   }
 ]
 
@@ -98,6 +96,8 @@ const handleMenuClick = (key) => {
 .logo h2 {
   margin: 0;
   color: #18a058;
+  font-weight: 600;
+  font-size: 20px;
 }
 
 .nav-menu {
@@ -105,8 +105,49 @@ const handleMenuClick = (key) => {
   margin: 0 40px;
 }
 
+/* 自定义菜单样式 */
+.nav-menu :deep(.n-menu-item) {
+  font-weight: 500;
+  font-size: 15px;
+  color: #666;
+  transition: color 0.2s ease;
+  padding: 8px 20px;
+  border-radius: 6px;
+  margin: 0 4px;
+  cursor: pointer;
+}
+
+.nav-menu :deep(.n-menu-item:hover) {
+  color: #18a058;
+  background: rgba(24, 160, 88, 0.06);
+}
+
+.nav-menu :deep(.n-menu-item--selected) {
+  color: #18a058;
+  background: rgba(24, 160, 88, 0.1);
+  font-weight: 600;
+}
+
+.nav-menu :deep(.n-menu-item-content) {
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-menu :deep(.n-menu-item-content__text) {
+  width: 100%;
+  text-align: center;
+}
+
 .search-box {
   width: 300px;
+}
+
+.search-box :deep(.n-input) {
+  border-radius: 6px;
 }
 
 .main-content {

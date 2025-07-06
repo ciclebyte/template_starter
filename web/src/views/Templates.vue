@@ -100,14 +100,15 @@
     <div class="templates-section">
       <div class="container">
         <div class="templates-header">
-          <h2>模板列表</h2>
-          <div class="templates-header-actions">
+          <div class="templates-title-section">
+            <h2>模板列表</h2>
             <div class="templates-count">共 {{ totalTemplates }} 个模板</div>
-            <n-button type="primary" @click="showAddModal = true">
+          </div>
+          <div class="templates-header-actions">
+            <n-button type="primary" @click="showAddModal = true" class="add-template-btn">
               <template #icon>
                 <n-icon><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 13H13V19H11V13H5V11H11V5H13V11H19V13Z"/></svg></n-icon>
               </template>
-              添加模板
             </n-button>
           </div>
         </div>
@@ -117,10 +118,14 @@
             v-for="template in templates"
             :key="template.id"
             class="template-card"
+            :class="{ 'featured': template.isFeatured }"
             @contextmenu.prevent.stop="showDropdown(template, $event)"
           >
             <div class="template-logo">
               <img :src="template.logo || DEFAULT_LOGO" :alt="template.name" />
+              <div v-if="template.isFeatured" class="featured-badge">
+                <n-icon><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg></n-icon>
+              </div>
             </div>
             <div class="template-info">
               <h3>{{ template.name }}</h3>
@@ -516,10 +521,15 @@ const showLanguageDropdown = (language, e) => {
   languageDropdownX.value = e.clientX
   languageDropdownY.value = e.clientY
 }
-const dropdownOptions = [
+const dropdownOptions = computed(() => [
   { label: '编辑模板信息', key: 'editInfo', icon: () => h('span', { style: 'color:#18a058' }, '✏️') },
-  { label: '编辑模板内容', key: 'editContent', icon: () => h('span', { style: 'color:#2080f0' }, '📄') }
-]
+  { label: '编辑模板内容', key: 'editContent', icon: () => h('span', { style: 'color:#2080f0' }, '📄') },
+  { 
+    label: dropdownTemplate.value?.isFeatured ? '取消推荐' : '设为推荐', 
+    key: 'toggleFeatured', 
+    icon: () => h('span', { style: 'color:#f0a020' }, dropdownTemplate.value?.isFeatured ? '⭐' : '☆') 
+  }
+])
 
 const categoryDropdownOptions = [
   { label: '编辑分类', key: 'editCategory', icon: () => h('span', { style: 'color:#18a058' }, '✏️') },
@@ -540,7 +550,8 @@ const editForm = ref({
   languages: [],
   primary_language: null,
   logo: '',
-  introduction: ''
+  introduction: '',
+  isFeatured: 0
 })
 
 const openEditModal = (template) => {
@@ -549,6 +560,7 @@ const openEditModal = (template) => {
   editForm.value.description = template.description
   editForm.value.categoryId = template.categoryId || template.category_id
   editForm.value.introduction = template.introduction || ''
+  editForm.value.isFeatured = template.isFeatured || 0
   // 语言回显
   if (template.languages && template.languages.length > 0) {
     editForm.value.languages = template.languages.map(l => Number(l.languageId || l.id))
@@ -588,7 +600,7 @@ const handleEditTemplate = async () => {
     description: editForm.value.description,
     introduction: editForm.value.introduction,
     categoryId: editForm.value.categoryId,
-    isFeatured: 0,
+    isFeatured: editForm.value.isFeatured,
     logo: editForm.value.logo || DEFAULT_LOGO,
     languages: languagesArr
   })
@@ -596,13 +608,38 @@ const handleEditTemplate = async () => {
   // TODO: 刷新模板列表
 }
 
-const handleDropdownSelect = (key, template) => {
+const handleDropdownSelect = async (key, template) => {
   if (key === 'editInfo') {
     openEditModal(template)
   } else if (key === 'editContent') {
     router.push(`/templates/edit/${template.id}`)
+  } else if (key === 'toggleFeatured') {
+    await handleToggleFeatured(template)
   }
   dropdownShow.value = false
+}
+
+const handleToggleFeatured = async (template) => {
+  try {
+    const newFeaturedStatus = template.isFeatured ? 0 : 1
+    await editTemplate({
+      id: template.id,
+      name: template.name,
+      description: template.description,
+      introduction: template.introduction || '',
+      categoryId: template.categoryId,
+      isFeatured: newFeaturedStatus,
+      logo: template.logo || DEFAULT_LOGO,
+      languages: template.languages
+    })
+    // 更新本地数据
+    const index = allTemplates.value.findIndex(t => t.id === template.id)
+    if (index !== -1) {
+      allTemplates.value[index].isFeatured = newFeaturedStatus
+    }
+  } catch (error) {
+    console.error('切换推荐状态失败:', error)
+  }
 }
 
 const handleCategoryDropdownSelect = async (key, category) => {
@@ -994,13 +1031,34 @@ onMounted(async () => {
 .templates-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 30px;
+}
+
+.templates-title-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .templates-header-actions {
   display: flex;
   align-items: center;
   gap: 18px;
+}
+
+.add-template-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.add-template-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(24, 160, 88, 0.2);
 }
 .templates-header h2 {
   margin: 0;
@@ -1010,6 +1068,7 @@ onMounted(async () => {
 .templates-count {
   color: #666;
   font-size: 14px;
+  margin-top: 4px;
 }
 
 .templates-grid {
@@ -1060,11 +1119,38 @@ onMounted(async () => {
 .template-logo {
   text-align: center;
   margin-bottom: 20px;
+  position: relative;
 }
 
 .template-logo img {
   width: 60px;
   height: 60px;
+}
+
+.featured-badge {
+  position: absolute;
+  top: -5px;
+  right: 50%;
+  transform: translateX(50%);
+  background: #f0a020;
+  color: white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(240, 160, 32, 0.3);
+  z-index: 1;
+}
+
+.template-card.featured {
+  border-color: #f0a020;
+  box-shadow: 0 2px 12px rgba(240, 160, 32, 0.15);
+}
+
+.template-card.featured::before {
+  background: #f0a020;
 }
 
 .template-info h3 {
