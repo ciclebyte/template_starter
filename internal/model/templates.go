@@ -8,5 +8,6 @@ type TemplatesInfo struct {
 	CategoryId   int                     `orm:"category_id"  json:"categoryId"`    // 所属分类ID
 	IsFeatured   int                     `orm:"is_featured"  json:"isFeatured"`    // 是否推荐模板
 	Logo         string                  `orm:"logo"  json:"logo"`                 // 模板logo图片URL
+	Icon         string                  `orm:"icon"  json:"icon"`                 // 模板图标名称
 	Languages    []TemplateLanguagesInfo `json:"languages"`                        // 模板支持的语言
 }

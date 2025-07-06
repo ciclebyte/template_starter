@@ -17,6 +17,7 @@ type Templates struct {
 	CategoryId   int         `json:"categoryId"   description:"所属分类ID"`
 	IsFeatured   int         `json:"isFeatured"   description:"是否推荐模板"`
 	Logo         string      `json:"logo"         description:"模板logo图片URL"`
+	Icon         string      `json:"icon"         description:"模板图标名称"`
 	CreatedAt    *gtime.Time `json:"createdAt"    description:"记录创建时间"`
 	UpdatedAt    *gtime.Time `json:"updatedAt"    description:"记录最后更新时间"`
 }

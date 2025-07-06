@@ -122,7 +122,12 @@
             @contextmenu.prevent.stop="showDropdown(template, $event)"
           >
             <div class="template-logo">
-              <img :src="template.logo || DEFAULT_LOGO" :alt="template.name" />
+              <div v-if="template.icon" class="template-icon">
+                <n-icon size="48">
+                  <component :is="getIconComponent(template.icon)" />
+                </n-icon>
+              </div>
+              <img v-else :src="template.logo || DEFAULT_LOGO" :alt="template.name" />
               <div v-if="template.isFeatured" class="featured-badge">
                 <n-icon><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg></n-icon>
               </div>
@@ -260,6 +265,7 @@
 import { ref, computed, onMounted, h, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { NIcon } from 'naive-ui'
+import * as IonIcons from '@vicons/ionicons5'
 import { useLanguageStore } from '@/stores/languageStore'
 import { storeToRefs } from 'pinia'
 import { useCategoryStore } from '@/stores/categoryStore'
@@ -369,6 +375,7 @@ const addForm = ref({
   languages: [],
   primary_language: null,
   logo: '',
+  icon: '',
   introduction: ''
 })
 const addRules = {
@@ -421,10 +428,11 @@ const handleAddTemplate = async () => {
     categoryId: addForm.value.categoryId,
     isFeatured: 0,
     logo: addForm.value.logo || DEFAULT_LOGO,
+    icon: addForm.value.icon,
     languages: languagesArr
   })
   showAddModal.value = false
-  addForm.value = { name: '', description: '', categoryId: null, languages: [], primary_language: null, logo: '', introduction: '' }
+  addForm.value = { name: '', description: '', categoryId: null, languages: [], primary_language: null, logo: '', icon: '', introduction: '' }
   // TODO: 刷新模板列表
 }
 
@@ -472,6 +480,11 @@ const getLanguageColor = (languageId) => {
   if (!languageId) return '#666'
   const language = languagesList.value.find(lang => lang.id === Number(languageId))
   return language ? language.color : '#666'
+}
+
+// 获取图标组件
+const getIconComponent = (iconName) => {
+  return IonIcons[iconName] || null
 }
 
 
@@ -550,6 +563,7 @@ const editForm = ref({
   languages: [],
   primary_language: null,
   logo: '',
+  icon: '',
   introduction: '',
   isFeatured: 0
 })
@@ -561,6 +575,7 @@ const openEditModal = (template) => {
   editForm.value.categoryId = template.categoryId || template.category_id
   editForm.value.introduction = template.introduction || ''
   editForm.value.isFeatured = template.isFeatured || 0
+  editForm.value.icon = template.icon || ''
   // 语言回显
   if (template.languages && template.languages.length > 0) {
     editForm.value.languages = template.languages.map(l => Number(l.languageId || l.id))
@@ -602,6 +617,7 @@ const handleEditTemplate = async () => {
     categoryId: editForm.value.categoryId,
     isFeatured: editForm.value.isFeatured,
     logo: editForm.value.logo || DEFAULT_LOGO,
+    icon: editForm.value.icon,
     languages: languagesArr
   })
   showEditModal.value = false
@@ -1125,6 +1141,21 @@ onMounted(async () => {
 .template-logo img {
   width: 60px;
   height: 60px;
+}
+
+.template-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  margin: 0 auto;
+}
+
+.template-icon :deep(svg) {
+  width: 48px;
+  height: 48px;
+  color: #18a058;
 }
 
 .featured-badge {

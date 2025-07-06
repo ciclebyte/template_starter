@@ -26,7 +26,12 @@
             class="template-card"
           >
             <div class="template-logo">
-              <img :src="template.logo || '/vite.svg'" :alt="template.name" />
+              <div v-if="template.icon" class="template-icon">
+                <n-icon size="48">
+                  <component :is="getIconComponent(template.icon)" />
+                </n-icon>
+              </div>
+              <img v-else :src="template.logo || '/vite.svg'" :alt="template.name" />
             </div>
             <div class="template-info">
               <h3>{{ template.name }}</h3>
@@ -115,6 +120,7 @@ import { useRouter } from 'vue-router'
 import { getIndexData } from '@/api/indexData'
 import { useLanguageStore } from '@/stores/languageStore'
 import { storeToRefs } from 'pinia'
+import * as IonIcons from '@vicons/ionicons5'
 
 const router = useRouter()
 const languageStore = useLanguageStore()
@@ -149,6 +155,11 @@ const getLanguageColor = (languageId) => {
   if (!languageId) return '#666'
   const language = languagesList.value.find(lang => lang.id === Number(languageId))
   return language ? language.color : '#666'
+}
+
+// 获取图标组件
+const getIconComponent = (iconName) => {
+  return IonIcons[iconName] || null
 }
 
 // 获取首页数据
@@ -349,6 +360,21 @@ onMounted(async () => {
 .template-logo img {
   width: 60px;
   height: 60px;
+}
+
+.template-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  margin: 0 auto;
+}
+
+.template-icon :deep(svg) {
+  width: 48px;
+  height: 48px;
+  color: #18a058;
 }
 
 .template-info h3 {

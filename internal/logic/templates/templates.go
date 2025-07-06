@@ -80,6 +80,7 @@ func (s sTemplates) Add(ctx context.Context, req *api.TemplatesAddReq) (err erro
 			CategoryId:   req.CategoryId,   // 所属分类ID
 			IsFeatured:   req.IsFeatured,   // 是否推荐模板
 			Logo:         req.Logo,         // 模板logo图片URL
+			Icon:         req.Icon,         // 模板图标名称
 		})
 		liberr.ErrIsNil(ctx, err, "新增模板失败")
 		templateId, err := result.LastInsertId()
@@ -119,6 +120,7 @@ func (s sTemplates) Edit(ctx context.Context, req *api.TemplatesEditReq) (err er
 			CategoryId:   req.CategoryId,   // 所属分类ID
 			IsFeatured:   req.IsFeatured,   // 是否推荐模板
 			Logo:         req.Logo,         // 模板logo图片URL
+			Icon:         req.Icon,         // 模板图标名称
 		})
 		liberr.ErrIsNil(ctx, err, "修改模板失败")
 

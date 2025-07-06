@@ -38,8 +38,21 @@
                   placeholder="请选择主语言"
                 />
               </n-form-item>
-              <n-form-item label="Logo">
-                <n-input v-model:value="form.logo" placeholder="Logo图片URL，可选" />
+              <n-form-item label="图标">
+                <div class="icon-selector-wrapper">
+                  <div class="current-icon" @click="showIconSelector = true">
+                    <n-icon v-if="form.icon" size="24">
+                      <component :is="getIconComponent(form.icon)" />
+                    </n-icon>
+                    <span v-else class="no-icon">选择图标</span>
+                  </div>
+                  <n-button size="small" @click="showIconSelector = true">
+                    选择图标
+                  </n-button>
+                  <n-button v-if="form.icon" size="small" @click="clearIcon">
+                    清除
+                  </n-button>
+                </div>
               </n-form-item>
               <div v-if="form.languages.length > 0" style="margin-bottom: 12px;">
                 <n-tag
@@ -85,6 +98,19 @@
       <n-button type="primary" @click="handleSubmit">确定</n-button>
     </template>
   </n-modal>
+
+  <!-- 图标选择器弹框 -->
+  <n-modal
+    v-model:show="showIconSelector"
+    title="选择图标"
+    preset="dialog"
+    style="width: 90vw; max-width: 800px;"
+  >
+    <IconSelector @select="onIconSelect" />
+    <template #action>
+      <n-button @click="showIconSelector = false">关闭</n-button>
+    </template>
+  </n-modal>
 </template>
 
 <script setup>
@@ -94,6 +120,8 @@ import { useLanguageStore } from '@/stores/languageStore'
 import { useCategoryStore } from '@/stores/categoryStore'
 import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
+import IconSelector from '@/components/IconSelector.vue'
+import * as IonIcons from '@vicons/ionicons5'
 
 const props = defineProps({
   show: Boolean,
@@ -106,6 +134,7 @@ const props = defineProps({
 const emit = defineEmits(['update:show', 'submit', 'cancel'])
 const formRef = ref(null)
 const activeTab = ref('basic')
+const showIconSelector = ref(false)
 
 // MdEditor 配置
 const toolbars = [
@@ -136,6 +165,20 @@ const onLanguagesChange = (val) => {
 const getLanguageName = (id) => {
   const lang = languagesList.value.find(l => Number(l.id) === Number(id))
   return lang ? lang.name : id
+}
+
+// 图标相关方法
+const getIconComponent = (iconName) => {
+  return IonIcons[iconName] || null
+}
+
+const onIconSelect = (iconName) => {
+  props.form.icon = iconName
+  showIconSelector.value = false
+}
+
+const clearIcon = () => {
+  props.form.icon = ''
 }
 
 const handleSubmit = async () => {
@@ -198,7 +241,34 @@ const handleSubmit = async () => {
 .markdown-editor-container :deep(.md-editor-toolbar) {
   border-bottom: 1px solid #f0f0f0;
   background: #fafafa;
-  width: 100%;
+}
+
+.icon-selector-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.current-icon {
+  width: 48px;
+  height: 48px;
+  border: 2px dashed #d9d9d9;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.current-icon:hover {
+  border-color: #18a058;
+  background-color: #f6ffed;
+}
+
+.no-icon {
+  color: #999;
+  font-size: 12px;
 }
 
 .markdown-editor-container :deep(.md-editor-content) {

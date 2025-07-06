@@ -19,6 +19,7 @@ type TemplatesAddReq struct {
 	CategoryId   int                   `json:"categoryId" v:"required#所属分类ID不能为空"`
 	IsFeatured   int                   `json:"isFeatured" v:"required#是否推荐模板不能为空"`
 	Logo         string                `json:"logo"`
+	Icon         string                `json:"icon"`
 	Languages    []TemplateLanguageReq `json:"languages"`
 }
 
@@ -53,6 +54,7 @@ type TemplatesEditReq struct {
 	CategoryId   int                   `json:"categoryId" v:"required#所属分类ID不能为空"`
 	IsFeatured   int                   `json:"isFeatured" v:"required#是否推荐模板不能为空"`
 	Logo         string                `json:"logo" v:"required#模板logo图片URL不能为空"`
+	Icon         string                `json:"icon"`
 	Languages    []TemplateLanguageReq `json:"languages"`
 }
 

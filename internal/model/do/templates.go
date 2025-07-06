@@ -19,6 +19,7 @@ type Templates struct {
 	CategoryId   interface{} // 所属分类ID
 	IsFeatured   interface{} // 是否推荐模板
 	Logo         interface{} // 模板logo图片URL
+	Icon         interface{} // 模板图标名称
 	CreatedAt    *gtime.Time // 记录创建时间
 	UpdatedAt    *gtime.Time // 记录最后更新时间
 }
