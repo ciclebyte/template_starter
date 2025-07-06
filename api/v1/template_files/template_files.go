@@ -156,9 +156,9 @@ type TemplateFilesUploadCodeRes struct {
 
 // 模板文件渲染接口
 type TemplateFilesRenderReq struct {
-	g.Meta        `path:"/templateFiles/render" method:"post" tags:"模板文件" summary:"模板文件-渲染"`
-	FileId        interface{}            `json:"fileId" v:"required#文件ID不能为空"`
-	TestVariables map[string]interface{} `json:"testVariables"` // 测试变量值
+	g.Meta    `path:"/templateFiles/render" method:"post" tags:"模板文件" summary:"模板文件-渲染"`
+	FileId    interface{}            `json:"fileId" v:"required#文件ID不能为空"`
+	Variables map[string]interface{} `json:"variables"` // 变量值
 }
 
 type TemplateFilesRenderRes struct {
@@ -171,9 +171,9 @@ type TemplateFilesRenderRes struct {
 
 // 渲染文件树接口
 type TemplateFilesRenderFileTreeReq struct {
-	g.Meta        `path:"/templateFiles/renderFileTree" method:"post" tags:"模板文件" summary:"模板文件-渲染文件树"`
-	TemplateId    interface{}            `json:"templateId" v:"required#模板ID不能为空"`
-	TestVariables map[string]interface{} `json:"testVariables"` // 测试变量值
+	g.Meta     `path:"/templateFiles/renderFileTree" method:"post" tags:"模板文件" summary:"模板文件-渲染文件树"`
+	TemplateId interface{}            `json:"templateId" v:"required#模板ID不能为空"`
+	Variables  map[string]interface{} `json:"variables"` // 变量值
 }
 
 type TemplateFilesRenderFileTreeRes struct {
@@ -199,10 +199,10 @@ type RenderFileInfo struct {
 
 // 模板文件ZIP下载接口
 type TemplateFilesDownloadZipReq struct {
-	g.Meta        `path:"/templateFiles/downloadZip" method:"post" tags:"模板文件" summary:"模板文件-下载ZIP包"`
-	TemplateId    interface{}            `json:"templateId" v:"required#模板ID不能为空"`
-	TestVariables map[string]interface{} `json:"testVariables"` // 测试变量值
-	FileName      string                 `json:"fileName"`      // 可选的ZIP文件名，默认为模板名
+	g.Meta     `path:"/templateFiles/downloadZip" method:"post" tags:"模板文件" summary:"模板文件-下载ZIP包"`
+	TemplateId interface{}            `json:"templateId" v:"required#模板ID不能为空"`
+	Variables  map[string]interface{} `json:"variables"` // 变量值
+	FileName   string                 `json:"fileName"`  // 可选的ZIP文件名，默认为模板名
 }
 
 type TemplateFilesDownloadZipRes struct {

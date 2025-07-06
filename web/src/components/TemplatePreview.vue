@@ -80,7 +80,7 @@ const props = defineProps({
     type: String,
     default: null
   },
-  testVariables: {
+  variables: {
     type: Object,
     default: null
   }
@@ -321,15 +321,15 @@ const renderTemplateContent = async () => {
   }
   
   // 确保有测试变量，如果没有则使用空对象
-  const testVariables = props.testVariables || {}
+  const variables = props.variables || {}
   
   try {
     loading.value = true
-    console.log('开始渲染模板:', { fileId: props.fileId, testVariables })
+    console.log('开始渲染模板:', { fileId: props.fileId, variables })
     
     const response = await renderTemplate({
       fileId: props.fileId,
-      testVariables: testVariables
+      variables: variables
     })
     
     console.log('渲染响应:', response)
@@ -363,8 +363,8 @@ watch(() => props.currentFile, () => {
 })
 
 // 监听文件ID和测试变量变化，自动渲染
-watch([() => props.fileId, () => props.testVariables], async () => {
-  console.log('监听器触发:', { fileId: props.fileId, testVariables: props.testVariables })
+watch([() => props.fileId, () => props.variables], async () => {
+  console.log('监听器触发:', { fileId: props.fileId, variables: props.variables })
   
   if (props.fileId) {
     await renderTemplateContent()

@@ -252,7 +252,7 @@ const loadTree = async () => {
     // 获取渲染后的文件树
     const renderRes = await renderFileTree({
       templateId: props.templateInfo.id,
-      testVariables: props.variables || {}
+      variables: props.variables || {}
     })
     console.log('渲染文件树API返回结果:', renderRes)
     const tree = renderRes.data?.data?.tree || []
@@ -409,7 +409,7 @@ const generateProject = async () => {
     
     const response = await downloadZip({
       templateId: props.templateInfo.id,
-      testVariables: props.variables || {},
+      variables: props.variables || {},
       fileName: props.templateInfo.name
     })
     

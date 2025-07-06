@@ -831,14 +831,14 @@ func (s sTemplateFiles) Render(ctx context.Context, req *api.TemplateFilesRender
 
 		// 4. 渲染模板
 		var buf bytes.Buffer
-		err = tmpl.Execute(&buf, req.TestVariables)
+		err = tmpl.Execute(&buf, req.Variables)
 		liberr.ErrIsNil(ctx, err, "模板渲染失败")
 
 		res = &api.TemplateFilesRenderRes{
 			FileId:      gconv.Int64(req.FileId),
 			FileName:    fileInfo.FileName,
 			FileContent: buf.String(),
-			Variables:   req.TestVariables,
+			Variables:   req.Variables,
 		}
 	})
 	return
@@ -867,13 +867,13 @@ func (s sTemplateFiles) RenderFileTree(ctx context.Context, req *api.TemplateFil
 		res = &api.TemplateFilesRenderFileTreeRes{
 			TemplateId: templateId,
 			Tree:       []*api.RenderFileInfo{},
-			Variables:  req.TestVariables,
+			Variables:  req.Variables,
 			TotalFiles: 0,
 			TotalSize:  0,
 		}
 
 		// 使用通用渲染函数
-		renderedFiles, err := s.renderTemplateFiles(ctx, templateId, req.TestVariables)
+		renderedFiles, err := s.renderTemplateFiles(ctx, templateId, req.Variables)
 		liberr.ErrIsNil(ctx, err, "渲染模板文件失败")
 
 		// 3. 构建树形结构
@@ -1153,7 +1153,7 @@ func (s sTemplateFiles) DownloadZip(ctx context.Context, req *api.TemplateFilesD
 		liberr.ErrIsNil(ctx, err, "获取模板信息失败")
 
 		// 2. 使用通用渲染函数获取渲染后的文件
-		renderedFiles, err := s.renderTemplateFiles(ctx, templateId, req.TestVariables)
+		renderedFiles, err := s.renderTemplateFiles(ctx, templateId, req.Variables)
 		liberr.ErrIsNil(ctx, err, "渲染模板文件失败")
 
 		// 3. 确定ZIP文件名
