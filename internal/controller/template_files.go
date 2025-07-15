@@ -114,3 +114,9 @@ func (c *templateFilesController) DownloadZip(ctx context.Context, req *api.Temp
 	err = service.TemplateFiles().DownloadZip(ctx, req)
 	return
 }
+
+func (c *templateFilesController) Move(ctx context.Context, req *api.TemplateFilesMoveReq) (res *api.TemplateFilesMoveRes, err error) {
+	res = new(api.TemplateFilesMoveRes)
+	err = service.TemplateFiles().Move(ctx, req)
+	return
+}

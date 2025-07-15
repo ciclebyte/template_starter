@@ -21,6 +21,7 @@ import (
 	service "github.com/ciclebyte/template_starter/internal/service"
 	liberr "github.com/ciclebyte/template_starter/library/liberr"
 	"github.com/gogf/gf/v2/crypto/gmd5"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
@@ -1336,4 +1337,163 @@ func (s sTemplateFiles) getParentPath(path string) string {
 
 	// 返回父路径
 	return path[:lastSlash]
+}
+
+func (s *sTemplateFiles) Move(ctx context.Context, req *api.TemplateFilesMoveReq) (err error) {
+	// 1. 验证参数
+	fileId := gconv.Int64(req.Id)
+	newParentId := gconv.Int64(req.NewParentId)
+
+	if fileId <= 0 {
+		return gerror.New("文件ID无效")
+	}
+
+	// 2. 获取要移动的文件信息
+	fileInfo, err := dao.TemplateFiles.Ctx(ctx).Where(dao.TemplateFiles.Columns().Id, fileId).One()
+	if err != nil {
+		return gerror.Wrap(err, "获取文件信息失败")
+	}
+	if fileInfo.IsEmpty() {
+		return gerror.New("文件不存在")
+	}
+
+	// 3. 如果新父目录ID不为0，验证新父目录是否存在且为目录
+	if newParentId != 0 {
+		parentInfo, err := dao.TemplateFiles.Ctx(ctx).Where(dao.TemplateFiles.Columns().Id, newParentId).One()
+		if err != nil {
+			return gerror.Wrap(err, "获取父目录信息失败")
+		}
+		if parentInfo.IsEmpty() {
+			return gerror.New("目标父目录不存在")
+		}
+		if parentInfo["is_directory"].Int() != 1 {
+			return gerror.New("目标必须是目录")
+		}
+
+		// 验证不能移动到自己的子目录
+		if err := s.validateNotMoveToChild(ctx, fileId, newParentId); err != nil {
+			return err
+		}
+	}
+
+	// 4. 更新文件的父目录ID
+	_, err = dao.TemplateFiles.Ctx(ctx).
+		Where(dao.TemplateFiles.Columns().Id, fileId).
+		Update(g.Map{
+			dao.TemplateFiles.Columns().ParentId:  newParentId,
+			dao.TemplateFiles.Columns().UpdatedAt: gtime.Now(),
+		})
+
+	if err != nil {
+		return gerror.Wrap(err, "移动文件失败")
+	}
+
+	// 5. 重新生成文件路径
+	newFilePath, err := s.buildFilePath(ctx, fileId, gconv.Int64(fileInfo["template_id"]))
+	if err != nil {
+		return gerror.Wrap(err, "生成新文件路径失败")
+	}
+
+	// 6. 更新文件路径
+	_, err = dao.TemplateFiles.Ctx(ctx).
+		Where(dao.TemplateFiles.Columns().Id, fileId).
+		Update(g.Map{
+			dao.TemplateFiles.Columns().FilePath:  newFilePath,
+			dao.TemplateFiles.Columns().UpdatedAt: gtime.Now(),
+		})
+
+	if err != nil {
+		return gerror.Wrap(err, "更新文件路径失败")
+	}
+
+	// 7. 如果移动的是目录，需要更新其所有子项的文件路径
+	if fileInfo["is_directory"].Int() == 1 {
+		oldFilePath := fileInfo["file_path"].String()
+		if err := s.updateChildrenPaths(ctx, fileId, oldFilePath, newFilePath); err != nil {
+			return gerror.Wrap(err, "更新子项路径失败")
+		}
+	}
+
+	return nil
+}
+
+// 验证不能移动到自己的子目录
+func (s *sTemplateFiles) validateNotMoveToChild(ctx context.Context, fileId, newParentId int64) error {
+	// 递归查找所有子目录
+	var checkParent func(int64) error
+	checkParent = func(parentId int64) error {
+		if parentId == 0 {
+			return nil
+		}
+		if parentId == fileId {
+			return gerror.New("不能移动到自己的子目录")
+		}
+
+		// 获取父目录信息
+		parentInfo, err := dao.TemplateFiles.Ctx(ctx).Where(dao.TemplateFiles.Columns().Id, parentId).One()
+		if err != nil {
+			return err
+		}
+		if parentInfo.IsEmpty() {
+			return nil
+		}
+
+		// 递归检查上级目录
+		return checkParent(parentInfo["parent_id"].Int64())
+	}
+
+	return checkParent(newParentId)
+}
+
+// 更新单个文件的路径
+func (s *sTemplateFiles) updateFilePath(ctx context.Context, fileId, templateId int64) error {
+	// 构建新的文件路径
+	filePath, err := s.buildFilePath(ctx, fileId, templateId)
+	if err != nil {
+		return err
+	}
+
+	// 更新文件路径
+	_, err = dao.TemplateFiles.Ctx(ctx).
+		Where(dao.TemplateFiles.Columns().Id, fileId).
+		Update(g.Map{
+			dao.TemplateFiles.Columns().FilePath:  filePath,
+			dao.TemplateFiles.Columns().UpdatedAt: gtime.Now(),
+		})
+
+	return err
+}
+
+
+// 构建文件路径
+func (s *sTemplateFiles) buildFilePath(ctx context.Context, fileId, templateId int64) (string, error) {
+	// 获取文件信息
+	fileInfo, err := dao.TemplateFiles.Ctx(ctx).Where(dao.TemplateFiles.Columns().Id, fileId).One()
+	if err != nil {
+		return "", err
+	}
+	if fileInfo.IsEmpty() {
+		return "", gerror.New("文件不存在")
+	}
+
+	fileName := fileInfo["file_name"].String()
+	parentId := fileInfo["parent_id"].Int64()
+
+	// 如果没有父目录，返回文件名
+	if parentId == 0 {
+		return fileName, nil
+	}
+
+	// 递归构建父目录路径
+	parentPath, err := s.buildFilePath(ctx, parentId, templateId)
+	if err != nil {
+		return "", err
+	}
+
+	// 组合路径
+	if parentPath == "" {
+		return fileName, nil
+	}
+
+	return parentPath + "/" + fileName, nil
 }

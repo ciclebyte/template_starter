@@ -605,7 +605,13 @@ async function onMoveFile(payload) {
     }
   } catch (error) {
     console.error('移动失败:', error)
-    message.error('移动失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+    
+    // 检查是否是404错误（接口未实现）
+    if (error.response?.status === 404) {
+      message.error('移动功能暂未实现，请联系管理员添加后端接口')
+    } else {
+      message.error('移动失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+    }
   }
 }
 

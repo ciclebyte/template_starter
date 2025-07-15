@@ -209,3 +209,14 @@ type TemplateFilesDownloadZipRes struct {
 	g.Meta `mime:"application/zip" example:"string"`
 	// 直接返回ZIP文件流
 }
+
+// 在现有的结构体后面添加
+type TemplateFilesMoveReq struct {
+	g.Meta      `path:"/templateFiles/move" method:"put" tags:"模板文件" summary:"模板文件-移动"`
+	Id          interface{} `json:"id" v:"required#文件ID不能为空"`
+	NewParentId interface{} `json:"newParentId" v:"required#新父目录ID不能为空"`
+}
+
+type TemplateFilesMoveRes struct {
+	g.Meta `mime:"application/json" example:"string"`
+}
