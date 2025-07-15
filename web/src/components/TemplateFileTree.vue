@@ -1,7 +1,13 @@
 <template>
   <div class="template-explorer" :style="{ width: `${panelWidth}px` }" @contextmenu="onTreeAreaContextMenu">
     <div class="explorer-title">模板资源</div>
-    <div class="explorer-container">
+    <div class="explorer-container"
+         :class="{ 'drag-over-root': isDragOverRoot }"
+         ref="explorerContainer"
+         @dragover.capture="onContainerDragOver"
+         @drop.capture="onContainerDrop"
+         @dragenter.capture="onContainerDragEnter"
+         @click="onContainerClick">
       <NTree
         :data="treeDataComputed"
         :selected-keys="[currentFile]"
@@ -11,6 +17,7 @@
         @update:selected-keys="onSelectFile"
         @update:expanded-keys="updatePrefixWithExpanded"
         draggable
+        @dragstart="onDragStart"
         @drag-enter="onDragEnter"
         @drag-leave="onDragLeave"
         @drag-over="onDragOver"
@@ -100,6 +107,13 @@ const resizeStartWidth = ref(260)
 const draggedNode = ref(null)
 const dragOverNode = ref(null)
 const isDragging = ref(false)
+const isDragOverRoot = ref(false)
+const lastMousePosition = ref({ x: 0, y: 0 })
+const explorerContainer = ref(null)
+
+// 全局拖拽事件监听
+let globalDragOverHandler = null
+let globalDragEndHandler = null
 
 // 拖拽调整宽度功能
 function startResize(event) {
@@ -164,6 +178,8 @@ onUnmounted(() => {
   // 清理拖拽相关事件监听
   document.removeEventListener('mousemove', handleResize)
   document.removeEventListener('mouseup', stopResize)
+  // 清理拖拽状态和监听器
+  clearDragState()
 })
 
 // 计算属性，确保展开状态变化时重新渲染
@@ -249,6 +265,24 @@ function isDescendant(parentNode, childNode) {
   return false
 }
 
+// 根据 key 查找节点
+function findNodeByKey(nodes, key) {
+  if (!nodes || !Array.isArray(nodes)) return null
+  
+  for (const node of nodes) {
+    if (String(node.key) === String(key) || String(node.id) === String(key)) {
+      return node
+    }
+    
+    if (node.children && node.children.length > 0) {
+      const found = findNodeByKey(node.children, key)
+      if (found) return found
+    }
+  }
+  
+  return null
+}
+
 // 获取拖拽状态的类名
 function getDragClass(nodeKey) {
   const classes = []
@@ -293,24 +327,141 @@ function nodeProps({ option }) {
   }
 }
 
+// 设置全局拖拽监听
+function setupGlobalDragListeners() {
+  globalDragEndHandler = () => {
+    console.log('🔚 globalDragEnd - clearing drag state')
+    clearDragState()
+  }
+  
+  document.addEventListener('dragend', globalDragEndHandler)
+}
+
+// 清理全局拖拽监听
+function clearGlobalDragListeners() {
+  if (globalDragEndHandler) {
+    document.removeEventListener('dragend', globalDragEndHandler)
+    globalDragEndHandler = null
+  }
+}
+
+// 清理拖拽状态
+function clearDragState() {
+  draggedNode.value = null
+  dragOverNode.value = null
+  isDragging.value = false
+  isDragOverRoot.value = false
+  clearGlobalDragListeners()
+}
+
 // NTree 拖拽事件处理
+function onDragStart(info) {
+  console.log('🚀 drag start:', info)
+  console.log('🚀 dragNode:', info.dragNode)
+  console.log('🚀 event:', info.event)
+  if (info.dragNode) {
+    draggedNode.value = info.dragNode
+    isDragging.value = true
+    console.log('✅ Starting drag operation for:', info.dragNode.fileName || info.dragNode.label)
+    console.log('✅ isDragging set to:', isDragging.value)
+    
+    // 将拖拽数据存储到 DataTransfer 中，以便在容器事件中恢复
+    if (info.event && info.event.dataTransfer) {
+      info.event.dataTransfer.setData('application/json', JSON.stringify(info.dragNode))
+    }
+    
+    setupGlobalDragListeners()
+  } else {
+    console.log('❌ No dragNode in info')
+  }
+}
+
 function onDragEnter(info) {
-  console.log('drag enter:', info)
+  console.log('🎯 drag enter:', info)
+  console.log('🎯 dragNode:', info.dragNode)
+  console.log('🎯 event:', info.event)
+  if (info.dragNode && !isDragging.value) {
+    draggedNode.value = info.dragNode
+    isDragging.value = true
+    console.log('✅ Starting drag operation for:', info.dragNode.fileName || info.dragNode.label)
+    console.log('✅ isDragging set to:', isDragging.value)
+    
+    // 同样在 dragEnter 中设置 DataTransfer
+    if (info.event && info.event.dataTransfer) {
+      info.event.dataTransfer.setData('application/json', JSON.stringify(info.dragNode))
+      console.log('✅ DataTransfer set in dragEnter')
+    }
+    
+    setupGlobalDragListeners()
+  } else {
+    console.log('❌ No dragNode in info or already dragging')
+  }
 }
 
 function onDragLeave(info) {
   console.log('drag leave:', info)
+  // 清除节点拖拽状态
+  dragOverNode.value = null
 }
 
 function onDragOver(info) {
-  console.log('drag over:', info)
+  console.log('🔄 drag over:', info)
   const { event, node } = info
   
+  // 更新鼠标位置
+  lastMousePosition.value = { x: event.clientX, y: event.clientY }
+  
   // 只有文件夹可以作为目标
-  if (node.isDirectory) {
+  if (node && node.isDirectory) {
     event.preventDefault()
     event.dataTransfer.dropEffect = 'move'
     dragOverNode.value = node
+    isDragOverRoot.value = false
+    console.log('📁 dragOver - folder target:', node.fileName)
+  } else {
+    // 如果不是文件夹，清除dragOverNode状态
+    dragOverNode.value = null
+    console.log('📄 dragOver - file target, checking root area')
+    
+    // 检查是否在根目录区域
+    checkRootAreaFromEvent(event)
+  }
+}
+
+// 从拖拽事件中检查根目录区域
+function checkRootAreaFromEvent(event) {
+  if (!isDragging.value) return
+  
+  const { clientX, clientY } = event
+  console.log('🔍 checkRootAreaFromEvent - mouse:', clientX, clientY)
+  
+  // 检查是否在容器内
+  if (explorerContainer.value) {
+    const containerRect = explorerContainer.value.getBoundingClientRect()
+    
+    if (clientX >= containerRect.left && clientX <= containerRect.right &&
+        clientY >= containerRect.top && clientY <= containerRect.bottom) {
+      
+      // 检查鼠标位置的元素
+      const elementAtPoint = document.elementFromPoint(clientX, clientY)
+      const treeNode = elementAtPoint?.closest('.n-tree-node')
+      
+      console.log('🎯 checkRootAreaFromEvent - elementAtPoint:', elementAtPoint?.tagName, 'treeNode:', !!treeNode)
+      
+      if (!treeNode) {
+        // 在容器内但不在树节点上，说明在根目录区域
+        console.log('✅ checkRootAreaFromEvent - ROOT AREA DETECTED!')
+        isDragOverRoot.value = true
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'move'
+      } else {
+        console.log('❌ checkRootAreaFromEvent - on tree node, not root')
+        isDragOverRoot.value = false
+      }
+    } else {
+      console.log('❌ checkRootAreaFromEvent - outside container')
+      isDragOverRoot.value = false
+    }
   }
 }
 
@@ -318,16 +469,37 @@ function onDrop(info) {
   console.log('drop:', info)
   const { event, node, dragNode } = info
   
-  if (!dragNode || !node.isDirectory || node.isEditing) return
+  // 检查是否是根目录拖拽
+  if (isDragOverRoot.value || !node) {
+    console.log('Dropping to root directory')
+    handleRootDrop(dragNode)
+    return
+  }
+  
+  if (!dragNode || !node.isDirectory || node.isEditing) {
+    console.log('Invalid drop target:', { dragNode, node })
+    clearDragState()
+    return
+  }
   
   const sourceId = dragNode.key
   const targetId = node.key
   
   // 不能移动到自己
-  if (sourceId === targetId) return
+  if (sourceId === targetId) {
+    console.log('Cannot move to self')
+    clearDragState()
+    return
+  }
   
   // 不能移动到自己的子节点
-  if (isDescendant(dragNode, node)) return
+  if (isDescendant(dragNode, node)) {
+    console.log('Cannot move to descendant')
+    clearDragState()
+    return
+  }
+  
+  console.log('Moving from', sourceId, 'to', targetId)
   
   // 触发移动事件
   emit('move', {
@@ -338,10 +510,270 @@ function onDrop(info) {
   })
   
   // 清理状态
-  draggedNode.value = null
-  dragOverNode.value = null
-  isDragging.value = false
+  clearDragState()
 }
+
+// 处理根目录拖拽
+function handleRootDrop(dragNode) {
+  if (!dragNode) return
+  
+  // 使用最后的鼠标位置进行额外检查
+  const containerElement = document.querySelector('.explorer-container')
+  if (!containerElement) return
+  
+  const containerRect = containerElement.getBoundingClientRect()
+  const { x, y } = lastMousePosition.value
+  
+  // 确认鼠标在容器内
+  if (x >= containerRect.left && x <= containerRect.right &&
+      y >= containerRect.top && y <= containerRect.bottom) {
+    
+    // 再次检查是否在树节点上
+    const elementAtPoint = document.elementFromPoint(x, y)
+    const treeNode = elementAtPoint?.closest('.n-tree-node')
+    
+    if (!treeNode) {
+      console.log('Confirmed root drop at position:', x, y)
+      
+      // 移动到根目录
+      emit('move', {
+        sourceId: dragNode.key,
+        targetId: '0',
+        sourceNode: dragNode,
+        targetNode: { key: '0', isDirectory: true }
+      })
+    } else {
+      console.log('Drop cancelled: found tree node at position')
+    }
+  } else {
+    console.log('Drop cancelled: mouse outside container')
+  }
+  
+  // 清理状态
+  clearDragState()
+}
+
+// 容器级别的拖拽事件处理（作为NTree事件的补充）
+function onContainerDragOver(event) {
+  console.log('🌊 containerDragOver - ALWAYS TRIGGERED')
+  console.log('🌊 isDragging.value:', isDragging.value)
+  console.log('🌊 event.target:', event.target)
+  console.log('🌊 event type:', event.type)
+  
+  // 检查是否有拖拽数据
+  if (event.dataTransfer && event.dataTransfer.types.length > 0) {
+    console.log('🌊 dataTransfer types:', event.dataTransfer.types)
+    
+    // 如果我们检测到拖拽事件但没有拖拽状态，尝试设置它
+    if (!isDragging.value) {
+      console.log('🌊 containerDragOver - setting dragging state from container event')
+      isDragging.value = true
+      
+      // 尝试从数据传输中获取拖拽的节点信息
+      // 这是一个备用方案，当NTree事件不工作时
+      try {
+        const dragData = event.dataTransfer.getData('application/json')
+        if (dragData) {
+          const nodeData = JSON.parse(dragData)
+          draggedNode.value = nodeData
+          console.log('🌊 recovered drag node from dataTransfer:', nodeData)
+        }
+      } catch (e) {
+        console.log('🌊 could not parse drag data, continuing anyway')
+      }
+      
+      // 如果还是没有拖拽节点，但有拖拽数据，创建一个备用状态
+      if (!draggedNode.value && event.dataTransfer.types.includes('application/json')) {
+        console.log('🌊 containerDragOver - creating backup drag state')
+        setupGlobalDragListeners()
+      }
+    }
+  }
+  
+  // 如果没有拖拽状态但有 DataTransfer，可能是内部拖拽，继续处理
+  if (!isDragging.value && (!event.dataTransfer || event.dataTransfer.types.length === 0)) {
+    console.log('🌊 containerDragOver - no dragging state and no dataTransfer, exiting')
+    return
+  }
+  
+  if (!isDragging.value) {
+    console.log('🌊 containerDragOver - no internal dragging state but has dataTransfer, continuing')
+  }
+  
+  console.log('🌊 containerDragOver - capture event with dragging state')
+  
+  // 检查是否在树节点上
+  const treeNode = event.target.closest('.n-tree-node')
+  console.log('🌊 treeNode found:', !!treeNode)
+  
+  if (treeNode) {
+    console.log('🌊 containerDragOver - on tree node, let NTree handle')
+    return // 让NTree处理
+  }
+  
+  // 在空白区域
+  console.log('🌊 containerDragOver - in empty area, checking root')
+  lastMousePosition.value = { x: event.clientX, y: event.clientY }
+  
+  if (explorerContainer.value) {
+    const containerRect = explorerContainer.value.getBoundingClientRect()
+    const { clientX, clientY } = event
+    
+    console.log('🌊 mouse position:', clientX, clientY)
+    console.log('🌊 container rect:', containerRect)
+    
+    if (clientX >= containerRect.left && clientX <= containerRect.right &&
+        clientY >= containerRect.top && clientY <= containerRect.bottom) {
+      
+      console.log('✅ containerDragOver - ROOT AREA DETECTED!')
+      isDragOverRoot.value = true
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'move'
+    }
+  }
+}
+
+function onContainerDrop(event) {
+  console.log('🌊 containerDrop - capture event')
+  console.log('🌊 isDragging.value:', isDragging.value)
+  console.log('🌊 isDragOverRoot.value:', isDragOverRoot.value)
+  console.log('🌊 draggedNode.value:', draggedNode.value)
+  
+  // 添加详细的调试信息
+  console.log('🌊 containerDrop - dataTransfer check:', {
+    hasDataTransfer: !!event.dataTransfer,
+    typesLength: event.dataTransfer?.types?.length || 0,
+    types: event.dataTransfer?.types || []
+  })
+  
+  // 尝试恢复拖拽状态，如果没有的话
+  if (!isDragging.value && event.dataTransfer) {
+    console.log('🌊 containerDrop - trying to recover drag state')
+    
+    try {
+      const dragData = event.dataTransfer.getData('application/json')
+      console.log('🌊 containerDrop - dragData from dataTransfer:', dragData)
+      
+      if (dragData) {
+        const nodeData = JSON.parse(dragData)
+        draggedNode.value = nodeData
+        isDragging.value = true
+        console.log('🌊 containerDrop - recovered drag state:', nodeData)
+      } else {
+        // 尝试其他可能的数据类型
+        console.log('🌊 containerDrop - trying other data types')
+        for (const type of event.dataTransfer.types) {
+          console.log('🌊 containerDrop - trying type:', type)
+          const data = event.dataTransfer.getData(type)
+          console.log('🌊 containerDrop - data for type', type, ':', data)
+          
+          // 如果找到了包含节点信息的数据
+          if (data && data.includes('"key"') && data.includes('"fileName"')) {
+            try {
+              const nodeData = JSON.parse(data)
+              draggedNode.value = nodeData
+              isDragging.value = true
+              console.log('🌊 containerDrop - recovered drag state from type', type, ':', nodeData)
+              break
+            } catch (e) {
+              console.log('🌊 containerDrop - failed to parse data from type', type, ':', e)
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.log('🌊 containerDrop - could not recover drag state:', e)
+    }
+  }
+  
+  // 更宽松的退出条件 - 如果这是一个拖拽事件（有 DataTransfer），就继续处理
+  if (!isDragging.value && !draggedNode.value && !event.dataTransfer) {
+    console.log('🌊 containerDrop - no dragging context at all, exiting')
+    return
+  }
+  
+  // 如果有 DataTransfer 但没有我们的拖拽状态，可能是从 NTree 内部拖拽过来的
+  if (!isDragging.value && !draggedNode.value && event.dataTransfer) {
+    console.log('🌊 containerDrop - have dataTransfer but no internal state, treating as potential drag')
+    // 在这种情况下，我们继续处理，尝试恢复状态
+  }
+  
+  // 检查是否在树节点上
+  const treeNode = event.target.closest('.n-tree-node')
+  if (treeNode) {
+    console.log('🌊 containerDrop - on tree node, let NTree handle')
+    return // 让NTree处理
+  }
+  
+  // 在空白区域 - 直接处理根目录拖拽
+  console.log('🌊 containerDrop - handling root drop')
+  event.preventDefault()
+  event.stopPropagation()
+  
+  // 最后检查拖拽位置是否在容器内
+  lastMousePosition.value = { x: event.clientX, y: event.clientY }
+  
+  // 优先使用已有的draggedNode，否则从dataTransfer恢复
+  let nodeToMove = draggedNode.value
+  
+  if (!nodeToMove) {
+    console.log('🌊 containerDrop - no draggedNode, trying to get from dataTransfer')
+    try {
+      const dragData = event.dataTransfer.getData('application/json')
+      if (dragData) {
+        nodeToMove = JSON.parse(dragData)
+        console.log('🌊 containerDrop - recovered node data:', nodeToMove)
+      }
+    } catch (e) {
+      console.log('🌊 containerDrop - error parsing drag data:', e)
+    }
+  }
+  
+  if (nodeToMove) {
+    console.log('🌊 containerDrop - executing root drop for node:', nodeToMove.fileName || nodeToMove.label)
+    handleRootDrop(nodeToMove)
+  } else {
+    console.log('🌊 containerDrop - no node data available')
+    // 在没有节点数据的情况下，尝试使用当前选中的文件作为源
+    console.log('🌊 containerDrop - current file info:', {
+      currentFile: props.currentFile,
+      hasCurrentFile: !!props.currentFile
+    })
+    
+    if (props.currentFile) {
+      // 使用当前选中的文件作为拖拽源
+      console.log('🌊 containerDrop - using current file as drag source')
+      
+      // 从树数据中查找当前文件的详细信息
+      const currentFileNode = findNodeByKey(localTreeData.value, props.currentFile)
+      
+      emit('move', {
+        sourceId: props.currentFile,
+        targetId: '0',
+        sourceNode: currentFileNode,
+        targetNode: { key: '0', isDirectory: true },
+        isRootDrop: true,
+        mousePosition: lastMousePosition.value
+      })
+    } else {
+      console.log('🌊 containerDrop - no current file available, cannot determine drag source')
+      message.warning('无法确定拖拽的源文件，请重新尝试')
+    }
+    
+    // 清理拖拽状态
+    clearDragState()
+  }
+}
+
+// 测试函数 - 确认事件绑定工作
+function onContainerClick(event) {
+  console.log('🖱️ Container clicked!', event.target)
+}
+
+function onContainerDragEnter(event) {
+  console.log('🌊 Container dragenter triggered!', event.target)
+}
+
 function onTreeAreaContextMenu(event) {
   if (event.target.closest('.n-tree')) return
   event.preventDefault()
@@ -756,5 +1188,38 @@ const renderSwitcherIcon = () =>
 
 :deep(.n-tree-node[draggable="true"]:active) {
   cursor: grabbing;
+}
+
+/* 根目录拖拽样式 */
+.explorer-container.drag-over-root {
+  background: rgba(0, 123, 204, 0.1);
+  border: 2px dashed #007acc;
+  border-radius: 4px;
+  position: relative;
+  animation: drag-over-pulse 1s infinite;
+}
+
+.explorer-container.drag-over-root::before {
+  content: '拖拽到此处移动到根目录';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #007acc;
+  font-size: 14px;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 8px 12px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 123, 204, 0.3);
+  pointer-events: none;
+  z-index: 1000;
+  border: 1px solid #007acc;
+}
+
+@keyframes drag-over-pulse {
+  0% { border-color: #007acc; }
+  50% { border-color: #4db3ff; }
+  100% { border-color: #007acc; }
 }
 </style> 

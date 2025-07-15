@@ -583,15 +583,41 @@ async function onUploadCodeFile(payload) {
 }
 
 async function onMoveFile(payload) {
-  const { sourceId, targetId, sourceNode, targetNode } = payload
+  const { sourceId, targetId, sourceNode, targetNode, isRootDrop } = payload
+  
+  // 处理特殊情况：如果是根目录拖拽但没有具体的 sourceNode 数据
+  if (isRootDrop && (!sourceId || sourceId === 'unknown')) {
+    console.log('根目录拖拽，但缺少源节点信息，忽略此次移动')
+    message.warning('拖拽移动需要明确的源文件信息')
+    return
+  }
+  
+  // 验证必要的参数
+  if (!sourceId || sourceId === 'unknown') {
+    console.error('移动失败：缺少源文件ID')
+    message.error('移动失败：缺少源文件信息')
+    return
+  }
   
   try {
-    await moveTemplateFile({
-      id: parseInt(sourceId),
-      newParentId: parseInt(targetId)
+    // 处理根目录的情况：targetId 为 '0' 时传递 null 表示移动到根目录
+    const newParentId = targetId === '0' ? null : parseInt(targetId)
+    
+    console.log('移动文件参数:', {
+      sourceId: parseInt(sourceId),
+      targetId,
+      newParentId,
+      isRootMove: targetId === '0'
     })
     
-    message.success(`已将 "${sourceNode.fileName}" 移动到 "${targetNode.fileName}" 文件夹`)
+    await moveTemplateFile({
+      id: parseInt(sourceId),
+      newParentId: newParentId
+    })
+    
+    const targetName = targetId === '0' ? '根目录' : (targetNode?.fileName || '未知目录')
+    const sourceName = sourceNode?.fileName || sourceNode?.label || '未知文件'
+    message.success(`已将 "${sourceName}" 移动到 "${targetName}"`)
     
     // 重新加载文件树
     await loadTree()
