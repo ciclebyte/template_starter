@@ -1,7 +1,7 @@
 <template>
   <div class="home-page">
     <!-- 英雄区域 -->
-    <div class="hero-section">
+    <div class="hero-section-full">
       <div class="hero-content">
         <h1>Template Starter</h1>
         <p>从数百个精心设计的项目模板中选择，一键生成完整项目结构</p>
@@ -239,11 +239,15 @@ onMounted(async () => {
   width: 100%;
 }
 
-.hero-section {
+.hero-section-full {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   padding: 80px 0;
   text-align: center;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-top: 12px;
+  position: relative;
 }
 
 .hero-content {
