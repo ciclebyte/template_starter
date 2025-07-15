@@ -176,6 +176,7 @@
         @rename="onRenameFile"
         @uploadZip="onUploadZip"
         @uploadCodeFile="onUploadCodeFile"
+        @move="onMoveFile"
       />
       
       <!-- 中间：编辑器区域 -->
@@ -234,7 +235,7 @@
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
-import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileDetail, getTemplateFileContent, renameTemplateFile, uploadZipFile, uploadCodeFile } from '@/api/templateFiles'
+import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileDetail, getTemplateFileContent, renameTemplateFile, uploadZipFile, uploadCodeFile, moveTemplateFile } from '@/api/templateFiles'
 import { listTemplateVariables, addTemplateVariable, editTemplateVariable, deleteTemplateVariable } from '@/api/templateVariables'
 import TemplateExplorer from '@/components/TemplateFileTree.vue'
 import TemplateEditor from '@/components/TemplateEditor.vue'
@@ -578,6 +579,33 @@ async function onUploadCodeFile(payload) {
     await loadTree()
   } catch (error) {
     message.error('代码文件上传失败：' + (error.response?.data?.message || error.message || '未知错误'))
+  }
+}
+
+async function onMoveFile(payload) {
+  const { sourceId, targetId, sourceNode, targetNode } = payload
+  
+  try {
+    await moveTemplateFile({
+      id: parseInt(sourceId),
+      newParentId: parseInt(targetId)
+    })
+    
+    message.success(`已将 "${sourceNode.fileName}" 移动到 "${targetNode.fileName}" 文件夹`)
+    
+    // 重新加载文件树
+    await loadTree()
+    
+    // 如果移动的是当前文件，清除当前文件状态
+    if (currentFileId.value === String(sourceId)) {
+      currentFileContent.value = ''
+      currentFileName.value = ''
+      currentFileId.value = ''
+      templateFileStore.setCurrentFileContent('')
+    }
+  } catch (error) {
+    console.error('移动失败:', error)
+    message.error('移动失败: ' + (error.response?.data?.message || error.message || '未知错误'))
   }
 }
 

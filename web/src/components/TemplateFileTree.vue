@@ -10,6 +10,11 @@
         :render-switcher-icon="renderSwitcherIcon"
         @update:selected-keys="onSelectFile"
         @update:expanded-keys="updatePrefixWithExpanded"
+        draggable
+        @drag-enter="onDragEnter"
+        @drag-leave="onDragLeave"
+        @drag-over="onDragOver"
+        @drop="onDrop"
       />
       <div v-if="!treeData || treeData.length === 0" style="padding: 32px; color: #888; text-align: center; user-select: none; cursor: context-menu;" @contextmenu="onTreeAreaContextMenu">暂无数据（右键新建）</div>
     </div>
@@ -62,7 +67,7 @@ const props = defineProps({
     default: ''
   }
 })
-const emit = defineEmits(['select', 'reload', 'update:treeData', 'rename', 'uploadZip', 'uploadCodeFile'])
+const emit = defineEmits(['select', 'reload', 'update:treeData', 'rename', 'uploadZip', 'uploadCodeFile', 'move'])
 
 const showDropdown = ref(false)
 const dropdownOptions = ref([
@@ -90,6 +95,11 @@ const panelWidth = ref(260)
 const isResizing = ref(false)
 const resizeStartX = ref(0)
 const resizeStartWidth = ref(260)
+
+// 拖拽移动相关
+const draggedNode = ref(null)
+const dragOverNode = ref(null)
+const isDragging = ref(false)
 
 // 拖拽调整宽度功能
 function startResize(event) {
@@ -129,13 +139,13 @@ function stopResize() {
 
 // 全局点击事件处理
 function handleGlobalClick(event) {
-  // 检查是否点击在输入框容器外
-  const inputContainer = event.target.closest('.vscode-input-container')
+  // 检查是否点击在输入框外
+  const inputElement = event.target.closest('.vscode-tree-input')
   const isTreeNode = event.target.closest('.n-tree-node')
   
-  // 如果有正在编辑的节点，且点击在输入框外，则取消编辑
-  if ((editingNode.value || renamingNode.value) && !inputContainer) {
-    cancelAddNode()
+  // 如果有正在编辑的节点，且点击在输入框外，则确认编辑
+  if ((editingNode.value || renamingNode.value) && !inputElement) {
+    confirmAddNode()
   }
 }
 
@@ -192,7 +202,9 @@ function treeToNaive(tree) {
             default: () => h(isExpanded ? FolderOpenOutline : Folder)
           })
         : () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }),
-      children: node.children ? treeToNaive(node.children) : []
+      children: node.children ? treeToNaive(node.children) : [],
+      // 添加拖拽状态的类名
+      class: getDragClass(nodeKey)
     }
   })
 }
@@ -225,6 +237,33 @@ function onSelectFile(keys) {
     emit('select', keys[0])
   }
 }
+
+// 检查是否为子节点
+function isDescendant(parentNode, childNode) {
+  if (!parentNode.children || parentNode.children.length === 0) return false
+  
+  for (const child of parentNode.children) {
+    if (child.key === childNode.key) return true
+    if (isDescendant(child, childNode)) return true
+  }
+  return false
+}
+
+// 获取拖拽状态的类名
+function getDragClass(nodeKey) {
+  const classes = []
+  
+  if (draggedNode.value && String(draggedNode.value.key) === String(nodeKey)) {
+    classes.push('dragging')
+  }
+  
+  if (dragOverNode.value && String(dragOverNode.value.key) === String(nodeKey)) {
+    classes.push('drag-over')
+  }
+  
+  return classes.join(' ')
+}
+
 function nodeProps({ option }) {
   return {
     onContextmenu(e) {
@@ -252,6 +291,56 @@ function nodeProps({ option }) {
       dropdownY.value = e.clientY
     }
   }
+}
+
+// NTree 拖拽事件处理
+function onDragEnter(info) {
+  console.log('drag enter:', info)
+}
+
+function onDragLeave(info) {
+  console.log('drag leave:', info)
+}
+
+function onDragOver(info) {
+  console.log('drag over:', info)
+  const { event, node } = info
+  
+  // 只有文件夹可以作为目标
+  if (node.isDirectory) {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    dragOverNode.value = node
+  }
+}
+
+function onDrop(info) {
+  console.log('drop:', info)
+  const { event, node, dragNode } = info
+  
+  if (!dragNode || !node.isDirectory || node.isEditing) return
+  
+  const sourceId = dragNode.key
+  const targetId = node.key
+  
+  // 不能移动到自己
+  if (sourceId === targetId) return
+  
+  // 不能移动到自己的子节点
+  if (isDescendant(dragNode, node)) return
+  
+  // 触发移动事件
+  emit('move', {
+    sourceId,
+    targetId,
+    sourceNode: dragNode,
+    targetNode: node
+  })
+  
+  // 清理状态
+  draggedNode.value = null
+  dragOverNode.value = null
+  isDragging.value = false
 }
 function onTreeAreaContextMenu(event) {
   if (event.target.closest('.n-tree')) return
@@ -511,46 +600,33 @@ function handleCodeFileSelect({ target }) {
 function renderLabel({ option }) {
   if (option.isEditing === true) {
     const isRenaming = renamingNode.value && String(option.id || option.key) === String(renamingNode.value.id || renamingNode.value.key)
-    const placeholder = isRenaming ? '请输入新名称' : '请输入名称'
+    const placeholder = isRenaming ? '' : ''
     
-    return h(
-      'div',
-      { 
-        class: 'vscode-input-container',
-        style: 'display:flex;align-items:center;gap:6px;padding:2px 0;' 
+    return h('input', {
+      class: 'vscode-tree-input',
+      value: newName.value,
+      autofocus: true,
+      placeholder: placeholder,
+      onInput: e => (newName.value = e.target.value),
+      onKeydown: e => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          confirmAddNode()
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          cancelAddNode()
+        }
       },
-      [
-        h('input', {
-          class: isRenaming ? 'vscode-input rename' : 'vscode-input create',
-          value: newName.value,
-          autofocus: true,
-          placeholder: placeholder,
-          onInput: e => (newName.value = e.target.value),
-          onKeydown: e => {
-            if (e.key === 'Enter') confirmAddNode()
-            if (e.key === 'Escape') cancelAddNode()
+      onBlur: () => {
+        // 延迟执行，避免与点击事件冲突
+        setTimeout(() => {
+          if (editingNode.value || renamingNode.value) {
+            confirmAddNode()
           }
-        }),
-        h(
-          'button',
-          { 
-            class: 'vscode-action-btn confirm',
-            onClick: () => confirmAddNode(),
-            title: '确认'
-          },
-          '✓'
-        ),
-        h(
-          'button',
-          { 
-            class: 'vscode-action-btn cancel',
-            onClick: () => cancelAddNode(),
-            title: '取消'
-          },
-          '✕'
-        )
-      ]
-    )
+        }, 100)
+      }
+    })
   }
   return option.fileName || option.label
 }
@@ -608,106 +684,22 @@ const renderSwitcherIcon = () =>
   z-index: 2147483647 !important;
 }
 
-/* VSCode 风格的输入框和按钮样式 */
-:deep(.vscode-input-container) {
-  background: transparent;
-  border-radius: 3px;
-  padding: 1px 2px;
-}
-
-:deep(.vscode-input) {
-  width: 140px;
+/* VSCode 风格的文件树输入框样式 */
+:deep(.vscode-tree-input) {
+  width: 100%;
   height: 22px;
-  padding: 2px 6px;
+  padding: 1px 4px;
   font-size: 13px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Segoe UI', 'Consolas', 'Monaco', monospace;
   background: #ffffff;
-  border: 1px solid #cccccc;
-  border-radius: 2px;
+  border: 1px solid #007acc;
+  border-radius: 0;
   outline: none;
   color: #333333;
-  transition: all 0.15s ease;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-:deep(.vscode-input:focus) {
-  border-color: #007acc;
+  line-height: 18px;
   box-shadow: 0 0 0 1px #007acc;
-  background: #ffffff;
-}
-
-:deep(.vscode-input.create) {
-  border-color: #28a745;
-}
-
-:deep(.vscode-input.create:focus) {
-  border-color: #28a745;
-  box-shadow: 0 0 0 1px #28a745;
-}
-
-:deep(.vscode-input.rename) {
-  border-color: #ffc107;
-  background: #fffbf0;
-}
-
-:deep(.vscode-input.rename:focus) {
-  border-color: #ffc107;
-  box-shadow: 0 0 0 1px #ffc107;
-  background: #ffffff;
-}
-
-:deep(.vscode-input::placeholder) {
-  color: #999999;
-  font-style: italic;
-}
-
-:deep(.vscode-action-btn) {
-  width: 20px;
-  height: 20px;
-  padding: 0;
   margin: 0;
-  border: 1px solid #cccccc;
-  border-radius: 2px;
-  background: #ffffff;
-  color: #333333;
-  font-size: 12px;
-  font-weight: bold;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s ease;
-  line-height: 1;
-}
-
-:deep(.vscode-action-btn:hover) {
-  background: #f3f3f3;
-  border-color: #adadad;
-}
-
-:deep(.vscode-action-btn:active) {
-  background: #e5e5e5;
-  transform: translateY(1px);
-}
-
-:deep(.vscode-action-btn.confirm) {
-  color: #28a745;
-  border-color: #28a745;
-}
-
-:deep(.vscode-action-btn.confirm:hover) {
-  background: #f8fff9;
-  border-color: #1e7e34;
-}
-
-:deep(.vscode-action-btn.cancel) {
-  color: #dc3545;
-  border-color: #dc3545;
-}
-
-:deep(.vscode-action-btn.cancel:hover) {
-  background: #fff5f5;
-  border-color: #c82333;
+  display: block;
 }
 
 /* 拖拽调整分隔条样式 */
@@ -735,5 +727,34 @@ const renderSwitcherIcon = () =>
 .resize-handle:active,
 .resize-handle.is-resizing {
   background: rgba(0, 123, 204, 0.6);
+}
+
+/* 拖拽移动样式 */
+:deep(.n-tree-node.dragging) {
+  opacity: 0.5;
+  background: rgba(0, 123, 204, 0.1);
+}
+
+:deep(.n-tree-node.drag-over) {
+  background: rgba(0, 123, 204, 0.2);
+  border: 2px dashed #007acc;
+  border-radius: 4px;
+}
+
+:deep(.n-tree-node.drag-over .n-tree-node-content) {
+  background: rgba(0, 123, 204, 0.1);
+}
+
+/* 拖拽时的全局样式 */
+.template-explorer.dragging {
+  user-select: none;
+}
+
+:deep(.n-tree-node[draggable="true"]) {
+  cursor: grab;
+}
+
+:deep(.n-tree-node[draggable="true"]:active) {
+  cursor: grabbing;
 }
 </style> 

@@ -27,6 +27,15 @@ export function renameTemplateFile(data) {
   })
 }
 
+// 移动模板文件
+export function moveTemplateFile(data) {
+  return request({
+    url: '/api/v1/templateFiles/move',
+    method: 'put',
+    data
+  })
+}
+
 // 删除模板文件
 export function delTemplateFile(id) {
   return request({
