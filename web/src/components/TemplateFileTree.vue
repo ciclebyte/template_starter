@@ -1,5 +1,5 @@
 <template>
-  <div class="template-explorer" @contextmenu="onTreeAreaContextMenu">
+  <div class="template-explorer" :style="{ width: `${panelWidth}px` }" @contextmenu="onTreeAreaContextMenu">
     <div class="explorer-title">模板资源</div>
     <div class="explorer-container">
       <NTree
@@ -38,11 +38,17 @@
       style="display: none"
       @change="handleCodeFileSelect"
     />
+    <!-- 拖拽调整宽度的分隔条 -->
+    <div 
+      class="resize-handle" 
+      @mousedown="startResize"
+      :class="{ 'is-resizing': isResizing }"
+    ></div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, h, computed } from 'vue'
+import { ref, watch, h, computed, onMounted, onUnmounted } from 'vue'
 import { NTree, useMessage, NIcon } from 'naive-ui'
 import { ChevronForward, FileTrayFullOutline, Folder, FolderOpenOutline, Trash, CreateOutline as Edit } from '@vicons/ionicons5'
 
@@ -79,9 +85,76 @@ const localTreeData = ref(JSON.parse(JSON.stringify(props.treeData)))
 // 维护展开状态的映射
 const expandedKeys = ref(new Set())
 
+// 拖拽调整宽度相关
+const panelWidth = ref(260)
+const isResizing = ref(false)
+const resizeStartX = ref(0)
+const resizeStartWidth = ref(260)
+
+// 拖拽调整宽度功能
+function startResize(event) {
+  event.preventDefault()
+  isResizing.value = true
+  resizeStartX.value = event.clientX
+  resizeStartWidth.value = panelWidth.value
+  
+  document.addEventListener('mousemove', handleResize)
+  document.addEventListener('mouseup', stopResize)
+  document.body.style.cursor = 'ew-resize'
+  document.body.style.userSelect = 'none'
+}
+
+function handleResize(event) {
+  if (!isResizing.value) return
+  
+  const deltaX = event.clientX - resizeStartX.value
+  const newWidth = resizeStartWidth.value + deltaX
+  
+  // 限制最小和最大宽度
+  const minWidth = 200
+  const maxWidth = 600
+  
+  if (newWidth >= minWidth && newWidth <= maxWidth) {
+    panelWidth.value = newWidth
+  }
+}
+
+function stopResize() {
+  isResizing.value = false
+  document.removeEventListener('mousemove', handleResize)
+  document.removeEventListener('mouseup', stopResize)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
+
+// 全局点击事件处理
+function handleGlobalClick(event) {
+  // 检查是否点击在输入框容器外
+  const inputContainer = event.target.closest('.vscode-input-container')
+  const isTreeNode = event.target.closest('.n-tree-node')
+  
+  // 如果有正在编辑的节点，且点击在输入框外，则取消编辑
+  if ((editingNode.value || renamingNode.value) && !inputContainer) {
+    cancelAddNode()
+  }
+}
+
 watch(() => props.treeData, (val) => {
   localTreeData.value = JSON.parse(JSON.stringify(val))
 }, { deep: true })
+
+// 组件挂载时添加全局点击监听
+onMounted(() => {
+  document.addEventListener('click', handleGlobalClick, true)
+})
+
+// 组件卸载时移除全局点击监听
+onUnmounted(() => {
+  document.removeEventListener('click', handleGlobalClick, true)
+  // 清理拖拽相关事件监听
+  document.removeEventListener('mousemove', handleResize)
+  document.removeEventListener('mouseup', stopResize)
+})
 
 // 计算属性，确保展开状态变化时重新渲染
 const treeDataComputed = computed(() => {
@@ -439,16 +512,16 @@ function renderLabel({ option }) {
   if (option.isEditing === true) {
     const isRenaming = renamingNode.value && String(option.id || option.key) === String(renamingNode.value.id || renamingNode.value.key)
     const placeholder = isRenaming ? '请输入新名称' : '请输入名称'
-    const inputStyle = isRenaming 
-      ? 'width:120px;background: #fff3cd; border: 1px solid #ffc107; border-radius: 3px; padding: 2px 4px;'
-      : 'width:120px;background: #ffe0e0; border: 1px solid #f00; border-radius: 3px; padding: 2px 4px;'
     
     return h(
       'div',
-      { style: 'display:flex;align-items:center;gap:4px;' },
+      { 
+        class: 'vscode-input-container',
+        style: 'display:flex;align-items:center;gap:6px;padding:2px 0;' 
+      },
       [
         h('input', {
-          style: inputStyle,
+          class: isRenaming ? 'vscode-input rename' : 'vscode-input create',
           value: newName.value,
           autofocus: true,
           placeholder: placeholder,
@@ -460,13 +533,21 @@ function renderLabel({ option }) {
         }),
         h(
           'button',
-          { style: 'padding:0 4px;', onClick: () => confirmAddNode() },
-          '✔'
+          { 
+            class: 'vscode-action-btn confirm',
+            onClick: () => confirmAddNode(),
+            title: '确认'
+          },
+          '✓'
         ),
         h(
           'button',
-          { style: 'padding:0 4px;', onClick: () => cancelAddNode() },
-          '✖'
+          { 
+            class: 'vscode-action-btn cancel',
+            onClick: () => cancelAddNode(),
+            title: '取消'
+          },
+          '✕'
         )
       ]
     )
@@ -479,7 +560,8 @@ const renderSwitcherIcon = () =>
 
 <style scoped>
 .template-explorer {
-  width: 260px;
+  min-width: 200px;
+  max-width: 600px;
   background: #fff;
   border-right: 1px solid #e0e0e0;
   padding: 24px 12px 0 12px;
@@ -487,6 +569,8 @@ const renderSwitcherIcon = () =>
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
 }
 .explorer-title {
   font-weight: bold;
@@ -522,5 +606,134 @@ const renderSwitcherIcon = () =>
 }
 .tree-dropdown-menu {
   z-index: 2147483647 !important;
+}
+
+/* VSCode 风格的输入框和按钮样式 */
+:deep(.vscode-input-container) {
+  background: transparent;
+  border-radius: 3px;
+  padding: 1px 2px;
+}
+
+:deep(.vscode-input) {
+  width: 140px;
+  height: 22px;
+  padding: 2px 6px;
+  font-size: 13px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #ffffff;
+  border: 1px solid #cccccc;
+  border-radius: 2px;
+  outline: none;
+  color: #333333;
+  transition: all 0.15s ease;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+:deep(.vscode-input:focus) {
+  border-color: #007acc;
+  box-shadow: 0 0 0 1px #007acc;
+  background: #ffffff;
+}
+
+:deep(.vscode-input.create) {
+  border-color: #28a745;
+}
+
+:deep(.vscode-input.create:focus) {
+  border-color: #28a745;
+  box-shadow: 0 0 0 1px #28a745;
+}
+
+:deep(.vscode-input.rename) {
+  border-color: #ffc107;
+  background: #fffbf0;
+}
+
+:deep(.vscode-input.rename:focus) {
+  border-color: #ffc107;
+  box-shadow: 0 0 0 1px #ffc107;
+  background: #ffffff;
+}
+
+:deep(.vscode-input::placeholder) {
+  color: #999999;
+  font-style: italic;
+}
+
+:deep(.vscode-action-btn) {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid #cccccc;
+  border-radius: 2px;
+  background: #ffffff;
+  color: #333333;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+:deep(.vscode-action-btn:hover) {
+  background: #f3f3f3;
+  border-color: #adadad;
+}
+
+:deep(.vscode-action-btn:active) {
+  background: #e5e5e5;
+  transform: translateY(1px);
+}
+
+:deep(.vscode-action-btn.confirm) {
+  color: #28a745;
+  border-color: #28a745;
+}
+
+:deep(.vscode-action-btn.confirm:hover) {
+  background: #f8fff9;
+  border-color: #1e7e34;
+}
+
+:deep(.vscode-action-btn.cancel) {
+  color: #dc3545;
+  border-color: #dc3545;
+}
+
+:deep(.vscode-action-btn.cancel:hover) {
+  background: #fff5f5;
+  border-color: #c82333;
+}
+
+/* 拖拽调整分隔条样式 */
+.resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  background: transparent;
+  cursor: ew-resize;
+  z-index: 10;
+  transition: background-color 0.2s ease;
+}
+
+.resize-handle:hover {
+  background: rgba(0, 123, 204, 0.3);
+}
+
+.resize-handle.is-resizing {
+  background: rgba(0, 123, 204, 0.6);
+}
+
+/* 拖拽时的全局样式 */
+.resize-handle:active,
+.resize-handle.is-resizing {
+  background: rgba(0, 123, 204, 0.6);
 }
 </style> 
