@@ -50,10 +50,9 @@ func (c *cSprigFunctions) GetSprigFunctions(ctx context.Context, req *v1.GetSpri
 			}
 		}
 		categories[i] = v1.SprigFunctionCategory{
-			Name:         cat.Name,
-			Description:  cat.Description,
-			DocumentFile: cat.DocumentFile,
-			Functions:    functions,
+			Name:        cat.Name,
+			Description: cat.Description,
+			Functions:   functions,
 		}
 	}
 

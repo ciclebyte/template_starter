@@ -17,10 +17,9 @@ type GetSprigFunctionsRes struct {
 
 // SprigFunctionCategory Sprig函数分类
 type SprigFunctionCategory struct {
-	Name         string          `json:"name"`
-	Description  string          `json:"description"`
-	Functions    []SprigFunction `json:"functions"`
-	DocumentFile string          `json:"document_file"` // 对应的markdown文档文件
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Functions   []SprigFunction `json:"functions"`
 }
 
 // SprigFunction Sprig函数

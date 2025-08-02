@@ -2,12 +2,11 @@ package controller
 
 import (
 	"context"
+
 	api "github.com/ciclebyte/template_starter/api/v1/categories"
-	service "github.com/ciclebyte/template_starter/internal/service"
 	consts "github.com/ciclebyte/template_starter/internal/consts"
+	service "github.com/ciclebyte/template_starter/internal/service"
 )
-
-
 
 var Categories = categoriesController{}
 
@@ -41,7 +40,6 @@ func (c *categoriesController) Get(ctx context.Context, req *api.CategoriesDetai
 	service.Categories().GetById(ctx, req.Id)
 	return
 }
-
 
 func (c *categoriesController) Edit(ctx context.Context, req *api.CategoriesEditReq) (res *api.CategoriesEditRes, err error) {
 	err = service.Categories().Edit(ctx, req)

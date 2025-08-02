@@ -1,0 +1,176 @@
+package sprig_functions
+
+import "github.com/ciclebyte/template_starter/internal/model"
+
+// buildIntegerMathFunctions 构建整数数学函数分类
+func (s *sSprigFunctions) buildIntegerMathFunctions() model.SprigFunctionCategory {
+	return model.SprigFunctionCategory{
+		Name:        "整数数学函数",
+		Description: "整数数学运算和计算函数",
+		Functions: []model.SprigFunction{
+			{
+				Name:        "add",
+				DisplayName: "相加",
+				Description: "对数字求和",
+				Params: []model.SprigFunctionParam{
+					{Name: "numbers", Type: "...int64", Required: true, Description: "要相加的数字（接受两个或更多输入）"},
+				},
+				ReturnType: "int64",
+				Category:   "整数数学函数",
+				Example:    `{{ add 1 2 3 }}`,
+				Usage:      "add 函数对数字求和。接受两个或更多输入参数。",
+				InsertText: `{{ add 1 2 }}`,
+			},
+			{
+				Name:        "add1",
+				DisplayName: "加一",
+				Description: "将数字增加1",
+				Params: []model.SprigFunctionParam{
+					{Name: "number", Type: "int64", Required: true, Description: "要增加的数字"},
+				},
+				ReturnType: "int64",
+				Category:   "整数数学函数",
+				Example:    `{{ add1 5 }}`,
+				Usage:      "add1 函数将数字增加1。",
+				InsertText: `{{ add1 . }}`,
+			},
+			{
+				Name:        "sub",
+				DisplayName: "相减",
+				Description: "两个数字相减",
+				Params: []model.SprigFunctionParam{
+					{Name: "a", Type: "int64", Required: true, Description: "被减数"},
+					{Name: "b", Type: "int64", Required: true, Description: "减数"},
+				},
+				ReturnType: "int64",
+				Category:   "整数数学函数",
+				Example:    `{{ sub 10 3 }}`,
+				Usage:      "sub 函数执行减法运算。",
+				InsertText: `{{ sub 10 . }}`,
+			},
+			{
+				Name:        "div",
+				DisplayName: "整数除法",
+				Description: "执行整数除法",
+				Params: []model.SprigFunctionParam{
+					{Name: "a", Type: "int64", Required: true, Description: "被除数"},
+					{Name: "b", Type: "int64", Required: true, Description: "除数"},
+				},
+				ReturnType: "int64",
+				Category:   "整数数学函数",
+				Example:    `{{ div 10 3 }}`,
+				Usage:      "div 函数执行整数除法运算。",
+				InsertText: `{{ div 10 . }}`,
+				Note:       "执行整数除法，结果会截断小数部分",
+			},
+			{
+				Name:        "mod",
+				DisplayName: "取模",
+				Description: "取模运算",
+				Params: []model.SprigFunctionParam{
+					{Name: "a", Type: "int64", Required: true, Description: "被除数"},
+					{Name: "b", Type: "int64", Required: true, Description: "除数"},
+				},
+				ReturnType: "int64",
+				Category:   "整数数学函数",
+				Example:    `{{ mod 10 3 }}`,
+				Usage:      "mod 函数执行取模运算，返回除法的余数。",
+				InsertText: `{{ mod 10 . }}`,
+			},
+			{
+				Name:        "mul",
+				DisplayName: "相乘",
+				Description: "数字相乘",
+				Params: []model.SprigFunctionParam{
+					{Name: "numbers", Type: "...int64", Required: true, Description: "要相乘的数字（接受两个或更多输入）"},
+				},
+				ReturnType: "int64",  
+				Category:   "整数数学函数",
+				Example:    `{{ mul 2 3 4 }}`,
+				Usage:      "mul 函数对数字相乘。接受两个或更多输入参数。",
+				InsertText: `{{ mul 2 3 }}`,
+			},
+			{
+				Name:        "max",
+				DisplayName: "最大值",
+				Description: "返回一系列整数中的最大值",
+				Params: []model.SprigFunctionParam{
+					{Name: "numbers", Type: "...int64", Required: true, Description: "要比较的数字"},
+				},
+				ReturnType: "int64",
+				Category:   "整数数学函数",
+				Example:    `{{ max 1 2 3 }}`,
+				Usage:      "max 函数返回一系列整数中的最大值。",
+				InsertText: `{{ max 1 2 3 }}`,
+			},
+			{
+				Name:        "min",
+				DisplayName: "最小值",
+				Description: "返回一系列整数中的最小值",
+				Params: []model.SprigFunctionParam{
+					{Name: "numbers", Type: "...int64", Required: true, Description: "要比较的数字"},
+				},
+				ReturnType: "int64",
+				Category:   "整数数学函数",
+				Example:    `{{ min 1 2 3 }}`,
+				Usage:      "min 函数返回一系列整数中的最小值。",
+				InsertText: `{{ min 1 2 3 }}`,
+			},
+			{
+				Name:        "floor",
+				DisplayName: "向下取整",
+				Description: "返回小于或等于输入值的最大浮点数",
+				Params: []model.SprigFunctionParam{
+					{Name: "number", Type: "float64", Required: true, Description: "要取整的数字"},
+				},
+				ReturnType: "float64",
+				Category:   "整数数学函数",
+				Example:    `{{ floor 123.9999 }}`,
+				Usage:      "floor 函数返回小于或等于输入值的最大浮点数。例如 floor 123.9999 返回 123.0。",
+				InsertText: `{{ floor . }}`,
+			},
+			{
+				Name:        "ceil",
+				DisplayName: "向上取整",
+				Description: "返回大于或等于输入值的最小浮点数",
+				Params: []model.SprigFunctionParam{
+					{Name: "number", Type: "float64", Required: true, Description: "要取整的数字"},
+				},
+				ReturnType: "float64",
+				Category:   "整数数学函数",
+				Example:    `{{ ceil 123.001 }}`,
+				Usage:      "ceil 函数返回大于或等于输入值的最小浮点数。例如 ceil 123.001 返回 124.0。",
+				InsertText: `{{ ceil . }}`,
+			},
+			{
+				Name:        "round",
+				DisplayName: "四舍五入",
+				Description: "将数字四舍五入到指定的小数位数",
+				Params: []model.SprigFunctionParam{
+					{Name: "number", Type: "float64", Required: true, Description: "要四舍五入的数字"},
+					{Name: "decimals", Type: "int", Required: true, Description: "小数点后的位数"},
+				},
+				ReturnType: "float64",
+				Category:   "整数数学函数",
+				Example:    `{{ round 123.555555 3 }}`,
+				Usage:      "round 函数将数字四舍五入到指定的小数位数。例如 round 123.555555 3 返回 123.556。",
+				InsertText: `{{ round . 2 }}`,
+			},
+			{
+				Name:        "randInt",
+				DisplayName: "随机整数",
+				Description: "返回指定范围内的随机整数",
+				Params: []model.SprigFunctionParam{
+					{Name: "min", Type: "int", Required: true, Description: "最小值（包含）"},
+					{Name: "max", Type: "int", Required: true, Description: "最大值（不包含）"},
+				},
+				ReturnType: "int",
+				Category:   "整数数学函数",
+				Example:    `{{ randInt 12 30 }}`,
+				Usage:      "randInt 函数返回从最小值（包含）到最大值（不包含）范围内的随机整数值。例如 randInt 12 30 将产生 [12,30) 范围内的随机数。",
+				InsertText: `{{ randInt 1 100 }}`,
+				Note:       "范围是 [min, max)，即包含最小值但不包含最大值",
+			},
+		},
+	}
+}

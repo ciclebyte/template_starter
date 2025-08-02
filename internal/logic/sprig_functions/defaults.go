@@ -1,0 +1,158 @@
+package sprig_functions
+
+import "github.com/ciclebyte/template_starter/internal/model"
+
+// buildDefaultsFunctions 构建默认值函数分类
+func (s *sSprigFunctions) buildDefaultsFunctions() model.SprigFunctionCategory {
+	return model.SprigFunctionCategory{
+		Name:        "默认值函数",
+		Description: "设置默认值和条件判断函数",
+		Functions: []model.SprigFunction{
+			{
+				Name:        "default",
+				DisplayName: "设置默认值",
+				Description: "为模板设置默认值",
+				Params: []model.SprigFunctionParam{
+					{Name: "defaultValue", Type: "any", Required: true, Description: "默认值"},
+					{Name: "value", Type: "any", Required: true, Description: "要检查的值"},
+				},
+				ReturnType: "any",
+				Category:   "默认值函数",
+				Example:    `{{ default "foo" .Bar }}`,
+				Usage:      "default 函数用于设置简单的默认值。如果 .Bar 评估为非空值，将使用它；如果为空，则返回 foo。空值定义：数字0、字符串\"\"、列表[]、字典{}、布尔false、nil。",
+				InsertText: `{{ default "defaultValue" . }}`,
+				Note:       "对于结构体，没有空的定义，所以结构体永远不会返回默认值",
+			},
+			{
+				Name:        "empty",
+				DisplayName: "检查空值",
+				Description: "检查给定值是否为空",
+				Params: []model.SprigFunctionParam{
+					{Name: "value", Type: "any", Required: true, Description: "要检查的值"},
+				},
+				ReturnType: "bool",
+				Category:   "默认值函数",
+				Example:    `{{ empty .Foo }}`,
+				Usage:      "empty 函数如果给定值被认为是空的则返回 true，否则返回 false。在Go模板条件中，空值检查是自动的，通常直接使用 if .Foo 即可。",
+				InsertText: `{{ empty . }}`,
+				Note:       "在Go模板条件中很少需要使用，通常直接用 if .Foo",
+			},
+			{
+				Name:        "coalesce",
+				DisplayName: "合并非空值",
+				Description: "返回列表中第一个非空值",
+				Params: []model.SprigFunctionParam{
+					{Name: "values", Type: "...any", Required: true, Description: "要检查的值列表"},
+				},
+				ReturnType: "any",
+				Category:   "默认值函数",
+				Example:    `{{ coalesce 0 1 2 }}`,
+				Usage:      "coalesce 函数接受一个值列表，返回第一个非空的值。例如 coalesce 0 1 2 返回 1。适用于扫描多个变量或值，如 coalesce .name .parent.name \"Matt\"。",
+				InsertText: `{{ coalesce .name .parent.name "default" }}`,
+				Note:       "从左到右依次检查，返回第一个非空值",
+			},
+			{
+				Name:        "all",
+				DisplayName: "全部非空",
+				Description: "检查所有值是否都非空",
+				Params: []model.SprigFunctionParam{
+					{Name: "values", Type: "...any", Required: true, Description: "要检查的值列表"},
+				},
+				ReturnType: "bool",
+				Category:   "默认值函数",
+				Example:    `{{ all 0 1 2 }}`,
+				Usage:      "all 函数接受一个值列表，如果所有值都非空则返回 true。例如 all 0 1 2 返回 false（因为0被认为是空）。适用于评估多个变量或值的条件。",
+				InsertText: `{{ all .var1 .var2 .var3 }}`,
+				Note:       "所有值都必须非空才返回true",
+			},
+			{
+				Name:        "any",
+				DisplayName: "任一非空",
+				Description: "检查是否有任何值非空",
+				Params: []model.SprigFunctionParam{
+					{Name: "values", Type: "...any", Required: true, Description: "要检查的值列表"},
+				},
+				ReturnType: "bool",
+				Category:   "默认值函数",
+				Example:    `{{ any 0 1 2 }}`,
+				Usage:      "any 函数接受一个值列表，如果任何值非空则返回 true。例如 any 0 1 2 返回 true（因为1和2非空）。适用于评估多个变量或值的条件。",
+				InsertText: `{{ any .var1 .var2 .var3 }}`,
+				Note:       "只要有一个值非空就返回true",
+			},
+			{
+				Name:        "fromJson",
+				DisplayName: "JSON解码",
+				Description: "将JSON文档解码为结构",
+				Params: []model.SprigFunctionParam{
+					{Name: "jsonString", Type: "string", Required: true, Description: "JSON字符串"},
+				},
+				ReturnType: "any",
+				Category:   "默认值函数",
+				Example:    `{{ fromJson .jsonData }}`,
+				Usage:      "fromJson 将JSON文档解码为结构。如果输入无法解码为JSON，函数将返回空字符串。",
+				InsertText: `{{ fromJson . }}`,
+				Note:       "解码失败时返回空字符串，使用 mustFromJson 可获取错误",
+				Aliases:    []string{"mustFromJson"},
+			},
+			{
+				Name:        "toJson",
+				DisplayName: "JSON编码",
+				Description: "将项目编码为JSON字符串",
+				Params: []model.SprigFunctionParam{
+					{Name: "value", Type: "any", Required: true, Description: "要编码的值"},
+				},
+				ReturnType: "string",
+				Category:   "默认值函数",
+				Example:    `{{ toJson .Item }}`,
+				Usage:      "toJson 函数将项目编码为JSON字符串。如果项目无法转换为JSON，函数将返回空字符串。",
+				InsertText: `{{ toJson . }}`,
+				Note:       "编码失败时返回空字符串，使用 mustToJson 可获取错误",
+				Aliases:    []string{"mustToJson"},
+			},
+			{
+				Name:        "toPrettyJson",
+				DisplayName: "格式化JSON编码",
+				Description: "将项目编码为格式化的JSON字符串",
+				Params: []model.SprigFunctionParam{
+					{Name: "value", Type: "any", Required: true, Description: "要编码的值"},
+				},
+				ReturnType: "string",
+				Category:   "默认值函数",
+				Example:    `{{ toPrettyJson .Item }}`,
+				Usage:      "toPrettyJson 函数将项目编码为格式化（缩进）的JSON字符串。",
+				InsertText: `{{ toPrettyJson . }}`,
+				Aliases:    []string{"mustToPrettyJson"},
+			},
+			{
+				Name:        "toRawJson",
+				DisplayName: "原始JSON编码",
+				Description: "将项目编码为未转义HTML字符的JSON字符串",
+				Params: []model.SprigFunctionParam{
+					{Name: "value", Type: "any", Required: true, Description: "要编码的值"},
+				},
+				ReturnType: "string",
+				Category:   "默认值函数",
+				Example:    `{{ toRawJson .Item }}`,
+				Usage:      "toRawJson 函数将项目编码为JSON字符串，HTML字符不转义。",
+				InsertText: `{{ toRawJson . }}`,
+				Aliases:    []string{"mustToRawJson"},
+			},
+			{
+				Name:        "ternary",
+				DisplayName: "三元运算",
+				Description: "根据测试值选择返回两个值中的一个",
+				Params: []model.SprigFunctionParam{
+					{Name: "trueValue", Type: "any", Required: true, Description: "测试为真时返回的值"},
+					{Name: "falseValue", Type: "any", Required: true, Description: "测试为假时返回的值"},
+					{Name: "testValue", Type: "any", Required: true, Description: "测试值"},
+				},
+				ReturnType: "any",
+				Category:   "默认值函数",
+				Example:    `{{ ternary "foo" "bar" true }}`,
+				Usage:      "ternary 函数接受两个值和一个测试值。如果测试值为真，返回第一个值；如果测试值为空，返回第二个值。类似于C语言的三元运算符。",
+				InsertText: `{{ ternary "trueValue" "falseValue" .condition }}`,
+				Note:       "类似C语言的三元运算符 condition ? trueValue : falseValue",
+			},
+		},
+	}
+}
