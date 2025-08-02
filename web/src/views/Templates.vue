@@ -7,44 +7,28 @@
           <span class="category-tags-icon">🏷️</span>
           <span class="category-tags-label">分类</span>
           <div class="title-actions">
-            <n-button 
-              size="small" 
-              type="primary" 
-              ghost
-              class="add-btn"
-              @click="showAddCategoryModal = true"
-            >
+            <n-button size="small" type="primary" ghost class="add-btn" @click="showAddCategoryModal = true">
               <template #icon>
-                <n-icon><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 13H13V19H11V13H5V11H11V5H13V11H19V13Z"/></svg></n-icon>
+                <n-icon><svg viewBox="0 0 24 24" width="16" height="16">
+                    <path fill="currentColor" d="M19 13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+                  </svg></n-icon>
               </template>
             </n-button>
           </div>
         </div>
         <div class="category-tags-list">
-          <n-tag
-            v-for="cat in categoryTags"
-            :key="cat.id"
-            :type="selectedCategory === cat.id ? 'primary' : 'default'"
-            size="large"
-            class="category-tag-item"
-            @click="selectCategory(cat.id)"
-            @contextmenu.prevent.stop="showCategoryDropdown(cat, $event)"
-          >
+          <n-tag v-for="cat in categoryTags" :key="cat.id" :type="selectedCategory === cat.id ? 'primary' : 'default'"
+            size="large" class="category-tag-item" @click="selectCategory(cat.id)"
+            @contextmenu.prevent.stop="showCategoryDropdown(cat, $event)">
             {{ cat.name }}
           </n-tag>
         </div>
-        
+
         <!-- 分类右键菜单 -->
-        <n-dropdown
-          v-if="categoryDropdownShow"
-          :options="categoryDropdownOptions"
-          trigger="manual"
-          :show="categoryDropdownShow"
-          :x="categoryDropdownX"
-          :y="categoryDropdownY"
+        <n-dropdown v-if="categoryDropdownShow" :options="categoryDropdownOptions" trigger="manual"
+          :show="categoryDropdownShow" :x="categoryDropdownX" :y="categoryDropdownY"
           @select="key => handleCategoryDropdownSelect(key, categoryDropdownItem)"
-          @clickoutside="categoryDropdownShow = false"
-        />
+          @clickoutside="categoryDropdownShow = false" />
       </div>
     </div>
 
@@ -55,44 +39,27 @@
           <span class="tags-icon">💻</span>
           <span class="tags-label">语言</span>
           <div class="title-actions">
-            <n-button 
-              size="small" 
-              type="primary" 
-              ghost
-              class="add-btn"
-              @click="showAddLanguageModal = true"
-            >
+            <n-button size="small" type="primary" ghost class="add-btn" @click="showAddLanguageModal = true">
               <template #icon>
-                <n-icon><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 13H13V19H11V13H5V11H11V5H13V11H19V13Z"/></svg></n-icon>
+                <n-icon><svg viewBox="0 0 24 24" width="16" height="16">
+                    <path fill="currentColor" d="M19 13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+                  </svg></n-icon>
               </template>
             </n-button>
           </div>
         </div>
         <div class="tags-list">
-          <n-tag 
-            v-for="tag in tags" 
-            :key="tag.id"
-            :type="selectedTag === tag.id ? 'primary' : 'default'"
-            size="large"
-            class="tag-item"
-            @click="selectTag(tag.id)"
-            @contextmenu.prevent.stop="showLanguageDropdown(tag, $event)"
-          >
+          <n-tag v-for="tag in tags" :key="tag.id" :type="selectedTag === tag.id ? 'primary' : 'default'" size="large"
+            class="tag-item" @click="selectTag(tag.id)" @contextmenu.prevent.stop="showLanguageDropdown(tag, $event)">
             {{ tag.name }}
           </n-tag>
         </div>
-        
+
         <!-- 语言右键菜单 -->
-        <n-dropdown
-          v-if="languageDropdownShow"
-          :options="languageDropdownOptions"
-          trigger="manual"
-          :show="languageDropdownShow"
-          :x="languageDropdownX"
-          :y="languageDropdownY"
+        <n-dropdown v-if="languageDropdownShow" :options="languageDropdownOptions" trigger="manual"
+          :show="languageDropdownShow" :x="languageDropdownX" :y="languageDropdownY"
           @select="key => handleLanguageDropdownSelect(key, languageDropdownItem)"
-          @clickoutside="languageDropdownShow = false"
-        />
+          @clickoutside="languageDropdownShow = false" />
       </div>
     </div>
 
@@ -107,20 +74,17 @@
           <div class="templates-header-actions">
             <n-button type="primary" @click="showAddModal = true" class="add-template-btn">
               <template #icon>
-                <n-icon><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 13H13V19H11V13H5V11H11V5H13V11H19V13Z"/></svg></n-icon>
+                <n-icon><svg viewBox="0 0 24 24" width="18" height="18">
+                    <path fill="currentColor" d="M19 13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+                  </svg></n-icon>
               </template>
             </n-button>
           </div>
         </div>
-        
+
         <div class="templates-grid">
-          <div
-            v-for="template in templates"
-            :key="template.id"
-            class="template-card"
-            :class="{ 'featured': template.isFeatured }"
-            @contextmenu.prevent.stop="showDropdown(template, $event)"
-          >
+          <div v-for="template in templates" :key="template.id" class="template-card"
+            :class="{ 'featured': template.isFeatured }" @contextmenu.prevent.stop="showDropdown(template, $event)">
             <div class="template-logo">
               <div class="template-icon">
                 <n-icon size="48">
@@ -128,7 +92,10 @@
                 </n-icon>
               </div>
               <div v-if="template.isFeatured" class="featured-badge">
-                <n-icon><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg></n-icon>
+                <n-icon><svg viewBox="0 0 24 24" width="16" height="16">
+                    <path fill="currentColor"
+                      d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+                  </svg></n-icon>
               </div>
             </div>
             <div class="template-info">
@@ -137,23 +104,14 @@
               <div class="template-tags">
                 <!-- 分类标签 -->
                 <div class="template-category" v-if="getCategoryName(template.categoryId)">
-                  <n-tag 
-                    type="success" 
-                    size="small"
-                    class="category-tag"
-                  >
+                  <n-tag type="success" size="small" class="category-tag">
                     {{ getCategoryName(template.categoryId) }}
                   </n-tag>
                 </div>
                 <!-- 语言标签 -->
                 <div class="template-languages">
-                  <n-tag 
-                    v-for="lang in template.languages" 
-                    :key="lang.id"
-                    :color="{ color: getLanguageColor(lang.languageId) }"
-                    size="small"
-                    class="language-tag"
-                  >
+                  <n-tag v-for="lang in template.languages" :key="lang.id"
+                    :color="{ color: getLanguageColor(lang.languageId) }" size="small" class="language-tag">
                     {{ getLanguageName(lang.languageId) }}
                   </n-tag>
                 </div>
@@ -165,107 +123,48 @@
               </div>
             </div>
           </div>
-          <n-dropdown
-            v-if="dropdownShow"
-            :options="dropdownOptions"
-            trigger="manual"
-            :show="dropdownShow"
-            :x="dropdownX"
-            :y="dropdownY"
-            @select="key => handleDropdownSelect(key, dropdownTemplate)"
-            @clickoutside="dropdownShow = false"
-          />
+          <n-dropdown v-if="dropdownShow" :options="dropdownOptions" trigger="manual" :show="dropdownShow"
+            :x="dropdownX" :y="dropdownY" @select="key => handleDropdownSelect(key, dropdownTemplate)"
+            @clickoutside="dropdownShow = false" />
         </div>
 
         <!-- 分页 -->
         <div class="pagination-section">
-          <n-pagination
-            v-model:page="currentPage"
-            :page-count="totalPages"
-            :page-sizes="[20, 40, 60]"
-            :page-size="pageSize"
-            show-size-picker
-            @update:page="handlePageChange"
-            @update:page-size="handlePageSizeChange"
-          />
+          <n-pagination v-model:page="currentPage" :page-count="totalPages" :page-sizes="[20, 40, 60]"
+            :page-size="pageSize" show-size-picker @update:page="handlePageChange"
+            @update:page-size="handlePageSizeChange" />
         </div>
       </div>
     </div>
 
     <!-- 新增弹窗 -->
-    <TemplateForm
-      :show="showAddModal"
-      title="添加模板"
-      :form="addForm"
-      :rules="addRules"
-      :categorySelectOptions="categorySelectOptions"
-      @update:show="val => showAddModal = val"
-      @submit="handleAddTemplate"
-      @cancel="showAddModal = false"
-    />
+    <TemplateForm :show="showAddModal" title="添加模板" :form="addForm" :rules="addRules"
+      :categorySelectOptions="categorySelectOptions" @update:show="val => showAddModal = val"
+      @submit="handleAddTemplate" @cancel="showAddModal = false" />
 
     <!-- 编辑弹窗 -->
-    <TemplateForm
-      :show="showEditModal"
-      title="编辑模板"
-      :form="editForm"
-      :rules="addRules"
-      :categorySelectOptions="categorySelectOptions"
-      @update:show="val => showEditModal = val"
-      @submit="handleEditTemplate"
-      @cancel="showEditModal = false"
-    />
+    <TemplateForm :show="showEditModal" title="编辑模板" :form="editForm" :rules="addRules"
+      :categorySelectOptions="categorySelectOptions" @update:show="val => showEditModal = val"
+      @submit="handleEditTemplate" @cancel="showEditModal = false" />
 
     <!-- 添加分类弹窗 -->
-    <CategoryForm
-      :show="showAddCategoryModal"
-      title="添加分类"
-      :form="categoryForm"
-      @update:show="val => showAddCategoryModal = val"
-      @submit="handleAddCategory"
-      @cancel="handleCancelCategory"
-    />
+    <CategoryForm :show="showAddCategoryModal" title="添加分类" :form="categoryForm"
+      @update:show="val => showAddCategoryModal = val" @submit="handleAddCategory" @cancel="handleCancelCategory" />
 
     <!-- 编辑分类弹窗 -->
-    <CategoryForm
-      :show="showEditCategoryModal"
-      title="编辑分类"
-      :form="categoryForm"
-      :is-edit="true"
-      @update:show="val => showEditCategoryModal = val"
-      @submit="handleEditCategory"
-      @cancel="handleCancelCategory"
-    />
+    <CategoryForm :show="showEditCategoryModal" title="编辑分类" :form="categoryForm" :is-edit="true"
+      @update:show="val => showEditCategoryModal = val" @submit="handleEditCategory" @cancel="handleCancelCategory" />
 
     <!-- 添加语言弹窗 -->
-    <LanguageForm
-      :show="showAddLanguageModal"
-      title="添加语言"
-      :form="languageForm"
-      @update:show="val => showAddLanguageModal = val"
-      @submit="handleAddLanguage"
-      @cancel="handleCancelLanguage"
-    />
+    <LanguageForm :show="showAddLanguageModal" title="添加语言" :form="languageForm"
+      @update:show="val => showAddLanguageModal = val" @submit="handleAddLanguage" @cancel="handleCancelLanguage" />
 
     <!-- 编辑语言弹窗 -->
-    <LanguageForm
-      :show="showEditLanguageModal"
-      title="编辑语言"
-      :form="languageForm"
-      :is-edit="true"
-      @update:show="val => showEditLanguageModal = val"
-      @submit="handleEditLanguage"
-      @cancel="handleCancelLanguage"
-    />
+    <LanguageForm :show="showEditLanguageModal" title="编辑语言" :form="languageForm" :is-edit="true"
+      @update:show="val => showEditLanguageModal = val" @submit="handleEditLanguage" @cancel="handleCancelLanguage" />
 
     <!-- 删除确认对话框 -->
-    <n-modal
-      v-model:show="showDeleteModal"
-      preset="dialog"
-      title="确认删除"
-      :show-icon="false"
-      :mask-closable="false"
-    >
+    <n-modal v-model:show="showDeleteModal" preset="dialog" title="确认删除" :show-icon="false" :mask-closable="false">
       <template #default>
         <div class="delete-confirm-content">
           <div class="delete-icon">🗑️</div>
@@ -524,7 +423,7 @@ const getDefaultIcon = (template) => {
   // 根据模板名称或分类选择合适的默认图标
   const name = template.name?.toLowerCase() || ''
   const categoryId = template.categoryId
-  
+
   // 根据分类选择默认图标
   if (categoryId) {
     const category = categoriesList.value.find(cat => cat.id === Number(categoryId))
@@ -538,7 +437,7 @@ const getDefaultIcon = (template) => {
       if (categoryName.includes('data') || categoryName.includes('数据')) return IonIcons.BarChartOutline
     }
   }
-  
+
   // 根据模板名称选择默认图标
   if (name.includes('web') || name.includes('前端') || name.includes('vue') || name.includes('react')) {
     return IonIcons.GlobeOutline
@@ -567,7 +466,7 @@ const getDefaultIcon = (template) => {
   if (name.includes('ecommerce') || name.includes('电商') || name.includes('shop')) {
     return IonIcons.CartOutline
   }
-  
+
   // 默认图标
   return IonIcons.DocumentOutline
 }
@@ -601,7 +500,7 @@ const showDropdown = (template, e) => {
 const showCategoryDropdown = (category, e) => {
   // 排除"全部"分类
   if (category.id === 'all') return
-  
+
   e.preventDefault()
   categoryDropdownShow.value = true
   categoryDropdownItem.value = category
@@ -612,7 +511,7 @@ const showCategoryDropdown = (category, e) => {
 const showLanguageDropdown = (language, e) => {
   // 排除"全部"语言
   if (language.id === 'all') return
-  
+
   e.preventDefault()
   languageDropdownShow.value = true
   languageDropdownItem.value = language
@@ -622,10 +521,10 @@ const showLanguageDropdown = (language, e) => {
 const dropdownOptions = computed(() => [
   { label: '编辑模板信息', key: 'editInfo', icon: () => h('span', { style: 'color:#18a058' }, '✏️') },
   { label: '编辑模板内容', key: 'editContent', icon: () => h('span', { style: 'color:#2080f0' }, '📄') },
-  { 
-    label: dropdownTemplate.value?.isFeatured ? '取消推荐' : '设为推荐', 
-    key: 'toggleFeatured', 
-    icon: () => h('span', { style: 'color:#f0a020' }, dropdownTemplate.value?.isFeatured ? '⭐' : '☆') 
+  {
+    label: dropdownTemplate.value?.isFeatured ? '取消推荐' : '设为推荐',
+    key: 'toggleFeatured',
+    icon: () => h('span', { style: 'color:#f0a020' }, dropdownTemplate.value?.isFeatured ? '⭐' : '☆')
   },
   { label: '删除模板', key: 'deleteTemplate', icon: () => h('span', { style: 'color:#d03050' }, '🗑️') }
 ])
@@ -734,7 +633,7 @@ const handleToggleFeatured = async (template) => {
       introduction: template.introduction || '',
       categoryId: template.categoryId,
       isFeatured: newFeaturedStatus,
-  
+
       languages: template.languages
     })
     // 刷新模板列表以确保数据一致性
@@ -765,10 +664,10 @@ const getDeleteItemType = () => {
 // 确认删除
 const confirmDelete = async () => {
   if (!deleteTemplateInfo.value) return
-  
+
   try {
     deleteLoading.value = true
-    
+
     if (deleteTemplateInfo.value.type === 'category') {
       // 删除分类
       await deleteCategory({ id: deleteTemplateInfo.value.id })
@@ -791,14 +690,14 @@ const confirmDelete = async () => {
       const res = await listTemplates({})
       allTemplates.value = res.data.data.templatesList || []
     }
-    
+
     // 关闭对话框并重置状态
     showDeleteModal.value = false
     deleteTemplateInfo.value = null
   } catch (error) {
     console.error('删除失败:', error)
-    const itemType = deleteTemplateInfo.value?.type === 'category' ? '分类' : 
-                    deleteTemplateInfo.value?.type === 'language' ? '语言' : '模板'
+    const itemType = deleteTemplateInfo.value?.type === 'category' ? '分类' :
+      deleteTemplateInfo.value?.type === 'language' ? '语言' : '模板'
     message.error(`删除${itemType}失败: ` + (error.response?.data?.message || error.message || '未知错误'))
   } finally {
     deleteLoading.value = false
@@ -1053,7 +952,7 @@ onMounted(async () => {
   padding: 6px 16px;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .category-tag-item::before {
@@ -1073,7 +972,7 @@ onMounted(async () => {
 
 .category-tag-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
 .category-tag-item:active {
@@ -1130,7 +1029,7 @@ onMounted(async () => {
   padding: 5px 14px;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
 .tag-item::before {
@@ -1153,7 +1052,7 @@ onMounted(async () => {
 
 .tag-item:hover {
   transform: translateY(-1px);
-  box-shadow: 0 3px 12px rgba(0,0,0,0.12);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
 }
 
 .tag-item:active {
@@ -1179,6 +1078,7 @@ onMounted(async () => {
   flex-direction: column;
   gap: 8px;
 }
+
 .templates-header-actions {
   display: flex;
   align-items: center;
@@ -1199,6 +1099,7 @@ onMounted(async () => {
   transform: translateY(-1px);
   box-shadow: 0 3px 10px rgba(24, 160, 88, 0.2);
 }
+
 .templates-header h2 {
   margin: 0;
   color: #333;
@@ -1221,7 +1122,7 @@ onMounted(async () => {
   background: white;
   border-radius: 12px;
   padding: 24px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid #f0f0f0;
   position: relative;
@@ -1246,7 +1147,7 @@ onMounted(async () => {
 
 .template-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
   border-color: rgba(24, 160, 88, 0.2);
 }
 
@@ -1362,7 +1263,7 @@ onMounted(async () => {
 
 .language-tag:hover {
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   background: #f1f3f4;
 }
 
@@ -1381,7 +1282,7 @@ onMounted(async () => {
 
 .template-actions .n-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
 }
 
 .template-actions .n-button:active {
@@ -1416,7 +1317,7 @@ onMounted(async () => {
     grid-template-columns: repeat(2, 1fr);
     gap: 15px;
   }
-  
+
   .template-actions {
     flex-direction: column;
   }
@@ -1470,8 +1371,18 @@ onMounted(async () => {
 }
 
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  75% { transform: translateX(5px); }
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-5px);
+  }
+
+  75% {
+    transform: translateX(5px);
+  }
 }
-</style> 
+</style>

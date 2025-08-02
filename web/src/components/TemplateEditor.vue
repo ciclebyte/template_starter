@@ -8,19 +8,23 @@
       <div class="file-actions">
         <n-button size="small" @click="saveCurrentFile">
           <template #icon>
-            <n-icon><Save /></n-icon>
+            <n-icon>
+              <Save />
+            </n-icon>
           </template>
           保存
         </n-button>
         <n-button size="small" @click="triggerPreview">
           <template #icon>
-            <n-icon><Eye /></n-icon>
+            <n-icon>
+              <Eye />
+            </n-icon>
           </template>
           预览
         </n-button>
       </div>
     </div>
-    
+
     <!-- 编辑器容器 -->
     <div v-if="!currentFileName" class="no-file-selected">
       <div class="no-file-icon">
@@ -31,7 +35,7 @@
       <div class="no-file-text">请选择左侧文件进行编辑</div>
     </div>
     <div v-else class="codemirror-container" ref="editorContainer"></div>
-    
+
     <!-- HTML 预览弹框 -->
     <n-modal v-model:show="showHtmlPreviewModal" preset="card" :style="modalStyle">
       <template #header>
@@ -40,11 +44,15 @@
           <div class="modal-actions">
             <n-button size="small" quaternary circle @click="toggleFullscreen">
               <template #icon>
-                <svg v-if="!isFullscreen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                <svg v-if="!isFullscreen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2">
+                  <path
+                    d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
                 </svg>
-                <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+                <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2">
+                  <path
+                    d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
                 </svg>
               </template>
             </n-button>
@@ -52,11 +60,7 @@
         </div>
       </template>
       <div class="html-preview-container">
-        <iframe 
-          ref="htmlPreviewFrame" 
-          class="html-preview-frame"
-          sandbox="allow-scripts allow-same-origin"
-        ></iframe>
+        <iframe ref="htmlPreviewFrame" class="html-preview-frame" sandbox="allow-scripts allow-same-origin"></iframe>
       </div>
     </n-modal>
   </div>
@@ -69,13 +73,17 @@ import { editTemplateFile } from '@/api/templateFiles'
 import { Save, Eye, Document } from '@vicons/ionicons5'
 
 // CodeMirror 核心模块 - 按照官方示例导入
-import { EditorView, keymap, highlightSpecialChars, drawSelection, 
-         highlightActiveLine, dropCursor, rectangularSelection, 
-         crosshairCursor, lineNumbers, highlightActiveLineGutter } from '@codemirror/view'
+import {
+  EditorView, keymap, highlightSpecialChars, drawSelection,
+  highlightActiveLine, dropCursor, rectangularSelection,
+  crosshairCursor, lineNumbers, highlightActiveLineGutter
+} from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
 import { defaultKeymap, indentWithTab, history, historyKeymap } from '@codemirror/commands'
-import { defaultHighlightStyle, syntaxHighlighting, indentOnInput, 
-         bracketMatching, foldGutter, foldKeymap } from '@codemirror/language'
+import {
+  defaultHighlightStyle, syntaxHighlighting, indentOnInput,
+  bracketMatching, foldGutter, foldKeymap
+} from '@codemirror/language'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 
@@ -144,10 +152,10 @@ const modalStyle = computed(() => {
 const languageMap = {
   'js': javascript(),
   'javascript': javascript(),
-  'ts': javascript({typescript: true}),
-  'typescript': javascript({typescript: true}),
-  'jsx': javascript({jsx: true}),
-  'tsx': javascript({typescript: true, jsx: true}),
+  'ts': javascript({ typescript: true }),
+  'typescript': javascript({ typescript: true }),
+  'jsx': javascript({ jsx: true }),
+  'tsx': javascript({ typescript: true, jsx: true }),
   'vue': vue(),
   'html': html(),
   'htm': html(),
@@ -188,7 +196,7 @@ async function saveCurrentFile() {
     })
     return
   }
-  
+
   try {
     const content = editorView ? editorView.state.doc.toString() : props.currentFileContent
     await editTemplateFile({
@@ -212,10 +220,10 @@ async function saveCurrentFile() {
 // 插入变量到编辑器
 function insertVariable(template) {
   if (!editorView) return
-  
+
   const { state, dispatch } = editorView
   const { selection } = state
-  
+
   // 在光标位置插入变量模板
   const transaction = state.update({
     changes: {
@@ -223,9 +231,9 @@ function insertVariable(template) {
       insert: template
     }
   })
-  
+
   dispatch(transaction)
-  
+
   // 触发内容变化事件
   const content = editorView.state.doc.toString()
   emit('contentChange', { content })
@@ -241,7 +249,7 @@ function triggerPreview() {
     })
     return
   }
-  
+
   emit('preview', { fileId: props.currentFileId, fileName: props.currentFileName })
 }
 
@@ -253,7 +261,7 @@ defineExpose({
 function runHtmlFile() {
   const content = editorView ? editorView.state.doc.toString() : props.currentFileContent
   if (!content) return
-  
+
   // 直接预览，不做校验
   showHtmlPreview(content)
 }
@@ -262,12 +270,12 @@ function showHtmlPreview(content) {
   // 显示预览弹框
   showHtmlPreviewModal.value = true
   isFullscreen.value = false // 重置全屏状态
-  
+
   // 等待 DOM 更新后设置 iframe 内容
   nextTick(() => {
     if (htmlPreviewFrame.value) {
       const iframe = htmlPreviewFrame.value
-      
+
       // 设置超时保护
       const timeout = setTimeout(() => {
         notification.error({
@@ -277,19 +285,19 @@ function showHtmlPreview(content) {
         })
         showHtmlPreviewModal.value = false
       }, 3000) // 3秒超时
-      
+
       // 尝试渲染内容
       try {
         const doc = iframe.contentDocument || iframe.contentWindow.document
-        
+
         // 写入 HTML 内容
         doc.open()
         doc.write(content)
         doc.close()
-        
+
         // 清除超时
         clearTimeout(timeout)
-        
+
         notification.success({
           title: '预览成功',
           content: 'HTML 内容已在弹框中显示',
@@ -298,14 +306,14 @@ function showHtmlPreview(content) {
       } catch (e) {
         // 清除超时
         clearTimeout(timeout)
-        
+
         // 如果渲染失败，显示纯文本
         try {
           const doc = iframe.contentDocument || iframe.contentWindow.document
           doc.open()
           doc.write(`<html><body><pre style="white-space: pre-wrap; font-family: monospace; padding: 20px;">${content}</pre></body></html>`)
           doc.close()
-          
+
           notification.warning({
             title: '渲染失败',
             content: 'HTML 渲染失败，已显示为纯文本',
@@ -337,21 +345,21 @@ function updateEditorContent(content, filename = '') {
 
   try {
     const languageExt = getLanguageExtension(filename)
-    
+
     const newState = EditorState.create({
       doc: content || '',
       extensions: createEditorExtensionsWithListener(languageExt)
     })
 
     editorView.setState(newState)
-    
+
     // 确保滚动正常工作
     setTimeout(() => {
       if (editorView && editorView.scrollDOM) {
         editorView.requestMeasure()
       }
     }, 100)
-    
+
     console.log('编辑器内容更新成功:', { filename, contentLength: content?.length })
   } catch (error) {
     console.error('更新编辑器内容失败:', error)
@@ -397,7 +405,7 @@ function createEditorExtensions(languageExtension = null) {
     // 强制启用滚动
     EditorView.theme({
       "&": { height: "100%" },
-      ".cm-scroller": { 
+      ".cm-scroller": {
         overflow: "auto !important",
         fontFamily: "monospace"
       }
@@ -468,7 +476,7 @@ function createEditorExtensionsWithListener(languageExtension = null) {
 
 function showContextMenu(event, view) {
   const { clientX, clientY } = event
-  
+
   // 创建右键菜单
   const menu = document.createElement('div')
   menu.className = 'context-menu'
@@ -484,7 +492,7 @@ function showContextMenu(event, view) {
     min-width: 160px;
     padding: 4px 0;
   `
-  
+
   const menuItems = [
     { label: '保存 (Ctrl+S)', action: () => saveCurrentFile() },
     { type: 'separator' },
@@ -497,13 +505,13 @@ function showContextMenu(event, view) {
     { type: 'separator' },
     { label: '全选 (Ctrl+A)', action: () => view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } }) }
   ]
-  
+
   // 添加预览选项
   menuItems.push(
     { type: 'separator' },
     { label: '预览 (Ctrl+R)', action: () => triggerPreview() }
   )
-  
+
   menuItems.forEach(item => {
     if (item.type === 'separator') {
       const separator = document.createElement('div')
@@ -524,15 +532,15 @@ function showContextMenu(event, view) {
         font-size: 14px;
         user-select: none;
       `
-      
+
       menuItem.addEventListener('mouseenter', () => {
         menuItem.style.background = '#3c3c3c'
       })
-      
+
       menuItem.addEventListener('mouseleave', () => {
         menuItem.style.background = 'transparent'
       })
-      
+
       menuItem.addEventListener('click', () => {
         try {
           item.action()
@@ -547,14 +555,14 @@ function showContextMenu(event, view) {
         document.removeEventListener('click', closeMenu)
         document.removeEventListener('contextmenu', closeMenu)
       })
-      
+
       menu.appendChild(menuItem)
     }
   })
-  
+
   // 添加菜单到页面
   document.body.appendChild(menu)
-  
+
   // 点击其他地方关闭菜单
   const closeMenu = (e) => {
     if (!menu.contains(e.target)) {
@@ -565,7 +573,7 @@ function showContextMenu(event, view) {
       document.removeEventListener('contextmenu', closeMenu)
     }
   }
-  
+
   // 延迟添加事件监听，避免立即触发
   setTimeout(() => {
     document.addEventListener('click', closeMenu)
@@ -575,13 +583,13 @@ function showContextMenu(event, view) {
 
 // 监听文件内容变化
 watch(() => props.currentFileContent, (newContent, oldContent) => {
-  console.log('文件内容变化:', { 
-    hasEditor: !!editorView, 
+  console.log('文件内容变化:', {
+    hasEditor: !!editorView,
     hasContainer: !!editorContainer.value,
-    newContentLength: newContent?.length, 
-    oldContentLength: oldContent?.length 
+    newContentLength: newContent?.length,
+    oldContentLength: oldContent?.length
   })
-  
+
   if (editorView && newContent !== undefined && newContent !== editorView.state.doc.toString()) {
     // 使用 nextTick 确保 DOM 更新完成后再更新编辑器内容
     nextTick(() => {
@@ -612,7 +620,7 @@ watch(() => props.currentFileContent, (newContent, oldContent) => {
 // 监听文件名变化，创建或更新编辑器
 watch(() => props.currentFileName, (newFileName, oldFileName) => {
   console.log('文件名变化:', { oldFileName, newFileName, hasEditor: !!editorView, hasContainer: !!editorContainer.value })
-  
+
   if (newFileName) {
     // 有文件名时，创建或更新编辑器
     if (editorView) {
@@ -665,24 +673,24 @@ watch(() => props.currentFileName, (newFileName, oldFileName) => {
 }, { immediate: false })
 
 onMounted(() => {
-  console.log('TemplateEditor mounted:', { 
-    hasContainer: !!editorContainer.value, 
+  console.log('TemplateEditor mounted:', {
+    hasContainer: !!editorContainer.value,
     fileName: props.currentFileName,
-    hasContent: !!props.currentFileContent 
+    hasContent: !!props.currentFileContent
   })
-  
+
   // 使用 nextTick 确保 DOM 元素准备好
   nextTick(() => {
-    console.log('TemplateEditor nextTick:', { 
-      hasContainer: !!editorContainer.value, 
+    console.log('TemplateEditor nextTick:', {
+      hasContainer: !!editorContainer.value,
       fileName: props.currentFileName,
-      hasContent: !!props.currentFileContent 
+      hasContent: !!props.currentFileContent
     })
-    
+
     // 只有在有文件名和容器时才创建编辑器
     if (editorContainer.value && props.currentFileName) {
       const languageExt = getLanguageExtension(props.currentFileName)
-      
+
       const state = EditorState.create({
         doc: props.currentFileContent || '',
         extensions: createEditorExtensionsWithListener(languageExt)
@@ -692,12 +700,12 @@ onMounted(() => {
         state,
         parent: editorContainer.value
       })
-      
+
       console.log('编辑器初始化成功:', { fileName: props.currentFileName })
     } else {
-      console.log('编辑器初始化跳过:', { 
-        hasContainer: !!editorContainer.value, 
-        fileName: props.currentFileName 
+      console.log('编辑器初始化跳过:', {
+        hasContainer: !!editorContainer.value,
+        fileName: props.currentFileName
       })
     }
   })
@@ -752,7 +760,7 @@ onBeforeUnmount(() => {
   overflow: auto;
   background: #1e1e1e;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
   min-height: 400px;
 }
 
@@ -810,4 +818,4 @@ onBeforeUnmount(() => {
 .context-menu-item:hover {
   background: #3c3c3c !important;
 }
-</style> 
+</style>
