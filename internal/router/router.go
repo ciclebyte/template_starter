@@ -3,8 +3,8 @@ package router
 import (
 	"context"
 
-	controller "github.com/ciclebyte/template_starter/internal/controller"
-	service "github.com/ciclebyte/template_starter/internal/service"
+	"github.com/ciclebyte/template_starter/internal/controller"
+	"github.com/ciclebyte/template_starter/internal/service"
 	"github.com/ciclebyte/template_starter/library/libRouter"
 	"github.com/gogf/gf/v2/net/ghttp"
 )
@@ -21,6 +21,7 @@ func (router *Router) BindController(ctx context.Context, group *ghttp.RouterGro
 			controller.TemplateVariables,
 			controller.TemplateLanguages,
 			controller.TemplateFiles,
+			controller.BuiltinFunctions,
 			controller.Index,
 		)
 

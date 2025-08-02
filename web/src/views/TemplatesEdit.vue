@@ -43,64 +43,76 @@
         
         <!-- 内置函数 Tab -->
         <div v-show="activeVariableTab === 'functions'" class="tab-content">
-          <div class="function-categories">
-            <div class="category-row">
-              <span class="category-label">时间函数</span>
+          <div v-if="loadingFunctions" class="loading-state">
+            <n-spin size="small" />
+            <span style="margin-left: 8px;">加载函数中...</span>
+          </div>
+          <div v-else class="function-categories">
+            <div 
+              v-for="category in builtinFunctionCategories" 
+              :key="category.name"
+              class="category-row"
+            >
+              <span class="category-label">{{ category.name }}</span>
               <div class="category-tags">
                 <div 
-                  v-for="func in timeFunctions" 
+                  v-for="func in category.functions" 
                   :key="func.name"
                   class="variable-tag function"
-                  @click="insertFunction(func)"
-                  :title="`${func.label} - ${func.description}`"
+                  @click="insertFunction(formatFunction(func))"
+                  @mouseenter="showFunctionDetail(func, $event)"
+                  @mouseleave="hideFunctionDetail"
                 >
-                  {{ func.label }}
+                  {{ func.display_name || func.name }}
                 </div>
               </div>
             </div>
             
-            <div class="category-row">
-              <span class="category-label">字符串处理</span>
-              <div class="category-tags">
-                <div 
-                  v-for="func in stringFunctions" 
-                  :key="func.name"
-                  class="variable-tag function"
-                  @click="insertFunction(func)"
-                  :title="`${func.label} - ${func.description}`"
-                >
-                  {{ func.label }}
-                </div>
+            <!-- 如果没有数据显示提示 -->
+            <div v-if="builtinFunctionCategories.length === 0" class="empty-state">
+              <span>暂无可用的内置函数</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 自定义函数详情面板 -->
+        <div 
+          v-if="functionDetailVisible && selectedFunction"
+          class="function-detail-panel"
+          :style="functionDetailStyle"
+          @mouseenter="clearHideTimer"
+          @mouseleave="hideFunctionDetail"
+        >
+          <div class="detail-header">
+            <div class="detail-title">
+              <span class="function-icon">⚡</span>
+              {{ selectedFunction.display_name || selectedFunction.name }}
+            </div>
+            <div class="detail-type">{{ selectedFunction.return_type || 'string' }}</div>
+          </div>
+          
+          <div class="detail-body">
+            <div class="detail-description">
+              {{ selectedFunction.description }}
+            </div>
+            
+            <div class="detail-section">
+              <div class="section-label">
+                <span class="section-icon">💡</span>
+                使用示例
+              </div>
+              <div class="section-content code-content">
+                {{ selectedFunction.example }}
               </div>
             </div>
             
-            <div class="category-row">
-              <span class="category-label">随机值</span>
-              <div class="category-tags">
-                <div 
-                  v-for="func in randomFunctions" 
-                  :key="func.name"
-                  class="variable-tag function"
-                  @click="insertFunction(func)"
-                  :title="`${func.label} - ${func.description}`"
-                >
-                  {{ func.label }}
-                </div>
+            <div class="detail-section">
+              <div class="section-label">
+                <span class="section-icon">✨</span>
+                点击插入
               </div>
-            </div>
-            
-            <div class="category-row">
-              <span class="category-label">条件函数</span>
-              <div class="category-tags">
-                <div 
-                  v-for="func in conditionalFunctions" 
-                  :key="func.name"
-                  class="variable-tag function"
-                  @click="insertFunction(func)"
-                  :title="`${func.label} - ${func.description}`"
-                >
-                  {{ func.label }}
-                </div>
+              <div class="section-content code-content insert-preview">
+                {{ selectedFunction.insert_text }}
               </div>
             </div>
           </div>
@@ -237,12 +249,13 @@ import { useRouter, useRoute } from 'vue-router'
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileDetail, getTemplateFileContent, renameTemplateFile, uploadZipFile, uploadCodeFile, moveTemplateFile } from '@/api/templateFiles'
 import { listTemplateVariables, addTemplateVariable, editTemplateVariable, deleteTemplateVariable } from '@/api/templateVariables'
+import { getBuiltinFunctions } from '@/api/builtinFunctions'
 import TemplateExplorer from '@/components/TemplateFileTree.vue'
 import TemplateEditor from '@/components/TemplateEditor.vue'
 import VariableManager from '@/components/VariableManager.vue'
 import TemplatePreview from '@/components/TemplatePreview.vue'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
-import { useMessage, NIcon, NTag, NButton } from 'naive-ui'
+import { useMessage, NIcon, NTag, NButton, NSpin } from 'naive-ui'
 import { ChevronDown, ChevronUp, Add, Settings, Pricetag } from '@vicons/ionicons5'
 
 const router = useRouter()
@@ -293,42 +306,16 @@ const quickFunctions = [
   { name: 'default', label: '默认值', code: '{{default "默认值" .变量名}}', description: '如果变量为空则使用默认值' }
 ]
 
-// 完整的函数分类
-const timeFunctions = [
-  { name: 'now', label: '当前时间', code: '{{now}}', description: '返回当前时间' },
-  { name: 'date', label: '格式化日期', code: '{{date "2006-01-02"}}', description: '按指定格式返回当前日期' },
-  { name: 'datetime', label: '格式化时间', code: '{{date "2006-01-02 15:04:05"}}', description: '按指定格式返回当前时间' },
-  { name: 'timestamp', label: '时间戳', code: '{{now | unixEpoch}}', description: '返回Unix时间戳' },
-  { name: 'year', label: '当前年份', code: '{{date "2006"}}', description: '返回当前年份' },
-  { name: 'month', label: '当前月份', code: '{{date "01"}}', description: '返回当前月份' },
-  { name: 'day', label: '当前日期', code: '{{date "02"}}', description: '返回当前日期' }
-]
+// 动态函数分类数据
+const builtinFunctionCategories = ref([])
+const loadingFunctions = ref(false)
 
-const stringFunctions = [
-  { name: 'lower', label: '转小写', code: '{{lower .变量名}}', description: '将变量转换为小写' },
-  { name: 'upper', label: '转大写', code: '{{upper .变量名}}', description: '将变量转换为大写' },
-  { name: 'title', label: '首字母大写', code: '{{title .变量名}}', description: '将变量首字母大写' },
-  { name: 'camelcase', label: '驼峰命名', code: '{{camelcase .变量名}}', description: '转换为驼峰命名格式' },
-  { name: 'snakecase', label: '下划线命名', code: '{{snakecase .变量名}}', description: '转换为下划线命名格式' },
-  { name: 'kebabcase', label: '短横线命名', code: '{{kebabcase .变量名}}', description: '转换为短横线命名格式' },
-  { name: 'trim', label: '去除空格', code: '{{trim .变量名}}', description: '去除变量首尾空格' },
-  { name: 'trunc', label: '截断字符串', code: '{{trunc 10 .变量名}}', description: '截断字符串到指定长度' }
-]
+// 函数详情面板
+const functionDetailVisible = ref(false)
+const selectedFunction = ref(null)
+const functionDetailStyle = ref({})
+let hideTimer = null
 
-const randomFunctions = [
-  { name: 'randInt', label: '随机整数', code: '{{randInt 1 100}}', description: '生成1-100之间的随机整数' },
-  { name: 'randAlpha', label: '随机字母', code: '{{randAlpha 10}}', description: '生成10位随机字母' },
-  { name: 'randAlphaNum', label: '随机字母数字', code: '{{randAlphaNum 8}}', description: '生成8位随机字母数字' },
-  { name: 'randNumeric', label: '随机数字', code: '{{randNumeric 6}}', description: '生成6位随机数字' },
-  { name: 'uuid', label: 'UUID', code: '{{uuid}}', description: '生成UUID' }
-]
-
-const conditionalFunctions = [
-  { name: 'default', label: '默认值', code: '{{default "默认值" .变量名}}', description: '如果变量为空则使用默认值' },
-  { name: 'if', label: '条件判断', code: '{{if .条件}}值1{{else}}值2{{end}}', description: '条件判断语句' },
-  { name: 'eq', label: '相等判断', code: '{{eq .变量1 .变量2}}', description: '判断两个变量是否相等' },
-  { name: 'ne', label: '不等判断', code: '{{ne .变量1 .变量2}}', description: '判断两个变量是否不相等' }
-]
 
 // 变量面板状态
 const isVariablePanelOpen = ref(false)
@@ -355,6 +342,7 @@ const conditionalVariables = computed(() => {
 onMounted(async () => {
   await loadTree()
   await loadVariables()
+  await loadBuiltinFunctions()
   loadTestData()
 })
 
@@ -386,6 +374,23 @@ async function loadVariables() {
   } catch (e) {
     templateVariables.value = []
     console.error('加载变量失败:', e)
+  }
+}
+
+// 加载内置函数
+async function loadBuiltinFunctions() {
+  loadingFunctions.value = true
+  try {
+    const res = await getBuiltinFunctions()
+    if (res.data && res.data.data) {
+      builtinFunctionCategories.value = res.data.data.categories || []
+    }
+  } catch (error) {
+    console.error('加载内置函数失败:', error)
+    message.error('加载内置函数失败')
+    builtinFunctionCategories.value = []
+  } finally {
+    loadingFunctions.value = false
   }
 }
 
@@ -744,6 +749,62 @@ function insertVariable(variableName) {
   }
 }
 
+// 显示函数详情
+function showFunctionDetail(func, event) {
+  clearHideTimer()
+  
+  selectedFunction.value = func
+  
+  // 计算面板位置 - 显示在鼠标右下角
+  const panelWidth = 300  // 减小面板宽度
+  const panelHeight = 200 // 减小面板高度
+  const offset = 8
+  
+  let left = event.clientX + offset
+  let top = event.clientY + offset
+  
+  // 边界检查 - 确保面板不超出屏幕
+  if (left + panelWidth > window.innerWidth - 10) {
+    left = event.clientX - panelWidth - offset // 显示在鼠标左下角
+  }
+  if (top + panelHeight > window.innerHeight - 10) {
+    top = event.clientY - panelHeight - offset // 显示在鼠标右上角
+  }
+  
+  functionDetailStyle.value = {
+    left: `${left}px`,
+    top: `${top}px`
+  }
+  
+  functionDetailVisible.value = true
+}
+
+// 清除隐藏计时器
+function clearHideTimer() {
+  if (hideTimer) {
+    clearTimeout(hideTimer)
+    hideTimer = null
+  }
+}
+
+// 隐藏函数详情
+function hideFunctionDetail() {
+  hideTimer = setTimeout(() => {
+    functionDetailVisible.value = false
+    selectedFunction.value = null
+  }, 150)
+}
+
+// 格式化函数为适合插入的格式
+function formatFunction(func) {
+  return {
+    name: func.name,
+    label: func.display_name || func.name,
+    code: func.insert_text || `{{ ${func.name} }}`,
+    description: func.description
+  }
+}
+
 // 插入函数
 function insertFunction(func) {
   let code = func.code
@@ -1079,6 +1140,152 @@ function onApplyTestData(testData) {
   text-align: center;
   padding: 20px;
   color: #999;
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  color: #666;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 20px;
+  color: #999;
+  font-style: italic;
+}
+
+/* 自定义函数详情面板 */
+.function-detail-panel {
+  position: fixed;
+  z-index: 10000;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow: visible;
+  animation: panelFadeIn 0.2s ease-out;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  pointer-events: auto;
+  max-width: 300px;
+  width: 300px;
+}
+
+.function-detail-panel::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 12px;
+  width: 12px;
+  height: 12px;
+  background: #667eea;
+  transform: rotate(45deg);
+  border-radius: 2px 0 0 0;
+}
+
+@keyframes panelFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.detail-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.detail-title {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.function-icon {
+  font-size: 16px;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.3));
+}
+
+.detail-type {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  padding: 3px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detail-body {
+  padding: 16px;
+}
+
+.detail-description {
+  font-size: 13px;
+  color: #4a5568;
+  line-height: 1.5;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+  border-radius: 6px;
+  border-left: 3px solid #667eea;
+}
+
+.detail-section {
+  margin-bottom: 12px;
+}
+
+.detail-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.section-icon {
+  font-size: 14px;
+}
+
+.section-content {
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.code-content {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #4a5568;
+}
+
+.insert-preview {
+  background: linear-gradient(135deg, #f0fff4 0%, #e6fffa 100%);
+  border: 1px solid #9ae6b4;
+  color: #2f855a;
+  font-weight: 500;
 }
 
 .empty-text {

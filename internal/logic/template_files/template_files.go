@@ -801,6 +801,12 @@ func (s sTemplateFiles) getTemplateFuncs() template.FuncMap {
 		return strings.Join(lines, "\n")
 	}
 
+	// 合并内置函数
+	builtinFuncs := service.BuiltinFunctions().GetTemplateFuncMap()
+	for name, fn := range builtinFuncs {
+		funcs[name] = fn
+	}
+
 	return funcs
 }
 

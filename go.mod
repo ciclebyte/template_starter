@@ -5,8 +5,10 @@ go 1.23.0
 toolchain go1.23.2
 
 require (
+	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/gogf/gf/contrib/drivers/mysql/v2 v2.9.0
 	github.com/gogf/gf/v2 v2.9.0
+	github.com/google/uuid v1.6.0
 	github.com/minio/minio-go/v7 v7.0.94
 )
 
@@ -15,7 +17,6 @@ require (
 	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.3.0 // indirect
-	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
@@ -26,7 +27,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-sql-driver/mysql v1.7.1 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/grokify/html-strip-tags-go v0.1.0 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
