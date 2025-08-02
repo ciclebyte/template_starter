@@ -27,7 +27,7 @@
     </div>
     
     <!-- 变量插入面板 -->
-    <div v-show="isVariablePanelOpen" class="variable-panel">
+    <div v-show="isVariablePanelOpen" class="variable-panel" :style="{ height: variablePanelHeight + 'px' }">
       <div class="variable-tabs">
         <div class="tab-header">
           <div 
@@ -221,6 +221,19 @@
           </div>
         </div>
       </div>
+      
+      <!-- 变量面板拖拽调整手柄 -->
+      <div 
+        class="variable-panel-resize-handle"
+        @mousedown="startVariablePanelResize"
+        :class="{ 'resizing': isVariablePanelResizing }"
+      >
+        <div class="resize-handle-dots">
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+        </div>
+      </div>
     </div>
     
     <div class="edit-main">
@@ -370,6 +383,17 @@ let hideTimer = null
 // 变量面板状态
 const isVariablePanelOpen = ref(false)
 const activeVariableTab = ref('functions')
+const variablePanelHeight = ref(300) // 默认高度300px
+const isResizing = ref(false)
+const startY = ref(0)
+const startHeight = ref(0)
+
+// 变量面板拖拽调整状态
+const isVariablePanelResizing = ref(false)
+const variablePanelStartY = ref(0)
+const variablePanelStartHeight = ref(0)
+const minVariablePanelHeight = 150 // 最小高度
+const maxVariablePanelHeight = 600 // 最大高度
 
 // 变量标签页配置
 const variableTabs = [
@@ -388,6 +412,50 @@ const conditionalVariables = computed(() => {
   return templateVariables.value.filter(v => v.variableType === 'conditional')
 })
 
+// 变量面板拖拽调整功能
+const startVariablePanelResize = (event) => {
+  isVariablePanelResizing.value = true
+  variablePanelStartY.value = event.clientY
+  variablePanelStartHeight.value = variablePanelHeight.value
+  
+  // 添加全局鼠标事件监听
+  document.addEventListener('mousemove', onVariablePanelResize)
+  document.addEventListener('mouseup', stopVariablePanelResize)
+  
+  // 防止选中文本
+  event.preventDefault()
+  document.body.style.userSelect = 'none'
+}
+
+const onVariablePanelResize = (event) => {
+  if (!isVariablePanelResizing.value) return
+  
+  const deltaY = event.clientY - variablePanelStartY.value
+  const newHeight = variablePanelStartHeight.value + deltaY
+  
+  // 限制高度范围
+  if (newHeight >= minVariablePanelHeight && newHeight <= maxVariablePanelHeight) {
+    variablePanelHeight.value = newHeight
+  }
+  
+  event.preventDefault()
+}
+
+const stopVariablePanelResize = () => {
+  isVariablePanelResizing.value = false
+  
+  // 移除全局鼠标事件监听
+  document.removeEventListener('mousemove', onVariablePanelResize)
+  document.removeEventListener('mouseup', stopVariablePanelResize)
+  
+  // 恢复文本选择
+  document.body.style.userSelect = ''
+}
+
+// 切换变量面板显示状态
+const toggleVariablePanel = () => {
+  isVariablePanelOpen.value = !isVariablePanelOpen.value
+}
 
 
 onMounted(async () => {
@@ -396,6 +464,21 @@ onMounted(async () => {
   await loadBuiltinFunctions()
   await loadSprigFunctions()
   loadTestData()
+})
+
+// 组件卸载时清理事件监听器
+onUnmounted(() => {
+  // 清理变量面板拖拽事件监听器
+  document.removeEventListener('mousemove', onVariablePanelResize)
+  document.removeEventListener('mouseup', stopVariablePanelResize)
+  
+  // 恢复文本选择
+  document.body.style.userSelect = ''
+  
+  // 清理函数详情面板的定时器
+  if (hideTimer) {
+    clearTimeout(hideTimer)
+  }
 })
 
 
@@ -933,11 +1016,6 @@ function showSprigFunctionDetail(func, event) {
   functionDetailVisible.value = true
 }
 
-// 切换变量面板
-function toggleVariablePanel() {
-  isVariablePanelOpen.value = !isVariablePanelOpen.value
-}
-
 
 
 // 新增变量（直接打开编辑对话框）
@@ -1034,10 +1112,56 @@ function onApplyTestData(testData) {
   border-bottom: 1px solid #e0e0e0;
   box-shadow: 0 2px 8px rgba(0,0,0,0.03);
   overflow: hidden;
+  position: relative;
+}
+
+/* 变量面板拖拽调整样式 */
+.variable-panel-resize-handle {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background: transparent;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.variable-panel-resize-handle:hover {
+  background: rgba(24, 160, 88, 0.1);
+}
+
+.variable-panel-resize-handle.resizing {
+  background: rgba(24, 160, 88, 0.2);
+}
+
+.resize-handle-dots {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.resize-handle-dots .dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #ccc;
+  transition: background-color 0.2s;
+}
+
+.variable-panel-resize-handle:hover .dot {
+  background: #18a058;
+}
+
+.variable-panel-resize-handle.resizing .dot {
+  background: #18a058;
 }
 
 .variable-tabs {
-  height: 100%;
+  height: calc(100% - 8px); /* 为拖拽手柄留出空间 */
   display: flex;
   flex-direction: column;
 }
@@ -1074,7 +1198,7 @@ function onApplyTestData(testData) {
   flex: 1;
   padding: 16px;
   overflow-y: auto;
-  max-height: 400px;
+  /* 移除固定最大高度，让内容根据面板高度动态调整 */
 }
 
 .function-categories {
@@ -1090,12 +1214,14 @@ function onApplyTestData(testData) {
 }
 
 .category-label {
-  min-width: 80px;
+  width: 140px;
+  min-width: 140px;
   font-size: 12px;
   color: #666;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  flex-shrink: 0;
 }
 
 .category-tags {
