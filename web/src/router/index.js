@@ -39,6 +39,7 @@ const routes = [
     name: 'TemplatesEdit',
     component: TemplatesEdit
   },
+
   // 后台管理路由
   {
     path: '/admin',
@@ -53,16 +54,6 @@ const routes = [
         path: 'templates',
         name: 'admin-templates-list',
         component: () => import('@/views/admin/TemplatesList.vue')
-      },
-      {
-        path: 'templates/create',
-        name: 'admin-templates-create',
-        component: () => import('@/views/Templates.vue') // 临时使用现有组件
-      },
-      {
-        path: 'templates/edit/:id',
-        name: 'admin-templates-edit',
-        component: () => import('@/views/Templates.vue') // 临时使用现有组件
       },
       {
         path: 'categories',
