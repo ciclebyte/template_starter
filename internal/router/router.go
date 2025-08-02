@@ -22,6 +22,7 @@ func (router *Router) BindController(ctx context.Context, group *ghttp.RouterGro
 			controller.TemplateLanguages,
 			controller.TemplateFiles,
 			controller.BuiltinFunctions,
+			controller.SprigFunctions,
 			controller.Index,
 		)
 

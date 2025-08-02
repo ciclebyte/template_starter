@@ -75,6 +75,40 @@
           </div>
         </div>
 
+        <!-- Sprig函数 Tab -->
+        <div v-show="activeVariableTab === 'sprig'" class="tab-content">
+          <div v-if="loadingSprigFunctions" class="loading-state">
+            <n-spin size="small" />
+            <span style="margin-left: 8px;">加载Sprig函数中...</span>
+          </div>
+          <div v-else class="function-categories">
+            <div 
+              v-for="category in sprigFunctionCategories" 
+              :key="category.name"
+              class="category-row"
+            >
+              <span class="category-label">{{ category.name }}</span>
+              <div class="category-tags">
+                <div 
+                  v-for="func in category.functions" 
+                  :key="func.name"
+                  class="variable-tag function sprig"
+                  @click="insertSprigFunction(func)"
+                  @mouseenter="showSprigFunctionDetail(func, $event)"
+                  @mouseleave="hideFunctionDetail"
+                >
+                  {{ func.display_name || func.name }}
+                </div>
+              </div>
+            </div>
+            
+            <!-- 如果没有数据显示提示 -->
+            <div v-if="sprigFunctionCategories.length === 0" class="empty-state">
+              <span>暂无可用的Sprig函数</span>
+            </div>
+          </div>
+        </div>
+
         <!-- 自定义函数详情面板 -->
         <div 
           v-if="functionDetailVisible && selectedFunction"
@@ -94,6 +128,17 @@
           <div class="detail-body">
             <div class="detail-description">
               {{ selectedFunction.description }}
+            </div>
+            
+            <!-- 如果有usage字段，显示使用说明 -->
+            <div v-if="selectedFunction.usage" class="detail-section">
+              <div class="section-label">
+                <span class="section-icon">📖</span>
+                使用说明
+              </div>
+              <div class="section-content">
+                {{ selectedFunction.usage }}
+              </div>
             </div>
             
             <div class="detail-section">
@@ -250,6 +295,7 @@ import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileDetail, getTemplateFileContent, renameTemplateFile, uploadZipFile, uploadCodeFile, moveTemplateFile } from '@/api/templateFiles'
 import { listTemplateVariables, addTemplateVariable, editTemplateVariable, deleteTemplateVariable } from '@/api/templateVariables'
 import { getBuiltinFunctions } from '@/api/builtinFunctions'
+import { getSprigFunctions } from '@/api/sprigFunctions'
 import TemplateExplorer from '@/components/TemplateFileTree.vue'
 import TemplateEditor from '@/components/TemplateEditor.vue'
 import VariableManager from '@/components/VariableManager.vue'
@@ -310,6 +356,10 @@ const quickFunctions = [
 const builtinFunctionCategories = ref([])
 const loadingFunctions = ref(false)
 
+// Sprig函数分类数据
+const sprigFunctionCategories = ref([])
+const loadingSprigFunctions = ref(false)
+
 // 函数详情面板
 const functionDetailVisible = ref(false)
 const selectedFunction = ref(null)
@@ -324,6 +374,7 @@ const activeVariableTab = ref('functions')
 // 变量标签页配置
 const variableTabs = [
   { key: 'functions', label: '内置函数' },
+  { key: 'sprig', label: 'Sprig函数' },
   { key: 'builtin', label: '内置变量' },
   { key: 'custom', label: '用户变量' }
 ]
@@ -343,6 +394,7 @@ onMounted(async () => {
   await loadTree()
   await loadVariables()
   await loadBuiltinFunctions()
+  await loadSprigFunctions()
   loadTestData()
 })
 
@@ -391,6 +443,23 @@ async function loadBuiltinFunctions() {
     builtinFunctionCategories.value = []
   } finally {
     loadingFunctions.value = false
+  }
+}
+
+// 加载Sprig函数
+async function loadSprigFunctions() {
+  loadingSprigFunctions.value = true
+  try {
+    const res = await getSprigFunctions()
+    if (res.data && res.data.data) {
+      sprigFunctionCategories.value = res.data.data.categories || []
+    }
+  } catch (error) {
+    console.error('加载Sprig函数失败:', error)
+    message.error('加载Sprig函数失败')
+    sprigFunctionCategories.value = []
+  } finally {
+    loadingSprigFunctions.value = false
   }
 }
 
@@ -821,6 +890,49 @@ function insertFunction(func) {
   }
 }
 
+// 插入Sprig函数
+function insertSprigFunction(func) {
+  const code = func.insert_text || `{{ ${func.name} }}`
+  
+  if (templateEditorRef.value) {
+    templateEditorRef.value.insertVariable(code)
+  }
+}
+
+// 显示Sprig函数详情
+function showSprigFunctionDetail(func, event) {
+  clearHideTimer()
+  selectedFunction.value = func
+  
+  // 计算面板位置 - 显示在鼠标右下角
+  const panelWidth = 300
+  const panelHeight = 250
+  const offset = 8
+  
+  let left = event.clientX + offset
+  let top = event.clientY + offset
+  
+  // 边界检测
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+  
+  if (left + panelWidth > viewportWidth) {
+    left = event.clientX - panelWidth - offset
+  }
+  
+  if (top + panelHeight > viewportHeight) {
+    top = event.clientY - panelHeight - offset
+  }
+  
+  functionDetailStyle.value = {
+    left: `${left}px`,
+    top: `${top}px`,
+    zIndex: 9999
+  }
+  
+  functionDetailVisible.value = true
+}
+
 // 切换变量面板
 function toggleVariablePanel() {
   isVariablePanelOpen.value = !isVariablePanelOpen.value
@@ -1134,6 +1246,17 @@ function onApplyTestData(testData) {
   background: #531dab;
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(114, 46, 209, 0.3);
+}
+
+.variable-tag.function.sprig {
+  background: #38b2ac;
+  color: #fff;
+}
+
+.variable-tag.function.sprig:hover {
+  background: #319795;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(56, 178, 172, 0.3);
 }
 
 .empty-variables {
