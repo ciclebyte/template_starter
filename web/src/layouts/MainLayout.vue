@@ -2,14 +2,11 @@
   <NavBar />
   <div class="main-content">
     <Container>
-      <transition
-        mode="out-in"
-        @before-enter="beforeEnter"
-        @enter="enter"
-        @leave="leave"
-      >
-        <router-view />
-      </transition>
+      <router-view v-slot="{ Component }">
+        <transition mode="out-in" @before-enter="beforeEnter" @enter="enter" @leave="leave">
+          <component :is="Component" />
+        </transition>
+      </router-view>
     </Container>
   </div>
   <FooterBar />
@@ -56,4 +53,4 @@ html {
   padding-top: 64px;
   padding-bottom: 20px;
 }
-</style> 
+</style>

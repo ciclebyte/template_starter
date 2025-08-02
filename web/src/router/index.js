@@ -71,18 +71,8 @@ const routes = [
       },
       {
         path: 'languages',
-        name: 'admin-languages-list',
-        component: () => import('@/views/Templates.vue') // 临时使用现有组件
-      },
-      {
-        path: 'languages/create',
-        name: 'admin-languages-create',
-        component: () => import('@/views/Templates.vue') // 临时使用现有组件
-      },
-      {
-        path: 'languages/edit/:id',
-        name: 'admin-languages-edit',
-        component: () => import('@/views/Templates.vue') // 临时使用现有组件
+        name: 'admin-languages',
+        component: () => import('@/views/admin/LanguagesManage.vue')
       },
       {
         path: 'files',
