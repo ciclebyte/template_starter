@@ -147,7 +147,7 @@ func runCreateCommand(cmd *cobra.Command, args []string) error {
 	fmt.Printf("\n开始创建项目...\n")
 
 	// 调用API渲染模板
-	renderedFiles, err := apiClient.RenderTemplate(selectedTemplate.ID, variables)
+	renderedFiles, err := apiClient.RenderTemplate(fmt.Sprintf("%d", selectedTemplate.ID), variables)
 	if err != nil {
 		return fmt.Errorf("渲染模板失败: %w", err)
 	}

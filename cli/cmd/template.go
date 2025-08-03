@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/ciclebyte/template_starter/cli/internal/client"
+	"github.com/ciclebyte/template_starter/cli/internal/config"
 )
 
 // templateCmd represents the template command
@@ -27,12 +29,40 @@ var templateListCmd = &cobra.Command{
 示例:
   template-cli template list
   template-cli template list --category web`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		category, _ := cmd.Flags().GetString("category")
 		
-		fmt.Printf("列出远程模板 (分类: %s)\n", category)
+		// 加载配置
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			return fmt.Errorf("加载配置失败: %w", err)
+		}
 		
-		// TODO: 实现模板列表逻辑
+		// 创建API客户端
+		apiClient := client.NewClient(cfg.Server.URL, cfg.Server.APIKey)
+		
+		// 获取模板列表
+		templates, err := apiClient.ListTemplates(category)
+		if err != nil {
+			return fmt.Errorf("获取模板列表失败: %w", err)
+		}
+		
+		// 显示模板列表
+		if len(templates) == 0 {
+			fmt.Println("没有找到模板")
+			return nil
+		}
+		
+		fmt.Printf("找到 %d 个模板:\n\n", len(templates))
+		for _, tmpl := range templates {
+			fmt.Printf("• %s (ID: %d)\n", tmpl.Name, tmpl.ID)
+			if tmpl.Description != "" {
+				fmt.Printf("  %s\n", tmpl.Description)
+			}
+			fmt.Println()
+		}
+		
+		return nil
 	},
 }
 
@@ -46,16 +76,72 @@ var templateInfoCmd = &cobra.Command{
   template-cli template info go-web
   template-cli template info vue3-admin --variables`,
 	Args: cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		templateName := args[0]
 		showVariables, _ := cmd.Flags().GetBool("variables")
 		showFiles, _ := cmd.Flags().GetBool("files")
 		
-		fmt.Printf("模板信息: %s\n", templateName)
-		fmt.Printf("显示变量: %t\n", showVariables)
-		fmt.Printf("显示文件: %t\n", showFiles)
+		// 加载配置
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			return fmt.Errorf("加载配置失败: %w", err)
+		}
 		
-		// TODO: 实现模板信息显示逻辑
+		// 创建API客户端
+		apiClient := client.NewClient(cfg.Server.URL, cfg.Server.APIKey)
+		
+		// 获取模板信息
+		var template *client.Template
+		if showFiles {
+			template, err = apiClient.GetTemplate(templateName)
+		} else {
+			template, err = apiClient.GetTemplateInfo(templateName)
+		}
+		if err != nil {
+			return fmt.Errorf("获取模板信息失败: %w", err)
+		}
+		
+		// 显示基本信息
+		fmt.Printf("模板名称: %s\n", template.Name)
+		fmt.Printf("模板ID: %d\n", template.ID)
+		fmt.Printf("分类ID: %d\n", template.CategoryId)
+		fmt.Printf("描述: %s\n", template.Description)
+		
+		// 显示变量信息
+		if showVariables && len(template.Variables) > 0 {
+			fmt.Printf("\n变量列表:\n")
+			for _, variable := range template.Variables {
+				fmt.Printf("• %s (%s)", variable.Name, variable.Type)
+				if variable.Required {
+					fmt.Printf(" *必需*")
+				}
+				fmt.Println()
+				if variable.Description != "" {
+					fmt.Printf("  %s\n", variable.Description)
+				}
+				if variable.DefaultValue != nil {
+					fmt.Printf("  默认值: %v\n", variable.DefaultValue)
+				}
+				fmt.Println()
+			}
+		}
+		
+		// 显示文件结构
+		if showFiles && len(template.Files) > 0 {
+			fmt.Printf("\n文件结构:\n")
+			for _, file := range template.Files {
+				if file.IsDirectory {
+					fmt.Printf("📁 %s/\n", file.Path)
+				} else {
+					fmt.Printf("📄 %s\n", file.Path)
+				}
+				if file.Condition != "" {
+					fmt.Printf("   条件: %s\n", file.Condition)
+				}
+			}
+		}
+		
+		return nil
 	},
 }
 
@@ -70,13 +156,50 @@ var templateSearchCmd = &cobra.Command{
   template-cli template search web
   template-cli template search vue --category frontend`,
 	Args: cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		keyword := args[0]
 		category, _ := cmd.Flags().GetString("category")
 		
-		fmt.Printf("搜索模板: %s (分类: %s)\n", keyword, category)
+		// 加载配置
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			return fmt.Errorf("加载配置失败: %w", err)
+		}
 		
-		// TODO: 实现模板搜索逻辑
+		// 创建API客户端
+		apiClient := client.NewClient(cfg.Server.URL, cfg.Server.APIKey)
+		
+		// 搜索模板
+		templates, err := apiClient.SearchTemplates(keyword, category)
+		if err != nil {
+			return fmt.Errorf("搜索模板失败: %w", err)
+		}
+		
+		// 显示搜索结果
+		if len(templates) == 0 {
+			fmt.Printf("没有找到包含 '%s' 的模板", keyword)
+			if category != "" {
+				fmt.Printf(" (分类: %s)", category)
+			}
+			fmt.Println()
+			return nil
+		}
+		
+		fmt.Printf("找到 %d 个包含 '%s' 的模板", len(templates), keyword)
+		if category != "" {
+			fmt.Printf(" (分类: %s)", category)
+		}
+		fmt.Println(":\n")
+		
+		for _, tmpl := range templates {
+			fmt.Printf("• %s (ID: %d)\n", tmpl.Name, tmpl.ID)
+			if tmpl.Description != "" {
+				fmt.Printf("  %s\n", tmpl.Description)
+			}
+			fmt.Println()
+		}
+		
+		return nil
 	},
 }
 

@@ -27,12 +27,12 @@ type TemplateItem struct {
 }
 
 func (i TemplateItem) FilterValue() string { 
-	return i.Template.Name + " " + i.Template.Description + " " + i.Template.Category
+	return i.Template.Name + " " + i.Template.Description
 }
 
 func (i TemplateItem) Title() string       { return i.Template.Name }
 func (i TemplateItem) Description() string { 
-	return fmt.Sprintf("%s • %s", i.Template.Category, i.Template.Description)
+	return i.Template.Description
 }
 
 // TemplateSelectorModel TUI模型
@@ -44,6 +44,8 @@ type TemplateSelectorModel struct {
 	searching   bool
 	client      *client.Client
 	allItems    []list.Item
+	loading     bool
+	error       error
 }
 
 // TemplateSelectedMsg 模板选择消息
@@ -73,6 +75,7 @@ func NewTemplateSelectorModel(apiClient *client.Client) *TemplateSelectorModel {
 		searchInput: searchInput,
 		client:      apiClient,
 		allItems:    []list.Item{},
+		loading:     true,
 	}
 }
 
@@ -108,33 +111,10 @@ func (m *TemplateSelectorModel) Init() tea.Cmd {
 // loadTemplates 加载模板列表
 func (m *TemplateSelectorModel) loadTemplates() tea.Cmd {
 	return func() tea.Msg {
-		// TODO: 实际调用API获取模板列表
-		// 这里先返回模拟数据
-		templates := []client.Template{
-			{
-				ID:          "1",
-				Name:        "go-web",
-				Description: "Go Web应用模板",
-				Category:    "backend",
-			},
-			{
-				ID:          "2", 
-				Name:        "vue3-admin",
-				Description: "Vue3后台管理系统",
-				Category:    "frontend",
-			},
-			{
-				ID:          "3",
-				Name:        "microservice",
-				Description: "微服务架构模板",
-				Category:    "backend",
-			},
-			{
-				ID:          "4",
-				Name:        "react-app",
-				Description: "React应用模板",
-				Category:    "frontend",
-			},
+		// 调用API获取模板列表
+		templates, err := m.client.ListTemplates("")
+		if err != nil {
+			return templatesErrorMsg{err: err}
 		}
 		
 		return templatesLoadedMsg{templates: templates}
@@ -144,6 +124,11 @@ func (m *TemplateSelectorModel) loadTemplates() tea.Cmd {
 // templatesLoadedMsg 模板加载完成消息
 type templatesLoadedMsg struct {
 	templates []client.Template
+}
+
+// templatesErrorMsg 模板加载错误消息
+type templatesErrorMsg struct {
+	err error
 }
 
 // Update 更新
@@ -194,6 +179,7 @@ func (m *TemplateSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case templatesLoadedMsg:
 		// 加载模板列表
+		m.loading = false
 		items := make([]list.Item, len(msg.templates))
 		for i, tmpl := range msg.templates {
 			items[i] = TemplateItem{Template: tmpl}
@@ -201,6 +187,13 @@ func (m *TemplateSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.allItems = items
 		m.list.SetItems(items)
 		return m, nil
+		
+	case templatesErrorMsg:
+		// 处理加载错误
+		m.loading = false
+		m.error = msg.err
+		m.quitting = true
+		return m, tea.Quit
 	}
 
 	// 处理搜索输入
@@ -241,7 +234,14 @@ func (m *TemplateSelectorModel) filterTemplates(query string) {
 // View 视图
 func (m *TemplateSelectorModel) View() string {
 	if m.quitting {
+		if m.error != nil {
+			return quitTextStyle.Render(fmt.Sprintf("加载模板列表失败: %v", m.error))
+		}
 		return quitTextStyle.Render("已取消模板选择。")
+	}
+
+	if m.loading {
+		return "\n正在加载模板列表...\n"
 	}
 
 	var searchView string
@@ -270,6 +270,9 @@ func SelectTemplate(apiClient *client.Client) (*client.Template, error) {
 	}
 
 	if m, ok := finalModel.(*TemplateSelectorModel); ok {
+		if m.error != nil {
+			return nil, fmt.Errorf("加载模板失败: %w", m.error)
+		}
 		return m.GetSelectedTemplate(), nil
 	}
 

@@ -100,7 +100,7 @@ func ResetConfig() error {
 // setDefaults 设置默认配置值
 func setDefaults() {
 	// 服务器默认配置
-	viper.SetDefault("server.url", "http://localhost:8000")
+	viper.SetDefault("server.url", "http://127.0.0.1:8001")
 	viper.SetDefault("server.api_key", "")
 	
 	// 用户默认配置
