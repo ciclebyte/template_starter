@@ -20,14 +20,14 @@
                 </div>
               </div>
               
-              <!-- 文本变量 -->
-              <div class="variable-section">
+              <!-- 字符串变量 -->
+              <div class="variable-section" v-if="stringVariables.length > 0">
                 <div class="section-title">
                   <n-icon><DocumentText /></n-icon>
-                  文本变量 ({{ textVariables.length }})
+                  字符串变量 ({{ stringVariables.length }})
                 </div>
                 <div class="variable-grid">
-                  <div v-for="variable in textVariables" :key="variable.id" class="variable-card">
+                  <div v-for="variable in stringVariables" :key="variable.id" class="variable-card">
                     <div class="variable-header-card">
                       <div class="variable-name">{{ variable.name }}</div>
                       <div class="variable-actions">
@@ -41,8 +41,120 @@
                       <n-tag size="small" :type="variable.isRequired === 1 ? 'error' : 'default'">
                         {{ variable.isRequired === 1 ? '必填' : '可选' }}
                       </n-tag>
+                      <n-tag size="small" type="info">字符串</n-tag>
                       <span class="meta-text" v-if="variable.defaultValue">默认值: {{ variable.defaultValue }}</span>
-                      <span class="meta-text" v-if="variable.validationRegex">验证: {{ variable.validationRegex }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 数字变量 -->
+              <div class="variable-section" v-if="numberVariables.length > 0">
+                <div class="section-title">
+                  <n-icon><LogoAmplify /></n-icon>
+                  数字变量 ({{ numberVariables.length }})
+                </div>
+                <div class="variable-grid">
+                  <div v-for="variable in numberVariables" :key="variable.id" class="variable-card">
+                    <div class="variable-header-card">
+                      <div class="variable-name">{{ variable.name }}</div>
+                      <div class="variable-actions">
+                        <n-button size="tiny" @click="insertVariable(variable)">插入</n-button>
+                        <n-button size="tiny" @click="editVariable(variable)">编辑</n-button>
+                        <n-button size="tiny" type="error" @click="deleteVariable(variable.id)">删除</n-button>
+                      </div>
+                    </div>
+                    <div class="variable-desc">{{ variable.description }}</div>
+                    <div class="variable-meta">
+                      <n-tag size="small" :type="variable.isRequired === 1 ? 'error' : 'default'">
+                        {{ variable.isRequired === 1 ? '必填' : '可选' }}
+                      </n-tag>
+                      <n-tag size="small" type="warning">数字</n-tag>
+                      <span class="meta-text" v-if="variable.defaultValue">默认值: {{ variable.defaultValue }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 布尔变量 -->
+              <div class="variable-section" v-if="booleanVariables.length > 0">
+                <div class="section-title">
+                  <n-icon><CodeSlash /></n-icon>
+                  布尔变量 ({{ booleanVariables.length }})
+                </div>
+                <div class="variable-grid">
+                  <div v-for="variable in booleanVariables" :key="variable.id" class="variable-card">
+                    <div class="variable-header-card">
+                      <div class="variable-name">{{ variable.name }}</div>
+                      <div class="variable-actions">
+                        <n-button size="tiny" @click="insertVariable(variable)">插入</n-button>
+                        <n-button size="tiny" @click="editVariable(variable)">编辑</n-button>
+                        <n-button size="tiny" type="error" @click="deleteVariable(variable.id)">删除</n-button>
+                      </div>
+                    </div>
+                    <div class="variable-desc">{{ variable.description }}</div>
+                    <div class="variable-meta">
+                      <n-tag size="small" :type="variable.isRequired === 1 ? 'error' : 'default'">
+                        {{ variable.isRequired === 1 ? '必填' : '可选' }}
+                      </n-tag>
+                      <n-tag size="small" type="success">布尔</n-tag>
+                      <span class="meta-text" v-if="variable.defaultValue">默认值: {{ variable.defaultValue }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 列表变量 -->
+              <div class="variable-section" v-if="listVariables.length > 0">
+                <div class="section-title">
+                  <n-icon><List /></n-icon>
+                  列表变量 ({{ listVariables.length }})
+                </div>
+                <div class="variable-grid">
+                  <div v-for="variable in listVariables" :key="variable.id" class="variable-card">
+                    <div class="variable-header-card">
+                      <div class="variable-name">{{ variable.name }}</div>
+                      <div class="variable-actions">
+                        <n-button size="tiny" @click="insertVariable(variable)">插入</n-button>
+                        <n-button size="tiny" @click="editVariable(variable)">编辑</n-button>
+                        <n-button size="tiny" type="error" @click="deleteVariable(variable.id)">删除</n-button>
+                      </div>
+                    </div>
+                    <div class="variable-desc">{{ variable.description }}</div>
+                    <div class="variable-meta">
+                      <n-tag size="small" :type="variable.isRequired === 1 ? 'error' : 'default'">
+                        {{ variable.isRequired === 1 ? '必填' : '可选' }}
+                      </n-tag>
+                      <n-tag size="small" type="primary">列表</n-tag>
+                      <span class="meta-text" v-if="variable.defaultValue">默认值: {{ variable.defaultValue }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 对象变量 -->
+              <div class="variable-section" v-if="objectVariables.length > 0">
+                <div class="section-title">
+                  <n-icon><Library /></n-icon>
+                  对象变量 ({{ objectVariables.length }})
+                </div>
+                <div class="variable-grid">
+                  <div v-for="variable in objectVariables" :key="variable.id" class="variable-card">
+                    <div class="variable-header-card">
+                      <div class="variable-name">{{ variable.name }}</div>
+                      <div class="variable-actions">
+                        <n-button size="tiny" @click="insertVariable(variable)">插入</n-button>
+                        <n-button size="tiny" @click="editVariable(variable)">编辑</n-button>
+                        <n-button size="tiny" type="error" @click="deleteVariable(variable.id)">删除</n-button>
+                      </div>
+                    </div>
+                    <div class="variable-desc">{{ variable.description }}</div>
+                    <div class="variable-meta">
+                      <n-tag size="small" :type="variable.isRequired === 1 ? 'error' : 'default'">
+                        {{ variable.isRequired === 1 ? '必填' : '可选' }}
+                      </n-tag>
+                      <n-tag size="small" type="error">对象</n-tag>
+                      <span class="meta-text" v-if="variable.defaultValue">默认值: {{ variable.defaultValue }}</span>
                     </div>
                   </div>
                 </div>
@@ -69,8 +181,8 @@
                       <n-tag size="small" :type="variable.isRequired === 1 ? 'error' : 'default'">
                         {{ variable.isRequired === 1 ? '必填' : '可选' }}
                       </n-tag>
+                      <n-tag size="small" type="warning">条件</n-tag>
                       <span class="meta-text" v-if="variable.defaultValue">默认值: {{ variable.defaultValue }}</span>
-                      <span class="meta-text" v-if="variable.validationRegex">验证: {{ variable.validationRegex }}</span>
                     </div>
                   </div>
                 </div>
@@ -133,8 +245,70 @@
                   :key="variable.id"
                   class="test-data-item"
                 >
-                  <label>{{ variable.name }}:</label>
+                  <label>{{ variable.name }} ({{ getVariableTypeDisplayName(variable.variableType) }}):</label>
+                  
+                  <!-- 字符串类型 -->
                   <n-input 
+                    v-if="isStringType(variable.variableType)"
+                    v-model:value="testData[variable.name]" 
+                    :placeholder="variable.description || '请输入字符串值'"
+                    size="small"
+                  />
+                  
+                  <!-- 数字类型 -->
+                  <n-input-number 
+                    v-else-if="isNumberType(variable.variableType)"
+                    v-model:value="testData[variable.name]" 
+                    :placeholder="variable.description || '请输入数字值'"
+                    size="small"
+                    style="width: 100%"
+                  />
+                  
+                  <!-- 布尔类型 -->
+                  <n-select 
+                    v-else-if="isBooleanType(variable.variableType)"
+                    v-model:value="testData[variable.name]" 
+                    :options="[
+                      { label: 'true', value: 'true' },
+                      { label: 'false', value: 'false' }
+                    ]"
+                    :placeholder="variable.description || '选择布尔值'"
+                    size="small"
+                  />
+                  
+                  <!-- 列表类型 -->
+                  <n-input 
+                    v-else-if="isListType(variable.variableType)"
+                    v-model:value="testData[variable.name]" 
+                    :placeholder="variable.description || '请输入JSON数组，如：[\'item1\', \'item2\']'"
+                    size="small"
+                    type="textarea"
+                    :rows="2"
+                  />
+                  
+                  <!-- 对象类型 -->
+                  <n-input 
+                    v-else-if="isObjectType(variable.variableType)"
+                    v-model:value="testData[variable.name]" 
+                    :placeholder="variable.description || '请输入JSON对象，如：{\'key\': \'value\'}'"
+                    size="small"
+                    type="textarea"
+                    :rows="2"
+                  />
+                  
+                  <!-- 条件类型 -->
+                  <n-input 
+                    v-else-if="isConditionalType(variable.variableType)"
+                    v-model:value="testData[variable.name]" 
+                    :placeholder="variable.description || '请输入条件表达式'"
+                    size="small"
+                    type="textarea"
+                    :rows="2"
+                  />
+                  
+                  <!-- 其他类型（兜底） -->
+                  <n-input 
+                    v-else
                     v-model:value="testData[variable.name]" 
                     :placeholder="variable.description || '请输入测试值'"
                     size="small"
@@ -163,27 +337,75 @@
           </template>
         </n-form-item>
         <n-form-item label="变量类型 *" path="variableType">
-          <n-select v-model:value="editForm.variableType" :options="typeOptions" />
+          <n-select v-model:value="editForm.variableType" :options="typeOptions" @update:value="onTypeChange" />
           <template #feedback>
-            <span style="font-size: 12px; color: #999;">文本变量用于普通文本，条件变量用于控制流程</span>
+            <span style="font-size: 12px; color: #999;">选择变量的数据类型，系统会自动验证输入格式</span>
           </template>
         </n-form-item>
         <n-form-item label="默认值" path="defaultValue">
-          <n-input v-model:value="editForm.defaultValue" placeholder="请输入默认值（可选）" />
+          <!-- 字符串类型 -->
+          <n-input 
+            v-if="editForm.variableType === 'string'" 
+            v-model:value="editForm.defaultValue" 
+            placeholder="请输入默认字符串值" 
+          />
+          <!-- 数字类型 -->
+          <n-input-number 
+            v-else-if="editForm.variableType === 'number'" 
+            v-model:value="editForm.defaultValue" 
+            placeholder="请输入默认数字值" 
+            style="width: 100%"
+          />
+          <!-- 布尔类型 -->
+          <n-select 
+            v-else-if="editForm.variableType === 'boolean'" 
+            v-model:value="editForm.defaultValue" 
+            :options="[
+              { label: 'true', value: 'true' },
+              { label: 'false', value: 'false' }
+            ]"
+            placeholder="选择默认布尔值"
+          />
+          <!-- 列表类型 -->
+          <n-input 
+            v-else-if="editForm.variableType === 'list'" 
+            v-model:value="editForm.defaultValue" 
+            placeholder="请输入JSON数组格式，如：[&quot;item1&quot;, &quot;item2&quot;, {&quot;key&quot;: &quot;value&quot;}]" 
+            type="textarea"
+            :rows="2"
+          />
+          <!-- 对象类型 -->
+          <n-input 
+            v-else-if="editForm.variableType === 'object'" 
+            v-model:value="editForm.defaultValue" 
+            placeholder="请输入默认JSON对象，如：{&quot;key&quot;: &quot;value&quot;}" 
+            type="textarea"
+            :rows="3"
+          />
+          <!-- 条件类型 -->
+          <n-input 
+            v-else-if="editForm.variableType === 'conditional'"
+            v-model:value="editForm.defaultValue" 
+            placeholder="请输入条件表达式，如：eq .status 'active'"
+            type="textarea"
+            :rows="2"
+          />
+          <!-- 其他类型（兜底） -->
+          <n-input 
+            v-else
+            v-model:value="editForm.defaultValue" 
+            placeholder="请输入默认值（可选）" 
+          />
           <template #feedback>
-            <span style="font-size: 12px; color: #999;">当用户未输入值时使用的默认值</span>
+            <span style="font-size: 12px; color: #999;">
+              {{ getDefaultValueHint() }}
+            </span>
           </template>
         </n-form-item>
         <n-form-item label="是否必填" path="isRequired">
           <n-switch v-model:value="editForm.isRequired" />
           <template #feedback>
             <span style="font-size: 12px; color: #999;">必填变量在生成模板时必须提供值</span>
-          </template>
-        </n-form-item>
-        <n-form-item label="验证规则" path="validationRegex">
-          <n-input v-model:value="editForm.validationRegex" placeholder="请输入验证正则表达式（可选）" />
-          <template #feedback>
-            <span style="font-size: 12px; color: #999;">用于验证用户输入值的格式，如：^[a-zA-Z0-9_]+$</span>
           </template>
         </n-form-item>
       </n-form>
@@ -200,7 +422,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { NButton, NIcon, NModal, NForm, NFormItem, NInput, NSelect, NSwitch, NSpace, NTag, useMessage } from 'naive-ui'
-import { Add, DocumentText, CodeSlash, Settings } from '@vicons/ionicons5'
+import { Add, DocumentText, CodeSlash, Settings, LogoAmplify, List, Library } from '@vicons/ionicons5'
 
 const props = defineProps({
   variables: {
@@ -220,13 +442,50 @@ const formRef = ref(null)
 
 // 变量类型选项
 const typeOptions = [
-  { label: '文本变量', value: 'text', description: '用于普通文本内容' },
-  { label: '条件变量', value: 'conditional', description: '用于控制模板生成流程' }
+  { label: '字符串', value: 'string', description: '文本字符串类型' },
+  { label: '数字', value: 'number', description: '数值类型（整数或小数）' },
+  { label: '布尔值', value: 'boolean', description: '真假值（true/false）' },
+  { label: '列表', value: 'list', description: 'JSON数组格式的列表' },
+  { label: '对象', value: 'object', description: 'JSON对象格式' },
+  { label: '条件逻辑', value: 'conditional', description: '复杂条件表达式' }
 ]
 
 // 计算属性：按类型分组变量
-const textVariables = computed(() => {
-  return props.variables.filter(v => v.variableType === 'text' || !v.variableType)
+const stringVariables = computed(() => {
+  return props.variables.filter(v => 
+    v.variableType === 'string' || 
+    v.variableType === '字符串' || 
+    v.variableType === 'text' || 
+    !v.variableType
+  )
+})
+
+const numberVariables = computed(() => {
+  return props.variables.filter(v => 
+    v.variableType === 'number' || 
+    v.variableType === '数字'
+  )
+})
+
+const booleanVariables = computed(() => {
+  return props.variables.filter(v => 
+    v.variableType === 'boolean' || 
+    v.variableType === '布尔值'
+  )
+})
+
+const listVariables = computed(() => {
+  return props.variables.filter(v => 
+    v.variableType === 'list' || 
+    v.variableType === '列表'
+  )
+})
+
+const objectVariables = computed(() => {
+  return props.variables.filter(v => 
+    v.variableType === 'object' || 
+    v.variableType === '对象'
+  )
 })
 
 const conditionalVariables = computed(() => {
@@ -243,10 +502,9 @@ const editForm = ref({
   id: null,
   name: '',
   description: '',
-  variableType: 'text',
+  variableType: 'string',
   defaultValue: '',
-  isRequired: true,
-  validationRegex: ''
+  isRequired: true
 })
 
 const rules = {
@@ -407,24 +665,36 @@ function addVariable() {
     id: null,
     name: '',
     description: '',
-    variableType: 'text',
+    variableType: 'string',
     defaultValue: '',
-    isRequired: true,
-    validationRegex: ''
+    isRequired: true
   }
   showEditModal.value = true
 }
 
 // 编辑变量
 function editVariable(variable) {
+  // 将旧的中文类型映射为英文类型
+  const mapChineseTypeToEnglish = (type) => {
+    const typeMap = {
+      '字符串': 'string',
+      '数字': 'number', 
+      '布尔值': 'boolean',
+      '列表': 'list',
+      '对象': 'object',
+      'text': 'string', // 兼容旧的text类型
+      'conditional': 'conditional' // 保持conditional不变
+    }
+    return typeMap[type] || type || 'string'
+  }
+
   editForm.value = { 
     id: variable.id,
     name: variable.name || '',
     description: variable.description || '',
-    variableType: variable.variableType || 'text',
+    variableType: mapChineseTypeToEnglish(variable.variableType),
     defaultValue: variable.defaultValue || '',
-    isRequired: variable.isRequired === 1,
-    validationRegex: variable.validationRegex || ''
+    isRequired: variable.isRequired === 1
   }
   showEditModal.value = true
 }
@@ -450,8 +720,7 @@ async function saveVariable() {
       description: editForm.value.description.trim(),
       variableType: editForm.value.variableType,
       defaultValue: editForm.value.defaultValue.trim() || '',
-      isRequired: editForm.value.isRequired,
-      validationRegex: editForm.value.validationRegex.trim() || ''
+      isRequired: editForm.value.isRequired
     }
     
     if (editForm.value.id) {
@@ -465,10 +734,9 @@ async function saveVariable() {
       id: null,
       name: '',
       description: '',
-      variableType: 'text',
+      variableType: 'string',
       defaultValue: '',
-      isRequired: true,
-      validationRegex: ''
+      isRequired: true
     }
     // 重置表单
     formRef.value?.restoreValidation()
@@ -482,6 +750,76 @@ async function saveVariable() {
 function insertVariable(variable) {
   const template = `{{.${variable.name}}}`
   emit('insert', template)
+}
+
+// 获取默认值提示
+function getDefaultValueHint() {
+  switch (editForm.value.variableType) {
+    case 'string':
+      return '文本类型的默认值，可留空'
+    case 'number':
+      return '数值类型，可以是整数或小数'
+    case 'boolean':
+      return '选择 true 或 false'
+    case 'list':
+      return 'JSON数组格式，如：["item1", "item2", {"key": "value"}]'
+    case 'object':
+      return '有效的 JSON 对象格式，如：{"key": "value"}'
+    case 'conditional':
+      return '条件表达式，如：eq .status "active" 或 gt .count 0'
+    default:
+      return '请输入变量的默认值'
+  }
+}
+
+// 处理类型变化
+function onTypeChange(newType) {
+  // 当类型改变时，清空默认值
+  editForm.value.defaultValue = ''
+}
+
+// 变量类型判断函数（用于测试数据输入）
+function isStringType(type) {
+  return type === 'string' || type === '字符串' || type === 'text' || !type
+}
+
+function isNumberType(type) {
+  return type === 'number' || type === '数字'
+}
+
+function isBooleanType(type) {
+  return type === 'boolean' || type === '布尔值'
+}
+
+function isListType(type) {
+  return type === 'list' || type === '列表'
+}
+
+function isObjectType(type) {
+  return type === 'object' || type === '对象'
+}
+
+function isConditionalType(type) {
+  return type === 'conditional'
+}
+
+// 获取变量类型显示名称
+function getVariableTypeDisplayName(type) {
+  const typeNames = {
+    'string': '字符串',
+    '字符串': '字符串',
+    'number': '数字',
+    '数字': '数字',
+    'boolean': '布尔值',
+    '布尔值': '布尔值',
+    'list': '列表',
+    '列表': '列表',
+    'object': '对象',
+    '对象': '对象',
+    'text': '文本',
+    'conditional': '条件'
+  }
+  return typeNames[type] || '文本'
 }
 
 
@@ -498,10 +836,9 @@ function onModalShowChange(show) {
       id: null,
       name: '',
       description: '',
-      variableType: 'text',
+      variableType: 'string',
       defaultValue: '',
-      isRequired: true,
-      validationRegex: ''
+      isRequired: true
     }
     // 重置表单
     formRef.value?.restoreValidation()

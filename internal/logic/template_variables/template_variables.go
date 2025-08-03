@@ -55,14 +55,13 @@ func (s sTemplateVariables) Add(ctx context.Context, req *api.TemplateVariablesA
 
 		// add
 		_, err = dao.TemplateVariables.Ctx(ctx).Insert(do.TemplateVariables{
-			TemplateId:      req.TemplateId,      // 所属模板ID
-			Name:            req.Name,            // 变量名称
-			VariableType:    req.VariableType,    // 变量类型
-			Description:     req.Description,     // 变量描述
-			DefaultValue:    req.DefaultValue,    // 变量默认值
-			IsRequired:      req.IsRequired,      // 是否为必填变量
-			ValidationRegex: req.ValidationRegex, // 变量值验证正则表达式
-			Sort:            req.Sort,            // 显示顺序
+			TemplateId:   req.TemplateId,   // 所属模板ID
+			Name:         req.Name,         // 变量名称
+			VariableType: req.VariableType, // 变量类型
+			Description:  req.Description,  // 变量描述
+			DefaultValue: req.DefaultValue, // 变量默认值
+			IsRequired:   req.IsRequired,   // 是否为必填变量
+			Sort:         req.Sort,         // 显示顺序
 		})
 		liberr.ErrIsNil(ctx, err, "新增分类失败")
 	})
@@ -78,15 +77,14 @@ func (s sTemplateVariables) Edit(ctx context.Context, req *api.TemplateVariables
 
 		//编辑
 		_, err = dao.TemplateVariables.Ctx(ctx).WherePri(req.Id).Update(do.TemplateVariables{
-			Id:              req.Id,              // 变量ID，自增主键
-			TemplateId:      req.TemplateId,      // 所属模板ID
-			Name:            req.Name,            // 变量名称
-			VariableType:    req.VariableType,    // 变量类型
-			Description:     req.Description,     // 变量描述
-			DefaultValue:    req.DefaultValue,    // 变量默认值
-			IsRequired:      req.IsRequired,      // 是否为必填变量
-			ValidationRegex: req.ValidationRegex, // 变量值验证正则表达式
-			Sort:            req.Sort,            // 显示顺序
+			Id:           req.Id,           // 变量ID，自增主键
+			TemplateId:   req.TemplateId,   // 所属模板ID
+			Name:         req.Name,         // 变量名称
+			VariableType: req.VariableType, // 变量类型
+			Description:  req.Description,  // 变量描述
+			DefaultValue: req.DefaultValue, // 变量默认值
+			IsRequired:   req.IsRequired,   // 是否为必填变量
+			Sort:         req.Sort,         // 显示顺序
 		})
 		liberr.ErrIsNil(ctx, err, "修改分类失败")
 	})
@@ -116,3 +114,4 @@ func (s sTemplateVariables) GetById(ctx context.Context, id int64) (res *model.T
 	})
 	return
 }
+

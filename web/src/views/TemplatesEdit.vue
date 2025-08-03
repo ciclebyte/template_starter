@@ -41,6 +41,31 @@
           </div>
         </div>
         
+        <!-- 模板语法 Tab -->
+        <div v-show="activeVariableTab === 'syntax'" class="tab-content">
+          <div class="function-categories">
+            <div 
+              v-for="category in templateSyntaxCategories" 
+              :key="category.name"
+              class="category-row"
+            >
+              <span class="category-label">{{ category.name }}</span>
+              <div class="category-tags">
+                <div 
+                  v-for="syntax in category.syntaxes" 
+                  :key="syntax.name"
+                  class="variable-tag syntax"
+                  @click="insertSyntax(syntax)"
+                  @mouseenter="showSyntaxDetail(syntax, $event)"
+                  @mouseleave="hideFunctionDetail"
+                >
+                  {{ syntax.display_name || syntax.name }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
         <!-- 内置函数 Tab -->
         <div v-show="activeVariableTab === 'functions'" class="tab-content">
           <div v-if="loadingFunctions" class="loading-state">
@@ -212,16 +237,17 @@
         <!-- 用户变量 Tab -->
         <div v-show="activeVariableTab === 'custom'" class="tab-content">
           <div v-if="textVariables.length > 0" class="variable-section">
-            <div class="section-title">文本变量</div>
+            <div class="section-title">用户变量</div>
             <div class="variable-tags">
               <n-tag
                 v-for="variable in textVariables"
                 :key="variable.id"
-                class="variable-tag text"
+                :class="['variable-tag', getVariableTagClass(variable.variableType)]"
                 @click="insertVariable(variable.name)"
-                :title="`${variable.name}${variable.description ? ' - ' + variable.description : ''}`"
+                :title="`${variable.name} (${getVariableTypeLabel(variable.variableType)})${variable.description ? ' - ' + variable.description : ''}`"
               >
                 {{ variable.name }}
+                <span class="variable-type-badge">{{ getVariableTypeLabel(variable.variableType) }}</span>
               </n-tag>
             </div>
           </div>
@@ -411,7 +437,7 @@ let showTimer = null
 
 // 变量面板状态
 const isVariablePanelOpen = ref(false)
-const activeVariableTab = ref('functions')
+const activeVariableTab = ref('syntax')
 const variablePanelHeight = ref(300) // 默认高度300px
 const isResizing = ref(false)
 const startY = ref(0)
@@ -426,6 +452,7 @@ const maxVariablePanelHeight = 600 // 最大高度
 
 // 变量标签页配置
 const variableTabs = [
+  { key: 'syntax', label: '模板语法' },
   { key: 'functions', label: '内置函数' },
   { key: 'sprig', label: 'Sprig函数' },
   { key: 'builtin', label: '内置变量' },
@@ -434,12 +461,277 @@ const variableTabs = [
 
 // 计算属性：按类型分组变量
 const textVariables = computed(() => {
-  return templateVariables.value.filter(v => v.variableType === 'text' || !v.variableType)
+  return templateVariables.value.filter(v => 
+    v.variableType === 'text' || 
+    v.variableType === 'string' || 
+    v.variableType === '字符串' ||
+    v.variableType === 'number' || 
+    v.variableType === '数字' ||
+    v.variableType === 'boolean' || 
+    v.variableType === '布尔值' ||
+    v.variableType === 'list' || 
+    v.variableType === '列表' ||
+    v.variableType === 'object' || 
+    v.variableType === '对象' ||
+    !v.variableType
+  )
 })
 
 const conditionalVariables = computed(() => {
   return templateVariables.value.filter(v => v.variableType === 'conditional')
 })
+
+// 获取变量类型标签
+const getVariableTypeLabel = (type) => {
+  const typeLabels = {
+    'string': '字符串',
+    '字符串': '字符串',
+    'number': '数字',
+    '数字': '数字',
+    'boolean': '布尔值',
+    '布尔值': '布尔值',
+    'list': '列表',
+    '列表': '列表',
+    'object': '对象',
+    '对象': '对象',
+    'text': '文本',
+    'conditional': '条件逻辑' // 区别于简单布尔值
+  }
+  return typeLabels[type] || '文本'
+}
+
+// 获取变量标签样式类
+const getVariableTagClass = (type) => {
+  const typeClasses = {
+    'string': 'string',
+    '字符串': 'string',
+    'number': 'number',
+    '数字': 'number',
+    'boolean': 'boolean',
+    '布尔值': 'boolean',
+    'list': 'list',
+    '列表': 'list',
+    'object': 'object',
+    '对象': 'object',
+    'text': 'text',
+    'conditional': 'conditional'
+  }
+  return typeClasses[type] || 'text'
+}
+
+// Go模板语法数据
+const templateSyntaxCategories = ref([
+  {
+    name: '条件语句',
+    syntaxes: [
+      {
+        name: 'if',
+        display_name: 'if 条件',
+        description: '条件判断语句',
+        syntax: '{{if .condition}}...{{end}}',
+        usage: '当条件为真时执行内容。条件可以是变量、比较表达式或函数调用。',
+        example: '{{if .isEnabled}}启用状态{{end}}',
+        insertText: '{{if .condition}}\n  content\n{{end}}',
+        params: [
+          { name: 'condition', type: 'bool', required: true, description: '条件表达式' }
+        ]
+      },
+      {
+        name: 'if-else',
+        display_name: 'if-else 条件',
+        description: '条件判断语句（带else分支）',
+        syntax: '{{if .condition}}...{{else}}...{{end}}',
+        usage: '当条件为真时执行第一个分支，否则执行else分支。',
+        example: '{{if .isEnabled}}启用{{else}}禁用{{end}}',
+        insertText: '{{if .condition}}\n  true branch\n{{else}}\n  false branch\n{{end}}',
+        params: [
+          { name: 'condition', type: 'bool', required: true, description: '条件表达式' }
+        ]
+      },
+      {
+        name: 'if-else-if',
+        display_name: 'if-else if 条件',
+        description: '多重条件判断语句',
+        syntax: '{{if .condition1}}...{{else if .condition2}}...{{else}}...{{end}}',
+        usage: '按顺序检查多个条件，执行第一个为真的分支。',
+        example: '{{if eq .status "active"}}活跃{{else if eq .status "inactive"}}非活跃{{else}}未知{{end}}',
+        insertText: '{{if .condition1}}\n  branch1\n{{else if .condition2}}\n  branch2\n{{else}}\n  default\n{{end}}',
+        params: [
+          { name: 'condition1', type: 'bool', required: true, description: '第一个条件' },
+          { name: 'condition2', type: 'bool', required: true, description: '第二个条件' }
+        ]
+      }
+    ]
+  },
+  {
+    name: '循环语句',
+    syntaxes: [
+      {
+        name: 'range',
+        display_name: 'range 循环',
+        description: '遍历数组、切片或映射',
+        syntax: '{{range .items}}...{{end}}',
+        usage: '遍历集合中的每个元素。在循环体内，. 代表当前元素。',
+        example: '{{range .users}}<p>{{.name}}</p>{{end}}',
+        insertText: '{{range .items}}\n  {{.}}\n{{end}}',
+        params: [
+          { name: 'items', type: 'array|slice|map', required: true, description: '要遍历的集合' }
+        ]
+      },
+      {
+        name: 'range-index',
+        display_name: 'range 带索引',
+        description: '遍历时获取索引和值',
+        syntax: '{{range $index, $element := .items}}...{{end}}',
+        usage: '遍历集合并获取索引（或键）和对应的值。',
+        example: '{{range $i, $user := .users}}<p>{{$i}}: {{$user.name}}</p>{{end}}',
+        insertText: '{{range $index, $element := .items}}\n  {{$index}}: {{$element}}\n{{end}}',
+        params: [
+          { name: 'items', type: 'array|slice|map', required: true, description: '要遍历的集合' }
+        ]
+      },
+      {
+        name: 'range-empty',
+        display_name: 'range 带空检查',
+        description: '遍历集合，支持空值处理',
+        syntax: '{{range .items}}...{{else}}...{{end}}',
+        usage: '当集合为空时，执行else分支。',
+        example: '{{range .users}}<p>{{.name}}</p>{{else}}<p>没有用户</p>{{end}}',
+        insertText: '{{range .items}}\n  {{.}}\n{{else}}\n  empty content\n{{end}}',
+        params: [
+          { name: 'items', type: 'array|slice|map', required: true, description: '要遍历的集合' }
+        ]
+      }
+    ]
+  },
+  {
+    name: '变量操作',
+    syntaxes: [
+      {
+        name: 'with',
+        display_name: 'with 作用域',
+        description: '设置新的上下文作用域',
+        syntax: '{{with .value}}...{{end}}',
+        usage: '在with块内，. 代表指定的值。如果值为空，则不执行块内容。',
+        example: '{{with .user}}<p>Hello {{.name}}</p>{{end}}',
+        insertText: '{{with .value}}\n  {{.}}\n{{end}}',
+        params: [
+          { name: 'value', type: 'any', required: true, description: '新的上下文值' }
+        ]
+      },
+      {
+        name: 'with-else',
+        display_name: 'with 带else',
+        description: '设置作用域，支持空值处理',
+        syntax: '{{with .value}}...{{else}}...{{end}}',
+        usage: '当value不为空时执行第一个分支，否则执行else分支。',
+        example: '{{with .user}}Hello {{.name}}{{else}}No user{{end}}',
+        insertText: '{{with .value}}\n  {{.}}\n{{else}}\n  default content\n{{end}}',
+        params: [
+          { name: 'value', type: 'any', required: true, description: '上下文值' }
+        ]
+      },
+      {
+        name: 'variable',
+        display_name: '变量赋值',
+        description: '定义和使用变量',
+        syntax: '{{$var := .value}}',
+        usage: '将值赋给变量，变量名以$开头。变量在整个模板中有效。',
+        example: '{{$name := .user.name}}Hello {{$name}}',
+        insertText: '{{$var := .value}}',
+        params: [
+          { name: 'var', type: 'string', required: true, description: '变量名（以$开头）' },
+          { name: 'value', type: 'any', required: true, description: '变量值' }
+        ]
+      }
+    ]
+  },
+  {
+    name: '输出控制',
+    syntaxes: [
+      {
+        name: 'printf',
+        display_name: 'printf 格式化',
+        description: '格式化输出',
+        syntax: '{{printf "%s: %d" .name .count}}',
+        usage: '使用格式化字符串输出内容，类似C语言的printf函数。',
+        example: '{{printf "用户: %s, 年龄: %d" .name .age}}',
+        insertText: '{{printf "%s" .value}}',
+        params: [
+          { name: 'format', type: 'string', required: true, description: '格式化字符串' },
+          { name: 'args', type: 'any...', required: false, description: '格式化参数' }
+        ]
+      },
+      {
+        name: 'print',
+        display_name: 'print 输出',
+        description: '简单输出（空格分隔）',
+        syntax: '{{print .value1 .value2}}',
+        usage: '输出多个值，用空格分隔。',
+        example: '{{print "Hello" .name "!"}}',
+        insertText: '{{print .value}}',
+        params: [
+          { name: 'values', type: 'any...', required: true, description: '要输出的值' }
+        ]
+      },
+      {
+        name: 'println',
+        display_name: 'println 输出',
+        description: '输出并换行',
+        syntax: '{{println .value}}',
+        usage: '输出值并在末尾添加换行符。',
+        example: '{{println "Line 1"}}{{println "Line 2"}}',
+        insertText: '{{println .value}}',
+        params: [
+          { name: 'values', type: 'any...', required: true, description: '要输出的值' }
+        ]
+      }
+    ]
+  },
+  {
+    name: '模板控制',
+    syntaxes: [
+      {
+        name: 'template',
+        display_name: 'template 引用',
+        description: '引用其他模板',
+        syntax: '{{template "name" .}}',
+        usage: '调用已定义的模板，传递当前上下文或指定数据。',
+        example: '{{template "header" .}}{{template "content" .user}}',
+        insertText: '{{template "templateName" .}}',
+        params: [
+          { name: 'name', type: 'string', required: true, description: '模板名称' },
+          { name: 'data', type: 'any', required: false, description: '传递给模板的数据' }
+        ]
+      },
+      {
+        name: 'define',
+        display_name: 'define 定义',
+        description: '定义可重用的模板块',
+        syntax: '{{define "name"}}...{{end}}',
+        usage: '定义一个命名的模板块，可以被template调用。',
+        example: '{{define "header"}}<h1>{{.title}}</h1>{{end}}',
+        insertText: '{{define "templateName"}}\n  content\n{{end}}',
+        params: [
+          { name: 'name', type: 'string', required: true, description: '模板名称' }
+        ]
+      },
+      {
+        name: 'block',
+        display_name: 'block 块定义',
+        description: '定义可覆盖的默认块',
+        syntax: '{{block "name" .}}...{{end}}',
+        usage: '定义一个可以被子模板覆盖的默认内容块。',
+        example: '{{block "content" .}}<p>默认内容</p>{{end}}',
+        insertText: '{{block "blockName" .}}\n  default content\n{{end}}',
+        params: [
+          { name: 'name', type: 'string', required: true, description: '块名称' },
+          { name: 'data', type: 'any', required: false, description: '传递给块的数据' }
+        ]
+      }
+    ]
+  }
+])
 
 // 变量面板拖拽调整功能
 const startVariablePanelResize = (event) => {
@@ -840,11 +1132,10 @@ async function onAddVariable(variable) {
     await addTemplateVariable({
       templateId: parseInt(route.params.id),
       name: variable.name,
-      variableType: variable.variableType || 'text',
+      variableType: variable.variableType || 'string',
       description: variable.description,
       defaultValue: variable.defaultValue || '',
       isRequired: variable.isRequired ? 1 : 0,
-      validationRegex: variable.validationRegex || '',
       sort: templateVariables.value.length + 1
     })
     await loadVariables()
@@ -859,11 +1150,10 @@ async function onEditVariable(variable) {
       id: variable.id,
       templateId: parseInt(route.params.id),
       name: variable.name,
-      variableType: variable.variableType || 'text',
+      variableType: variable.variableType || 'string',
       description: variable.description,
       defaultValue: variable.defaultValue || '',
       isRequired: variable.isRequired ? 1 : 0,
-      validationRegex: variable.validationRegex || '',
       sort: variable.sort || 0
     })
     message.success('变量更新成功')
@@ -1044,6 +1334,20 @@ function insertSprigFunction(func) {
   }
 }
 
+// 插入模板语法
+function insertSyntax(syntax) {
+  // 点击插入时，立即取消详情面板的显示和计时器
+  clearShowTimer()
+  clearHideTimer()
+  functionDetailVisible.value = false
+  
+  const code = syntax.insertText || syntax.syntax
+  
+  if (templateEditorRef.value) {
+    templateEditorRef.value.insertVariable(code)
+  }
+}
+
 // 显示Sprig函数详情
 function showSprigFunctionDetail(func, event) {
   clearHideTimer()
@@ -1083,7 +1387,44 @@ function showSprigFunctionDetail(func, event) {
   }, 800) // 与内置函数保持一致的延迟时间
 }
 
-
+// 显示语法详情
+function showSyntaxDetail(syntax, event) {
+  clearHideTimer()
+  clearShowTimer()
+  
+  // 延迟显示，只有悬停800ms后才显示详情
+  showTimer = setTimeout(() => {
+    selectedFunction.value = syntax
+    
+    // 计算面板位置 - 显示在鼠标右下角
+    const panelWidth = 300
+    const panelHeight = 250
+    const offset = 8
+    
+    let left = event.clientX + offset
+    let top = event.clientY + offset
+    
+    // 边界检测
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+    
+    if (left + panelWidth > viewportWidth) {
+      left = event.clientX - panelWidth - offset
+    }
+    
+    if (top + panelHeight > viewportHeight) {
+      top = event.clientY - panelHeight - offset
+    }
+    
+    functionDetailStyle.value = {
+      left: `${left}px`,
+      top: `${top}px`,
+      zIndex: 9999
+    }
+    
+    functionDetailVisible.value = true
+  }, 800) // 与其他函数保持一致的延迟时间
+}
 
 // 新增变量（直接打开编辑对话框）
 function addVariable() {
@@ -1450,6 +1791,83 @@ function onApplyTestData(testData) {
   background: #319795;
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(56, 178, 172, 0.3);
+}
+
+.variable-tag.syntax {
+  background: #ff7875;
+  color: #fff;
+}
+
+.variable-tag.syntax:hover {
+  background: #ff4d4f;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(255, 120, 117, 0.3);
+}
+
+/* 新变量类型样式 */
+.variable-tag.string {
+  background: #1890ff;
+  color: #fff;
+}
+
+.variable-tag.string:hover {
+  background: #1677ff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.3);
+}
+
+.variable-tag.number {
+  background: #52c41a;
+  color: #fff;
+}
+
+.variable-tag.number:hover {
+  background: #389e0d;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(82, 196, 26, 0.3);
+}
+
+.variable-tag.boolean {
+  background: #fa541c;
+  color: #fff;
+}
+
+.variable-tag.boolean:hover {
+  background: #d4380d;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(250, 84, 28, 0.3);
+}
+
+.variable-tag.list {
+  background: #722ed1;
+  color: #fff;
+}
+
+.variable-tag.list:hover {
+  background: #531dab;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(114, 46, 209, 0.3);
+}
+
+.variable-tag.object {
+  background: #13c2c2;
+  color: #fff;
+}
+
+.variable-tag.object:hover {
+  background: #08979c;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(19, 194, 194, 0.3);
+}
+
+/* 变量类型标识 */
+.variable-type-badge {
+  margin-left: 8px;
+  font-size: 10px;
+  opacity: 0.8;
+  padding: 2px 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
 }
 
 .empty-variables {

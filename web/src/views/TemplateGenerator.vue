@@ -34,8 +34,17 @@
 
     <!-- 步骤内容 -->
     <div class="generator-content">
+      <!-- 加载状态 -->
+      <div v-if="loading" class="loading-container">
+        <n-spin size="large">
+          <template #description>
+            正在加载模板信息...
+          </template>
+        </n-spin>
+      </div>
+      
       <!-- 步骤1: 模板介绍 -->
-      <div v-if="currentStep === 1" class="step-content">
+      <div v-else-if="currentStep === 1" class="step-content">
         <StepIntro 
           :template-info="templateInfo"
           @next="nextStep"
@@ -43,7 +52,7 @@
       </div>
 
       <!-- 步骤2: 变量配置 -->
-      <div v-if="currentStep === 2" class="step-content">
+      <div v-else-if="currentStep === 2" class="step-content">
         <StepVariables 
           :template-info="templateInfo"
           :variables="variables"
@@ -54,7 +63,7 @@
       </div>
 
       <!-- 步骤3: 预览确认 -->
-      <div v-if="currentStep === 3" class="step-content">
+      <div v-else-if="currentStep === 3" class="step-content">
         <StepPreview 
           :template-info="templateInfo"
           :variables="variables"
@@ -91,15 +100,24 @@ const steps = [
 const currentStep = ref(1)
 const templateInfo = ref(null)
 const variables = ref({})
+const loading = ref(false)
 
 // 获取模板信息
 const loadTemplateInfo = async () => {
+  if (!route.params.id) {
+    message.error('缺少模板ID参数')
+    return
+  }
+  
+  loading.value = true
   try {
     const res = await getTemplateDetail({ id: route.params.id })
     templateInfo.value = res.data.data.data
   } catch (error) {
     message.error('加载模板信息失败')
     console.error(error)
+  } finally {
+    loading.value = false
   }
 }
 
@@ -144,6 +162,13 @@ const goBack = () => {
 }
 
 onMounted(async () => {
+  // 如果没有模板ID，重定向到模板列表页
+  if (!route.params.id) {
+    message.warning('请先选择一个模板')
+    router.push('/templates')
+    return
+  }
+  
   await loadTemplateInfo()
 })
 </script>
@@ -247,6 +272,13 @@ onMounted(async () => {
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
+}
+
+.loading-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
 }
 
 .step-content {

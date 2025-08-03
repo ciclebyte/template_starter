@@ -142,7 +142,7 @@ const featuredTemplates = ref([])
 
 // 使用模板
 const useTemplate = (template) => {
-  router.push(`/templates/generate/${template.id}`)
+  router.push(`/template-generator/${template.id}`)
 }
 
 // 获取语言名称

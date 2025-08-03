@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -821,20 +822,24 @@ func (s sTemplateFiles) Render(ctx context.Context, req *api.TemplateFilesRender
 		fileInfo, err := s.GetById(ctx, gconv.Int64(req.FileId))
 		liberr.ErrIsNil(ctx, err, "获取文件信息失败")
 
-		// 3. 创建模板
+		// 3. 转换变量类型
+		convertedVariables, err := s.convertVariableTypes(ctx, fileInfo.TemplateId, req.Variables)
+		liberr.ErrIsNil(ctx, err, "转换变量类型失败")
+
+		// 4. 创建模板
 		tmpl, err := template.New("template").Funcs(s.getTemplateFuncs()).Parse(fileContent)
 		liberr.ErrIsNil(ctx, err, "解析模板失败")
 
-		// 4. 渲染模板
+		// 5. 渲染模板
 		var buf bytes.Buffer
-		err = tmpl.Execute(&buf, req.Variables)
+		err = tmpl.Execute(&buf, convertedVariables)
 		liberr.ErrIsNil(ctx, err, "模板渲染失败")
 
 		res = &api.TemplateFilesRenderRes{
 			FileId:      gconv.Int64(req.FileId),
 			FileName:    fileInfo.FileName,
 			FileContent: buf.String(),
-			Variables:   req.Variables,
+			Variables:   convertedVariables,
 		}
 	})
 	return
@@ -843,15 +848,21 @@ func (s sTemplateFiles) Render(ctx context.Context, req *api.TemplateFilesRender
 // RenderFileTree 渲染整个文件树
 // renderTemplateFiles 通用模板文件渲染函数
 func (s sTemplateFiles) renderTemplateFiles(ctx context.Context, templateId int64, variables map[string]interface{}) ([]*api.RenderFileInfo, error) {
-	// 1. 获取模板下的所有文件
-	var files []*entity.TemplateFiles
-	err := dao.TemplateFiles.Ctx(ctx).Where("template_id = ?", templateId).Scan(&files)
+	// 1. 转换变量类型
+	convertedVariables, err := s.convertVariableTypes(ctx, templateId, variables)
 	if err != nil {
 		return nil, err
 	}
 
-	// 2. 渲染并重建文件树
-	renderedFiles := s.renderAndRebuildTree(files, variables)
+	// 2. 获取模板下的所有文件
+	var files []*entity.TemplateFiles
+	err = dao.TemplateFiles.Ctx(ctx).Where("template_id = ?", templateId).Scan(&files)
+	if err != nil {
+		return nil, err
+	}
+
+	// 3. 渲染并重建文件树
+	renderedFiles := s.renderAndRebuildTree(files, convertedVariables)
 
 	return renderedFiles, nil
 }
@@ -1502,4 +1513,81 @@ func (s *sTemplateFiles) buildFilePath(ctx context.Context, fileId, templateId i
 	}
 
 	return parentPath + "/" + fileName, nil
+}
+
+// convertVariableTypes 根据变量定义将变量值转换为正确的数据类型
+func (s sTemplateFiles) convertVariableTypes(ctx context.Context, templateId int64, variables map[string]interface{}) (map[string]interface{}, error) {
+	// 1. 获取模板的变量定义
+	var templateVariables []*entity.TemplateVariables
+	err := dao.TemplateVariables.Ctx(ctx).Where("template_id = ?", templateId).Scan(&templateVariables)
+	if err != nil {
+		return variables, err // 如果获取失败，返回原始变量
+	}
+
+	// 2. 创建变量类型映射
+	variableTypes := make(map[string]string)
+	for _, v := range templateVariables {
+		variableTypes[v.Name] = v.VariableType
+	}
+
+	// 3. 转换变量类型
+	convertedVariables := make(map[string]interface{})
+	for key, value := range variables {
+		variableType, exists := variableTypes[key]
+		if !exists {
+			// 如果没有定义类型，保持原值
+			convertedVariables[key] = value
+			continue
+		}
+
+		// 将接口值转换为字符串进行处理
+		valueStr := gconv.String(value)
+
+		// 根据变量类型进行转换
+		switch variableType {
+		case "string":
+			convertedVariables[key] = valueStr
+		case "boolean":
+			convertedVariables[key] = gconv.Bool(valueStr)
+		case "number":
+			// 尝试转换为整数，如果失败则转换为浮点数
+			if intVal := gconv.Int(valueStr); gconv.String(intVal) == valueStr {
+				convertedVariables[key] = intVal
+			} else {
+				convertedVariables[key] = gconv.Float64(valueStr)
+			}
+		case "list":
+			// 如果是JSON格式的数组字符串，尝试解析
+			if strings.HasPrefix(valueStr, "[") && strings.HasSuffix(valueStr, "]") {
+				var listValue []interface{}
+				if err := json.Unmarshal([]byte(valueStr), &listValue); err == nil {
+					convertedVariables[key] = listValue
+				} else {
+					// 如果解析失败，按逗号分割
+					convertedVariables[key] = strings.Split(valueStr, ",")
+				}
+			} else {
+				// 按逗号分割字符串
+				convertedVariables[key] = strings.Split(valueStr, ",")
+			}
+		case "object":
+			// 如果是JSON格式的对象字符串，尝试解析
+			if (strings.HasPrefix(valueStr, "{") && strings.HasSuffix(valueStr, "}")) ||
+				(strings.HasPrefix(valueStr, "[") && strings.HasSuffix(valueStr, "]")) {
+				var objValue interface{}
+				if err := json.Unmarshal([]byte(valueStr), &objValue); err == nil {
+					convertedVariables[key] = objValue
+				} else {
+					convertedVariables[key] = valueStr
+				}
+			} else {
+				convertedVariables[key] = valueStr
+			}
+		default:
+			// 未知类型，保持原值
+			convertedVariables[key] = value
+		}
+	}
+
+	return convertedVariables, nil
 }

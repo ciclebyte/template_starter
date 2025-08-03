@@ -31,13 +31,68 @@
               <label>
                 {{ variable.description || variable.name }}
                 <span v-if="variable.isRequired" class="required-mark">*</span>
+                <span class="variable-type-badge">{{ getVariableTypeLabel(variable.variableType) }}</span>
               </label>
+              
+              <!-- 根据变量类型渲染不同的输入组件 -->
+              <!-- 字符串类型 -->
               <n-input 
+                v-if="variable.variableType === 'string'"
+                v-model:value="formData[variable.name]" 
+                :placeholder="variable.description || '请输入字符串'"
+                :status="getValidationStatus(variable.name)"
+              />
+              
+              <!-- 数字类型 -->
+              <n-input-number 
+                v-else-if="variable.variableType === 'number'"
+                v-model:value="formData[variable.name]" 
+                :placeholder="variable.description || '请输入数字'"
+                :status="getValidationStatus(variable.name)"
+                style="width: 100%"
+              />
+              
+              <!-- 布尔类型 -->
+              <n-switch 
+                v-else-if="variable.variableType === 'boolean'"
+                v-model:value="formData[variable.name]"
+                :checked-value="true"
+                :unchecked-value="false"
+              >
+                <template #checked>是</template>
+                <template #unchecked>否</template>
+              </n-switch>
+              
+              <!-- 列表类型 -->
+              <div v-else-if="variable.variableType === 'list'" class="list-input">
+                <n-dynamic-tags 
+                  v-model:value="formData[variable.name]"
+                  :placeholder="variable.description || '按回车添加项目'"
+                />
+                <div class="input-hint">按回车添加项目，点击标签删除</div>
+              </div>
+              
+              <!-- 对象类型 -->
+              <div v-else-if="variable.variableType === 'object'" class="object-input">
+                <n-input 
+                  v-model:value="formData[variable.name]" 
+                  type="textarea"
+                  :placeholder="variable.description || '请输入JSON格式的对象'"
+                  :status="getValidationStatus(variable.name)"
+                  :autosize="{ minRows: 3, maxRows: 6 }"
+                />
+                <div class="input-hint">请输入有效的JSON格式，例如: {"key": "value"}</div>
+              </div>
+              
+              <!-- 其他类型（兼容旧版本） -->
+              <n-input 
+                v-else
                 v-model:value="formData[variable.name]" 
                 :placeholder="variable.description || '请输入值'"
                 :status="getValidationStatus(variable.name)"
                 :type="getInputType(variable.variableType)"
               />
+              
               <div class="variable-desc">{{ variable.description }}</div>
             </div>
           </div>
@@ -211,6 +266,16 @@ const getValidationStatus = (fieldName) => {
     return 'error'
   }
   
+  // 对象类型的JSON格式验证
+  const variable = customVariables.value.find(v => v.name === fieldName)
+  if (variable?.variableType === 'object' && value) {
+    try {
+      JSON.parse(value)
+    } catch {
+      return 'error'
+    }
+  }
+  
   return undefined
 }
 
@@ -220,20 +285,40 @@ const isFormValid = computed(() => {
   
   for (const [fieldName, rule] of Object.entries(rules)) {
     const value = formData.value[fieldName]
+    const variable = customVariables.value.find(v => v.name === fieldName)
     
-    if (rule.required && !value) {
+    // 必填验证
+    if (rule.required) {
+      if (variable?.variableType === 'list') {
+        if (!Array.isArray(value) || value.length === 0) {
+          return false
+        }
+      } else if (variable?.variableType === 'boolean') {
+        // 布尔类型不需要必填验证，因为它总是有值（true/false）
+      } else if (!value) {
+        return false
+      }
+    }
+    
+    // 正则验证
+    if (rule.pattern && value && !rule.pattern.test(value)) {
       return false
     }
     
-    if (rule.pattern && value && !rule.pattern.test(value)) {
-      return false
+    // 对象类型的JSON格式验证
+    if (variable?.variableType === 'object' && value) {
+      try {
+        JSON.parse(value)
+      } catch {
+        return false
+      }
     }
   }
   
   return true
 })
 
-// 获取输入类型
+// 获取输入类型（兼容旧版本）
 const getInputType = (variableType) => {
   switch (variableType) {
     case 'email':
@@ -246,6 +331,72 @@ const getInputType = (variableType) => {
       return 'password'
     default:
       return 'text'
+  }
+}
+
+// 获取变量类型标签
+const getVariableTypeLabel = (variableType) => {
+  switch (variableType) {
+    case 'string':
+      return '字符串'
+    case 'number':
+      return '数字'
+    case 'boolean':
+      return '布尔值'
+    case 'list':
+      return '列表'
+    case 'object':
+      return '对象'
+    default:
+      return '文本'
+  }
+}
+
+// 根据变量类型获取默认值
+const getDefaultValue = (variable) => {
+  if (variable.defaultValue !== undefined && variable.defaultValue !== null) {
+    // 如果有设置默认值，根据类型转换
+    switch (variable.variableType) {
+      case 'boolean':
+        return variable.defaultValue === 'true' || variable.defaultValue === true
+      case 'number':
+        return Number(variable.defaultValue) || 0
+      case 'list':
+        if (typeof variable.defaultValue === 'string') {
+          try {
+            const parsed = JSON.parse(variable.defaultValue)
+            return Array.isArray(parsed) ? parsed : [variable.defaultValue]
+          } catch {
+            return variable.defaultValue.split(',').map(s => s.trim())
+          }
+        }
+        return Array.isArray(variable.defaultValue) ? variable.defaultValue : []
+      case 'object':
+        if (typeof variable.defaultValue === 'string') {
+          try {
+            return JSON.parse(variable.defaultValue)
+          } catch {
+            return variable.defaultValue
+          }
+        }
+        return variable.defaultValue
+      default:
+        return String(variable.defaultValue)
+    }
+  }
+  
+  // 没有默认值时，根据类型返回默认值
+  switch (variable.variableType) {
+    case 'boolean':
+      return false
+    case 'number':
+      return 0
+    case 'list':
+      return []
+    case 'object':
+      return '{}'
+    default:
+      return ''
   }
 }
 
@@ -276,8 +427,8 @@ const loadTemplateVariables = async () => {
       
       // 初始化自定义变量到表单数据
       customVariables.value.forEach(variable => {
-        if (!newFormData[variable.name]) {
-          newFormData[variable.name] = variable.defaultValue || ''
+        if (!(variable.name in newFormData)) {
+          newFormData[variable.name] = getDefaultValue(variable)
         }
       })
       
@@ -500,6 +651,61 @@ const handleNext = () => {
 
 
 
+
+.variable-type-badge {
+  display: inline-block;
+  background: #f0f0f0;
+  color: #666;
+  font-size: 11px;
+  font-weight: normal;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-left: 8px;
+}
+
+.list-input {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.object-input {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.input-hint {
+  font-size: 11px;
+  color: #999;
+  font-style: italic;
+}
+
+/* 为不同变量类型的徽章添加颜色 */
+.variable-type-badge {
+  background: #e6f7ff;
+  color: #1890ff;
+}
+
+.variable-item:has([data-variable-type="boolean"]) .variable-type-badge {
+  background: #f6ffed;
+  color: #52c41a;
+}
+
+.variable-item:has([data-variable-type="number"]) .variable-type-badge {
+  background: #fff7e6;
+  color: #fa8c16;
+}
+
+.variable-item:has([data-variable-type="list"]) .variable-type-badge {
+  background: #f9f0ff;
+  color: #722ed1;
+}
+
+.variable-item:has([data-variable-type="object"]) .variable-type-badge {
+  background: #e6fffb;
+  color: #13c2c2;
+}
 
 .step-actions {
   padding: 24px 40px;

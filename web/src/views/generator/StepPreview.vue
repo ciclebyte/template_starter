@@ -95,6 +95,7 @@ import {
   ChevronForward
 } from '@vicons/ionicons5'
 import { renderFileTree, downloadZip } from '@/api/templateFiles'
+import { listTemplateVariables } from '@/api/templateVariables'
 
 // CodeMirror 核心模块
 import { EditorView, lineNumbers, highlightActiveLineGutter } from '@codemirror/view'
@@ -144,6 +145,9 @@ const currentFileContent = ref('')
 
 // 渲染后的文件数据
 const renderedFilesMap = ref(new Map())
+
+// 模板变量信息
+const templateVariables = ref([])
 
 // CodeMirror 相关
 const codeContainer = ref(null)
@@ -238,6 +242,92 @@ function treeToNaive(tree) {
   })
 }
 
+// 获取模板变量信息
+const loadTemplateVariables = async () => {
+  if (!props.templateInfo?.id) {
+    return
+  }
+  
+  try {
+    const res = await listTemplateVariables({
+      templateId: props.templateInfo.id,
+      pageNum: 1,
+      pageSize: 1000 // 获取所有变量
+    })
+    templateVariables.value = res.data?.data?.templateVariablesList || []
+  } catch (error) {
+    console.error('获取模板变量失败:', error)
+    templateVariables.value = []
+  }
+}
+
+// 根据变量类型转换变量值
+const convertVariableTypes = (variables) => {
+  const converted = { ...variables }
+  const variableTypeMap = {}
+  
+  // 创建变量类型映射
+  templateVariables.value.forEach(v => {
+    variableTypeMap[v.name] = v.variableType
+  })
+  
+  // 转换变量类型
+  Object.keys(converted).forEach(key => {
+    const variableType = variableTypeMap[key]
+    if (!variableType) return
+    
+    const value = converted[key]
+    const valueStr = String(value)
+    
+    switch (variableType) {
+      case 'string':
+        converted[key] = valueStr
+        break
+      case 'boolean':
+        // 字符串 "false" 转换为 false，其他非空值转换为 true
+        converted[key] = valueStr === 'false' ? false : Boolean(valueStr && valueStr !== '0')
+        break
+      case 'number':
+        // 尝试转换为数字
+        const numValue = Number(valueStr)
+        converted[key] = isNaN(numValue) ? 0 : numValue
+        break
+      case 'list':
+        // 如果是JSON格式的数组字符串，尝试解析
+        if (valueStr.startsWith('[') && valueStr.endsWith(']')) {
+          try {
+            converted[key] = JSON.parse(valueStr)
+          } catch {
+            // 如果解析失败，按逗号分割
+            converted[key] = valueStr.slice(1, -1).split(',').map(s => s.trim())
+          }
+        } else {
+          // 按逗号分割字符串
+          converted[key] = valueStr.split(',').map(s => s.trim())
+        }
+        break
+      case 'object':
+        // 如果是JSON格式的对象字符串，尝试解析
+        if ((valueStr.startsWith('{') && valueStr.endsWith('}')) ||
+            (valueStr.startsWith('[') && valueStr.endsWith(']'))) {
+          try {
+            converted[key] = JSON.parse(valueStr)
+          } catch {
+            converted[key] = valueStr
+          }
+        } else {
+          converted[key] = valueStr
+        }
+        break
+      default:
+        // 未知类型，保持原值
+        break
+    }
+  })
+  
+  return converted
+}
+
 // 加载渲染后的文件树
 const loadTree = async () => {
   if (!props.templateInfo?.id) {
@@ -246,10 +336,16 @@ const loadTree = async () => {
   }
   loading.value = true
   try {
+    // 先获取模板变量信息
+    await loadTemplateVariables()
+    
+    // 转换变量类型
+    const convertedVariables = convertVariableTypes(props.variables || {})
+    
     // 获取渲染后的文件树
     const renderRes = await renderFileTree({
       templateId: props.templateInfo.id,
-      variables: props.variables || {}
+      variables: convertedVariables
     })
     const tree = renderRes.data?.data?.tree || []
     treeData.value = tree
@@ -402,9 +498,12 @@ const generateProject = async () => {
   try {
     message.loading('正在生成项目...', { duration: 0 })
     
+    // 转换变量类型
+    const convertedVariables = convertVariableTypes(props.variables || {})
+    
     const response = await downloadZip({
       templateId: props.templateInfo.id,
-      variables: props.variables || {},
+      variables: convertedVariables,
       fileName: props.templateInfo.name
     })
     

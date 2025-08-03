@@ -21,23 +21,23 @@ const routes = [
         name: 'templates',
         component: () => import('@/views/TemplatesPublic.vue')
       },
-      {
-        path: '/template-generator',
-        name: 'generator',
-        component: () => import('@/views/TemplateGenerator.vue')
-      },
-      {
-        path: '/template-generator/:id',
-        name: 'TemplateGenerator',
-        component: () => import('@/views/TemplateGenerator.vue')
-      }
     ]
   },
-  // 独立的模板编辑页面（不在布局内）
+  // 独立的全屏页面（不在布局内）
   {
     path: '/templates/edit/:id',
     name: 'TemplatesEdit',
     component: TemplatesEdit
+  },
+  {
+    path: '/template-generator',
+    name: 'generator',
+    component: () => import('@/views/TemplateGenerator.vue')
+  },
+  {
+    path: '/template-generator/:id',
+    name: 'TemplateGenerator',
+    component: () => import('@/views/TemplateGenerator.vue')
   },
 
   // 后台管理路由
