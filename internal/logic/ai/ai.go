@@ -37,6 +37,9 @@ func (s *sAI) TestConnection(ctx context.Context, req *aiApi.TestConnectionReq) 
 		res.Message = "获取AI配置失败: " + err.Error()
 		return res, nil
 	}
+	
+	// 调试日志：显示实际读取的配置
+	g.Log().Debug(ctx, "AI配置详情", "provider", config.Provider, "openai_model", config.OpenAI.Model, "claude_model", config.Claude.Model)
 
 	if !config.Enabled {
 		res.Message = "AI功能未启用"
@@ -70,10 +73,14 @@ func (s *sAI) TestConnection(ctx context.Context, req *aiApi.TestConnectionReq) 
 	res.Success = true
 	res.Message = "连接测试成功"
 	
+	// 显示实际配置的模型
 	if config.Provider == "openai" {
 		res.Model = config.OpenAI.Model
 	} else if config.Provider == "claude" {
 		res.Model = config.Claude.Model
+	} else {
+		// 对于其他provider，也显示OpenAI模型配置（可能是moonshot等兼容API）
+		res.Model = config.OpenAI.Model
 	}
 
 	return res, nil
