@@ -73,7 +73,7 @@ const routes = [
       {
         path: 'settings',
         name: 'admin-settings',
-        component: () => import('@/views/Templates.vue') // 临时使用现有组件
+        component: () => import('@/views/admin/Settings.vue')
       }
     ]
   }
