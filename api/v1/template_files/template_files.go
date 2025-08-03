@@ -220,3 +220,31 @@ type TemplateFilesMoveReq struct {
 type TemplateFilesMoveRes struct {
 	g.Meta `mime:"application/json" example:"string"`
 }
+
+// 设置文件生成条件接口
+type TemplateFilesSetConditionReq struct {
+	g.Meta        `path:"/templateFiles/setCondition" method:"put" tags:"模板文件" summary:"模板文件-设置生成条件"`
+	Id            interface{} `json:"id" v:"required#文件ID不能为空"`
+	Enabled       bool        `json:"enabled"`                                    // 是否启用条件
+	VariableName  string      `json:"variableName" v:"required-if:enabled,true"`  // 关联变量名
+	ExpectedValue bool        `json:"expectedValue"`                              // 期望值
+	Description   string      `json:"description"`                                // 条件描述
+}
+
+type TemplateFilesSetConditionRes struct {
+	g.Meta `mime:"application/json" example:"string"`
+}
+
+// 获取文件生成条件接口
+type TemplateFilesGetConditionReq struct {
+	g.Meta `path:"/templateFiles/getCondition" method:"get" tags:"模板文件" summary:"模板文件-获取生成条件"`
+	Id     interface{} `json:"id" v:"required#文件ID不能为空"`
+}
+
+type TemplateFilesGetConditionRes struct {
+	g.Meta        `mime:"application/json" example:"string"`
+	Enabled       bool   `json:"enabled"`       // 是否启用条件
+	VariableName  string `json:"variableName"`  // 关联变量名  
+	ExpectedValue bool   `json:"expectedValue"` // 期望值
+	Description   string `json:"description"`   // 条件描述
+}

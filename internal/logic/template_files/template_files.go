@@ -184,7 +184,7 @@ func (s *sTemplateFiles) FileTree(ctx context.Context, req *api.TemplatesFileTre
 	for _, f := range files {
 		node := &api.FileTreeNode{
 			Id: f.Id, FilePath: f.FilePath, FileName: f.FileName, IsDirectory: f.IsDirectory,
-			ParentId: f.ParentId, FileSize: f.FileSize, Md5: f.Md5,
+			ParentId: int64(f.ParentId), FileSize: f.FileSize, Md5: f.Md5,
 		}
 		idMap[f.Id] = node
 	}
@@ -901,15 +901,19 @@ func (s sTemplateFiles) renderAndRebuildTree(files []*entity.TemplateFiles, vari
 	fmt.Printf("总文件数: %d\n", len(files))
 	fmt.Printf("变量数据: %+v\n", variables)
 
+	// 第一步：根据条件过滤文件
+	filteredFiles := s.filterFilesByCondition(files, variables)
+	fmt.Printf("条件过滤后文件数: %d\n", len(filteredFiles))
+
 	var result []*api.RenderFileInfo
 	var nextId int64 = 10000
 	pathToNode := make(map[string]*api.RenderFileInfo)
 	originalPathToFinalPath := make(map[string]string) // 记录原始路径到最终路径的映射
 
-	// 第一步：处理所有文件，渲染并创建基础节点
-	fmt.Printf("\n=== 第一步：处理所有文件 ===\n")
-	for i, file := range files {
-		fmt.Printf("\n--- 处理文件 %d/%d ---\n", i+1, len(files))
+	// 第二步：处理过滤后的文件，渲染并创建基础节点
+	fmt.Printf("\n=== 第二步：处理过滤后的文件 ===\n")
+	for i, file := range filteredFiles {
+		fmt.Printf("\n--- 处理文件 %d/%d ---\n", i+1, len(filteredFiles))
 		fmt.Printf("原始数据: ID=%d, 名称=%s, 路径=%s, 是否目录=%d, 父ID=%d\n",
 			file.Id, file.FileName, file.FilePath, file.IsDirectory, file.ParentId)
 
@@ -1515,6 +1519,98 @@ func (s *sTemplateFiles) buildFilePath(ctx context.Context, fileId, templateId i
 	return parentPath + "/" + fileName, nil
 }
 
+// SetCondition 设置文件生成条件
+func (s *sTemplateFiles) SetCondition(ctx context.Context, req *api.TemplateFilesSetConditionReq) (err error) {
+	err = g.Try(ctx, func(ctx context.Context) {
+		fileId := gconv.Int64(req.Id)
+		
+		// 检查文件是否存在
+		_, err = s.GetById(ctx, fileId)
+		liberr.ErrIsNil(ctx, err, "文件不存在")
+		
+		// 构造生成条件JSON
+		var conditionJson string
+		if req.Enabled {
+			// 检查变量是否存在
+			err = s.checkVariableExists(ctx, fileId, req.VariableName)
+			liberr.ErrIsNil(ctx, err, "关联的变量不存在")
+			
+			condition := model.GenerateCondition{
+				Enabled:       req.Enabled,
+				VariableName:  req.VariableName,
+				ExpectedValue: req.ExpectedValue,
+				Description:   req.Description,
+			}
+			
+			conditionBytes, err := json.Marshal(condition)
+			liberr.ErrIsNil(ctx, err, "条件序列化失败")
+			conditionJson = string(conditionBytes)
+		} else {
+			// 如果禁用条件，设置为null
+			conditionJson = ""
+		}
+		
+		// 更新数据库
+		_, err = dao.TemplateFiles.Ctx(ctx).WherePri(fileId).Update(do.TemplateFiles{
+			GenerateCondition: conditionJson,
+		})
+		liberr.ErrIsNil(ctx, err, "设置生成条件失败")
+	})
+	return
+}
+
+// GetCondition 获取文件生成条件
+func (s *sTemplateFiles) GetCondition(ctx context.Context, req *api.TemplateFilesGetConditionReq) (res *api.TemplateFilesGetConditionRes, err error) {
+	err = g.Try(ctx, func(ctx context.Context) {
+		fileId := gconv.Int64(req.Id)
+		
+		// 获取文件信息
+		fileInfo, err := s.GetById(ctx, fileId)
+		liberr.ErrIsNil(ctx, err, "文件不存在")
+		
+		res = &api.TemplateFilesGetConditionRes{
+			Enabled:       false,
+			VariableName:  "",
+			ExpectedValue: false,
+			Description:   "",
+		}
+		
+		// 解析生成条件
+		if fileInfo.GenerateCondition != "" {
+			var condition model.GenerateCondition
+			err = json.Unmarshal([]byte(fileInfo.GenerateCondition), &condition)
+			if err == nil {
+				res.Enabled = condition.Enabled
+				res.VariableName = condition.VariableName
+				res.ExpectedValue = condition.ExpectedValue
+				res.Description = condition.Description
+			}
+		}
+	})
+	return
+}
+
+// checkVariableExists 检查变量是否存在
+func (s *sTemplateFiles) checkVariableExists(ctx context.Context, fileId int64, variableName string) error {
+	// 获取文件所属的模板ID
+	fileInfo, err := s.GetById(ctx, fileId)
+	if err != nil {
+		return err
+	}
+	
+	// 检查变量是否存在于该模板中
+	count, err := dao.TemplateVariables.Ctx(ctx).Where("template_id = ? AND name = ?", fileInfo.TemplateId, variableName).Count()
+	if err != nil {
+		return err
+	}
+	
+	if count == 0 {
+		return fmt.Errorf("变量 %s 不存在", variableName)
+	}
+	
+	return nil
+}
+
 // convertVariableTypes 根据变量定义将变量值转换为正确的数据类型
 func (s sTemplateFiles) convertVariableTypes(ctx context.Context, templateId int64, variables map[string]interface{}) (map[string]interface{}, error) {
 	// 1. 获取模板的变量定义
@@ -1590,4 +1686,95 @@ func (s sTemplateFiles) convertVariableTypes(ctx context.Context, templateId int
 	}
 
 	return convertedVariables, nil
+}
+
+// filterFilesByCondition 根据生成条件过滤文件
+func (s sTemplateFiles) filterFilesByCondition(files []*entity.TemplateFiles, variables map[string]interface{}) []*entity.TemplateFiles {
+	var result []*entity.TemplateFiles
+	skippedPaths := make(map[string]bool) // 记录被跳过的路径
+	
+	// 按路径排序，确保父目录在子目录之前处理
+	sort.Slice(files, func(i, j int) bool {
+		return len(files[i].FilePath) < len(files[j].FilePath)
+	})
+	
+	for _, file := range files {
+		// 检查父路径是否被跳过
+		if s.isParentPathSkipped(file.FilePath, skippedPaths) {
+			fmt.Printf("文件 %s 被跳过，因为父路径被过滤\n", file.FilePath)
+			skippedPaths[file.FilePath] = true
+			continue
+		}
+		
+		// 检查文件自身的生成条件
+		if s.shouldGenerateFile(file, variables) {
+			result = append(result, file)
+			fmt.Printf("文件 %s 通过条件检查，将被生成\n", file.FilePath)
+		} else {
+			skippedPaths[file.FilePath] = true
+			fmt.Printf("文件 %s 不满足生成条件，被跳过\n", file.FilePath)
+		}
+	}
+	
+	return result
+}
+
+// shouldGenerateFile 检查文件是否应该生成
+func (s sTemplateFiles) shouldGenerateFile(file *entity.TemplateFiles, variables map[string]interface{}) bool {
+	// 没有生成条件的文件默认生成
+	if file.GenerateCondition == "" {
+		return true
+	}
+	
+	// 解析生成条件
+	var condition model.GenerateCondition
+	if err := json.Unmarshal([]byte(file.GenerateCondition), &condition); err != nil {
+		fmt.Printf("解析文件 %s 的生成条件失败: %v\n", file.FilePath, err)
+		return true // 解析失败时默认生成
+	}
+	
+	// 条件未启用，默认生成
+	if !condition.Enabled {
+		return true
+	}
+	
+	// 获取变量值
+	variableValue, exists := variables[condition.VariableName]
+	if !exists {
+		fmt.Printf("变量 %s 不存在，文件 %s 默认生成\n", condition.VariableName, file.FilePath)
+		return true
+	}
+	
+	// 转换为布尔值
+	boolValue := false
+	switch v := variableValue.(type) {
+	case bool:
+		boolValue = v
+	case string:
+		boolValue = v != "false" && v != "0" && v != ""
+	case int, int64, float64:
+		boolValue = v != 0
+	default:
+		boolValue = variableValue != nil
+	}
+	
+	// 根据期望值判断是否生成
+	shouldGenerate := boolValue == condition.ExpectedValue
+	fmt.Printf("文件 %s: 变量 %s=%v, 期望=%v, 生成=%v\n", 
+		file.FilePath, condition.VariableName, boolValue, condition.ExpectedValue, shouldGenerate)
+	
+	return shouldGenerate
+}
+
+// isParentPathSkipped 检查父路径是否被跳过
+func (s sTemplateFiles) isParentPathSkipped(filePath string, skippedPaths map[string]bool) bool {
+	// 检查所有父路径
+	parts := strings.Split(filePath, "/")
+	for i := 1; i < len(parts); i++ {
+		parentPath := strings.Join(parts[:i], "/")
+		if skippedPaths[parentPath] {
+			return true
+		}
+	}
+	return false
 }

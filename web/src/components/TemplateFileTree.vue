@@ -74,7 +74,7 @@ const props = defineProps({
     default: ''
   }
 })
-const emit = defineEmits(['select', 'reload', 'update:treeData', 'rename', 'uploadZip', 'uploadCodeFile', 'move'])
+const emit = defineEmits(['select', 'reload', 'update:treeData', 'rename', 'uploadZip', 'uploadCodeFile', 'move', 'setCondition'])
 
 const showDropdown = ref(false)
 const dropdownOptions = ref([
@@ -213,11 +213,14 @@ function treeToNaive(tree) {
       filePath: node.filePath,
       fileName: node.fileName,
       isDirectory: node.isDirectory === 1,
+      hasCondition: node.hasCondition,
+      generateCondition: node.generateCondition,
       prefix: node.isDirectory
         ? () => h(NIcon, null, { 
             default: () => h(isExpanded ? FolderOpenOutline : Folder)
           })
         : () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }),
+      suffix: () => renderConditionIndicator(node),
       children: node.children ? treeToNaive(node.children) : [],
       // 添加拖拽状态的类名
       class: getDragClass(nodeKey)
@@ -307,6 +310,8 @@ function nodeProps({ option }) {
         dropdownOptions.value = [
           { label: '重命名', key: 'renameNode', icon: () => h(NIcon, null, { default: () => h(Edit) }) },
           { type: 'divider', key: 'divider1' },
+          { label: '设置生成条件', key: 'setCondition', icon: () => h(NIcon, null, { default: () => h(Edit) }) },
+          { type: 'divider', key: 'divider2' },
           { label: '删除节点', key: 'deleteNode', icon: () => h(NIcon, null, { default: () => h(Trash) }) }
         ]
       } else {
@@ -317,6 +322,8 @@ function nodeProps({ option }) {
           { label: '上传代码文件', key: 'uploadCodeFile', icon: () => h(NIcon, null, { default: () => h(FileTrayFullOutline) }) },
           { label: '重命名', key: 'renameNode', icon: () => h(NIcon, null, { default: () => h(Edit) }) },
           { type: 'divider', key: 'divider2' },
+          { label: '设置生成条件', key: 'setCondition', icon: () => h(NIcon, null, { default: () => h(Edit) }) },
+          { type: 'divider', key: 'divider3' },
           { label: '删除节点', key: 'deleteNode', icon: () => h(NIcon, null, { default: () => h(Trash) }) }
         ]
       }
@@ -941,6 +948,7 @@ function handleDropdownSelect(key) {
   else if (key === 'renameNode') renameNode()
   else if (key === 'uploadZip') uploadZip()
   else if (key === 'uploadCodeFile') uploadCodeFile()
+  else if (key === 'setCondition') setCondition()
 }
 function handleDropdownClickoutside() {
   showDropdown.value = false
@@ -1021,6 +1029,11 @@ function uploadCodeFile() {
   codeFileInput.value.click()
 }
 
+function setCondition() {
+  if (!dropdownNode.value) return
+  emit('setCondition', dropdownNode.value)
+}
+
 function handleCodeFileSelect({ target }) {
   const file = target.files[0]
   if (!file) return
@@ -1064,6 +1077,36 @@ function renderLabel({ option }) {
 }
 const renderSwitcherIcon = () =>
   h(NIcon, null, { default: () => h(ChevronForward) })
+
+// 渲染条件指示器
+function renderConditionIndicator(node) {
+  if (!node.generateCondition) return null
+  
+  let condition
+  try {
+    condition = typeof node.generateCondition === 'string' 
+      ? JSON.parse(node.generateCondition) 
+      : node.generateCondition
+  } catch (e) {
+    return null
+  }
+  
+  if (!condition || !condition.enabled) return null
+  
+  // 根据条件类型显示不同的图标
+  const iconStyle = {
+    fontSize: '12px',
+    marginLeft: '4px',
+    color: condition.expectedValue ? '#18a058' : '#f0a020'
+  }
+  
+  const title = `条件: ${condition.variableName} = ${condition.expectedValue ? 'true' : 'false'}${condition.description ? '\n' + condition.description : ''}`
+  
+  return h('span', {
+    style: iconStyle,
+    title: title
+  }, condition.expectedValue ? '✓' : '✗')
+}
 </script>
 
 <style scoped>

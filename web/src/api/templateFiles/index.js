@@ -158,3 +158,21 @@ export function downloadZip(data) {
     responseType: 'blob' // 重要：设置响应类型为blob
   })
 }
+
+// 设置文件生成条件
+export function setFileCondition(data) {
+  return request({
+    url: '/api/v1/templateFiles/setCondition',
+    method: 'put',
+    data
+  })
+}
+
+// 获取文件生成条件
+export function getFileCondition(id) {
+  return request({
+    url: '/api/v1/templateFiles/getCondition',
+    method: 'get',
+    params: { id }
+  })
+}

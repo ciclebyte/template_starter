@@ -120,3 +120,15 @@ func (c *templateFilesController) Move(ctx context.Context, req *api.TemplateFil
 	err = service.TemplateFiles().Move(ctx, req)
 	return
 }
+
+// SetCondition 设置文件生成条件
+func (c *templateFilesController) SetCondition(ctx context.Context, req *api.TemplateFilesSetConditionReq) (res *api.TemplateFilesSetConditionRes, err error) {
+	res = new(api.TemplateFilesSetConditionRes)
+	err = service.TemplateFiles().SetCondition(ctx, req)
+	return
+}
+
+// GetCondition 获取文件生成条件
+func (c *templateFilesController) GetCondition(ctx context.Context, req *api.TemplateFilesGetConditionReq) (res *api.TemplateFilesGetConditionRes, err error) {
+	return service.TemplateFiles().GetCondition(ctx, req)
+}

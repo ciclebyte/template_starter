@@ -3,6 +3,7 @@ package template_variables
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	api "github.com/ciclebyte/template_starter/api/v1/template_variables"
 	dao "github.com/ciclebyte/template_starter/internal/dao"
@@ -93,8 +94,27 @@ func (s sTemplateVariables) Edit(ctx context.Context, req *api.TemplateVariables
 
 func (s sTemplateVariables) Delete(ctx context.Context, id int64) (err error) {
 	err = g.Try(ctx, func(ctx context.Context) {
+		// 获取变量信息
+		variable, err := s.GetById(ctx, id)
+		liberr.ErrIsNil(ctx, err, "获取变量失败")
+		
+		// 检查依赖关系
+		dependencies, err := s.checkVariableDependencies(ctx, variable.TemplateId, variable.Name)
+		liberr.ErrIsNil(ctx, err, "检查依赖关系失败")
+		
+		if len(dependencies) > 0 {
+			// 构造错误消息
+			var fileNames []string
+			for _, dep := range dependencies {
+				fileNames = append(fileNames, dep.FileName)
+			}
+			err = fmt.Errorf("变量 \"%s\" 被以下文件依赖：%s，请先移除这些文件的生成条件", 
+				variable.Name, strings.Join(fileNames, ", "))
+			liberr.ErrIsNil(ctx, err, "变量存在依赖关系，无法删除")
+		}
+		
 		_, err = dao.TemplateVariables.Ctx(ctx).WherePri(id).Delete()
-		liberr.ErrIsNil(ctx, err, "删除分类失败")
+		liberr.ErrIsNil(ctx, err, "删除变量失败")
 	})
 	return
 }
@@ -113,5 +133,43 @@ func (s sTemplateVariables) GetById(ctx context.Context, id int64) (res *model.T
 		liberr.ErrIsNil(ctx, err, "获取分类失败")
 	})
 	return
+}
+
+// FileDependency 文件依赖信息
+type FileDependency struct {
+	FileName string `json:"fileName"`
+	FilePath string `json:"filePath"`
+}
+
+// checkVariableDependencies 检查变量的依赖关系
+func (s sTemplateVariables) checkVariableDependencies(ctx context.Context, templateId int64, variableName string) (dependencies []FileDependency, err error) {
+	// 查询依赖该变量的文件
+	var files []struct {
+		FileName string `json:"fileName"`
+		FilePath string `json:"filePath"`
+	}
+	
+	sql := `
+		SELECT file_name, file_path 
+		FROM template_files 
+		WHERE template_id = ? 
+		  AND JSON_EXTRACT(generate_condition, '$.enabled') = true
+		  AND JSON_EXTRACT(generate_condition, '$.variableName') = ?
+	`
+	
+	err = g.DB().GetScan(ctx, &files, sql, templateId, variableName)
+	if err != nil {
+		return nil, err
+	}
+	
+	// 转换为依赖信息
+	for _, file := range files {
+		dependencies = append(dependencies, FileDependency{
+			FileName: file.FileName,
+			FilePath: file.FilePath,
+		})
+	}
+	
+	return dependencies, nil
 }
 
