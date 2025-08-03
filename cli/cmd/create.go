@@ -40,6 +40,7 @@ func runCreateCommand(cmd *cobra.Command, args []string) error {
 	interactiveMode, _ := cmd.Flags().GetBool("interactive")
 	configFile, _ := cmd.Flags().GetString("config")
 	force, _ := cmd.Flags().GetBool("force")
+	preview, _ := cmd.Flags().GetBool("preview")
 
 	// 加载配置
 	cfg, err := config.LoadConfig()
@@ -161,6 +162,19 @@ func runCreateCommand(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("渲染模板失败: %w", err)
 	}
 
+	// 如果启用预览模式，显示预览界面
+	if preview {
+		fmt.Println("\n启动预览模式...")
+		confirmed, err := interactive.PreviewFiles(renderedFiles, projectName)
+		if err != nil {
+			return fmt.Errorf("预览失败: %w", err)
+		}
+		if !confirmed {
+			fmt.Println("已取消项目创建")
+			return nil
+		}
+	}
+
 	// 确定输出目录
 	outputDir, err := filepath.Abs(output)
 	if err != nil {
@@ -193,4 +207,5 @@ func init() {
 	createCmd.Flags().BoolP("interactive", "i", false, "启用交互式变量配置")
 	createCmd.Flags().StringP("config", "c", "", "变量配置文件路径")
 	createCmd.Flags().BoolP("force", "f", false, "强制覆盖已存在的目录")
+	createCmd.Flags().BoolP("preview", "p", false, "启用预览模式，生成前查看文件内容")
 }

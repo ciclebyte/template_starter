@@ -12,12 +12,13 @@ import (
 	"github.com/ciclebyte/template_starter/cli/internal/client"
 )
 
+// 模板选择器特有样式
 var (
-	titleStyle        = lipgloss.NewStyle().MarginLeft(2)
+	selectorTitleStyle        = lipgloss.NewStyle().MarginLeft(2)
 	itemStyle         = lipgloss.NewStyle().PaddingLeft(4)
-	selectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
-	paginationStyle   = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
-	helpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
+	selectorSelectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
+	selectorPaginationStyle   = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
+	selectorHelpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
 	quitTextStyle     = lipgloss.NewStyle().Margin(1, 0, 2, 4)
 )
 
@@ -66,9 +67,9 @@ func NewTemplateSelectorModel(apiClient *client.Client) *TemplateSelectorModel {
 	l.Title = "选择模板"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false) // 我们使用自定义搜索
-	l.Styles.Title = titleStyle
-	l.Styles.PaginationStyle = paginationStyle
-	l.Styles.HelpStyle = helpStyle
+	l.Styles.Title = selectorTitleStyle
+	l.Styles.PaginationStyle = selectorPaginationStyle
+	l.Styles.HelpStyle = selectorHelpStyle
 
 	return &TemplateSelectorModel{
 		list:        l,
@@ -91,7 +92,7 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 		
 		isSelected := index == m.Index()
 		if isSelected {
-			str = selectedItemStyle.Render("> " + str)
+			str = selectorSelectedItemStyle.Render("> " + str)
 		} else {
 			str = itemStyle.Render(str)
 		}
