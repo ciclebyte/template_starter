@@ -114,7 +114,7 @@
           v-if="functionDetailVisible && selectedFunction"
           class="function-detail-panel"
           :style="functionDetailStyle"
-          @mouseenter="clearHideTimer"
+          @mouseenter="onDetailPanelEnter"
           @mouseleave="hideFunctionDetail"
         >
           <div class="detail-header">
@@ -138,6 +138,34 @@
               </div>
               <div class="section-content">
                 {{ selectedFunction.usage }}
+              </div>
+            </div>
+            
+            <!-- 参数信息 -->
+            <div v-if="selectedFunction.params && selectedFunction.params.length > 0" class="detail-section">
+              <div class="section-label">
+                <span class="section-icon">🔧</span>
+                参数列表
+              </div>
+              <div class="section-content">
+                <div class="params-list">
+                  <div 
+                    v-for="param in selectedFunction.params" 
+                    :key="param.name"
+                    class="param-item"
+                  >
+                    <div class="param-header">
+                      <span class="param-name">{{ param.name }}</span>
+                      <span class="param-type">{{ param.type }}</span>
+                      <span v-if="param.required" class="param-required">必需</span>
+                      <span v-else class="param-optional">可选</span>
+                    </div>
+                    <div class="param-description">{{ param.description }}</div>
+                    <div v-if="param.default" class="param-default">
+                      默认值: <code>{{ param.default }}</code>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             
@@ -378,6 +406,7 @@ const functionDetailVisible = ref(false)
 const selectedFunction = ref(null)
 const functionDetailStyle = ref({})
 let hideTimer = null
+let showTimer = null
 
 
 // 变量面板状态
@@ -478,6 +507,9 @@ onUnmounted(() => {
   // 清理函数详情面板的定时器
   if (hideTimer) {
     clearTimeout(hideTimer)
+  }
+  if (showTimer) {
+    clearTimeout(showTimer)
   }
 })
 
@@ -901,34 +933,38 @@ function insertVariable(variableName) {
   }
 }
 
-// 显示函数详情
+// 显示函数详情 - 增加延迟显示，避免误触发
 function showFunctionDetail(func, event) {
   clearHideTimer()
+  clearShowTimer()
   
-  selectedFunction.value = func
-  
-  // 计算面板位置 - 显示在鼠标右下角
-  const panelWidth = 300  // 减小面板宽度
-  const panelHeight = 200 // 减小面板高度
-  const offset = 8
-  
-  let left = event.clientX + offset
-  let top = event.clientY + offset
-  
-  // 边界检查 - 确保面板不超出屏幕
-  if (left + panelWidth > window.innerWidth - 10) {
-    left = event.clientX - panelWidth - offset // 显示在鼠标左下角
-  }
-  if (top + panelHeight > window.innerHeight - 10) {
-    top = event.clientY - panelHeight - offset // 显示在鼠标右上角
-  }
-  
-  functionDetailStyle.value = {
-    left: `${left}px`,
-    top: `${top}px`
-  }
-  
-  functionDetailVisible.value = true
+  // 延迟显示，只有悬停800ms后才显示详情
+  showTimer = setTimeout(() => {
+    selectedFunction.value = func
+    
+    // 计算面板位置 - 显示在鼠标右下角
+    const panelWidth = 300  // 减小面板宽度
+    const panelHeight = 200 // 减小面板高度
+    const offset = 8
+    
+    let left = event.clientX + offset
+    let top = event.clientY + offset
+    
+    // 边界检查 - 确保面板不超出屏幕
+    if (left + panelWidth > window.innerWidth - 10) {
+      left = event.clientX - panelWidth - offset // 显示在鼠标左下角
+    }
+    if (top + panelHeight > window.innerHeight - 10) {
+      top = event.clientY - panelHeight - offset // 显示在鼠标右上角
+    }
+    
+    functionDetailStyle.value = {
+      left: `${left}px`,
+      top: `${top}px`
+    }
+    
+    functionDetailVisible.value = true
+  }, 800) // 增加到800ms延迟，减少误触发
 }
 
 // 清除隐藏计时器
@@ -939,12 +975,28 @@ function clearHideTimer() {
   }
 }
 
-// 隐藏函数详情
+// 清除显示计时器
+function clearShowTimer() {
+  if (showTimer) {
+    clearTimeout(showTimer)
+    showTimer = null
+  }
+}
+
+// 鼠标进入详情面板时的处理
+function onDetailPanelEnter() {
+  clearHideTimer()
+  clearShowTimer()
+}
+
+// 隐藏函数详情 - 增加延迟隐藏时间
 function hideFunctionDetail() {
+  clearShowTimer() // 取消可能的显示操作
+  
   hideTimer = setTimeout(() => {
     functionDetailVisible.value = false
     selectedFunction.value = null
-  }, 150)
+  }, 300) // 增加到300ms延迟，给用户更多时间移动到详情面板
 }
 
 // 格式化函数为适合插入的格式
@@ -959,6 +1011,11 @@ function formatFunction(func) {
 
 // 插入函数
 function insertFunction(func) {
+  // 点击插入时，立即取消详情面板的显示和计时器
+  clearShowTimer()
+  clearHideTimer()
+  functionDetailVisible.value = false
+  
   let code = func.code
   
   // 如果代码中包含"变量名"占位符，需要特殊处理
@@ -975,6 +1032,11 @@ function insertFunction(func) {
 
 // 插入Sprig函数
 function insertSprigFunction(func) {
+  // 点击插入时，立即取消详情面板的显示和计时器
+  clearShowTimer()
+  clearHideTimer()
+  functionDetailVisible.value = false
+  
   const code = func.insert_text || `{{ ${func.name} }}`
   
   if (templateEditorRef.value) {
@@ -985,35 +1047,40 @@ function insertSprigFunction(func) {
 // 显示Sprig函数详情
 function showSprigFunctionDetail(func, event) {
   clearHideTimer()
-  selectedFunction.value = func
+  clearShowTimer()
   
-  // 计算面板位置 - 显示在鼠标右下角
-  const panelWidth = 300
-  const panelHeight = 250
-  const offset = 8
-  
-  let left = event.clientX + offset
-  let top = event.clientY + offset
-  
-  // 边界检测
-  const viewportWidth = window.innerWidth
-  const viewportHeight = window.innerHeight
-  
-  if (left + panelWidth > viewportWidth) {
-    left = event.clientX - panelWidth - offset
-  }
-  
-  if (top + panelHeight > viewportHeight) {
-    top = event.clientY - panelHeight - offset
-  }
-  
-  functionDetailStyle.value = {
-    left: `${left}px`,
-    top: `${top}px`,
-    zIndex: 9999
-  }
-  
-  functionDetailVisible.value = true
+  // 延迟显示，只有悬停800ms后才显示详情
+  showTimer = setTimeout(() => {
+    selectedFunction.value = func
+    
+    // 计算面板位置 - 显示在鼠标右下角
+    const panelWidth = 300
+    const panelHeight = 250
+    const offset = 8
+    
+    let left = event.clientX + offset
+    let top = event.clientY + offset
+    
+    // 边界检测
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+    
+    if (left + panelWidth > viewportWidth) {
+      left = event.clientX - panelWidth - offset
+    }
+    
+    if (top + panelHeight > viewportHeight) {
+      top = event.clientY - panelHeight - offset
+    }
+    
+    functionDetailStyle.value = {
+      left: `${left}px`,
+      top: `${top}px`,
+      zIndex: 9999
+    }
+    
+    functionDetailVisible.value = true
+  }, 800) // 与内置函数保持一致的延迟时间
 }
 
 
@@ -1413,12 +1480,13 @@ function onApplyTestData(testData) {
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
-  overflow: visible;
+  overflow: hidden;
   animation: panelFadeIn 0.2s ease-out;
   border: 1px solid rgba(0, 0, 0, 0.06);
   pointer-events: auto;
-  max-width: 300px;
-  width: 300px;
+  max-width: 350px;
+  width: 350px;
+  max-height: 500px;
 }
 
 .function-detail-panel::before {
@@ -1479,6 +1547,8 @@ function onApplyTestData(testData) {
 
 .detail-body {
   padding: 16px;
+  overflow-y: auto;
+  max-height: 420px; /* 给header留出空间 */
 }
 
 .detail-description {
@@ -1535,6 +1605,96 @@ function onApplyTestData(testData) {
   border: 1px solid #9ae6b4;
   color: #2f855a;
   font-weight: 500;
+}
+
+/* 参数列表样式 */
+.params-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.param-item {
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.param-item:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.param-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.param-name {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-weight: 600;
+  color: #1e40af;
+  background: #dbeafe;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 13px;
+}
+
+.param-type {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  color: #7c3aed;
+  background: #ede9fe;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.param-required {
+  background: #fee2e2;
+  color: #dc2626;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.param-optional {
+  background: #f3f4f6;
+  color: #6b7280;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.param-description {
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.param-default {
+  color: #6b7280;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.param-default code {
+  background: #e5e7eb;
+  color: #374151;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-size: 11px;
 }
 
 .empty-text {
