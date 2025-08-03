@@ -1,0 +1,45 @@
+{
+  "ProjectName": "my-awesome-project",
+  "ProjectDescription": "A sample project created with Template Starter CLI",
+  "Author": "Your Name",
+  "Email": "your.email@example.com",
+  
+  "UseDatabase": true,
+  "DatabaseType": "mysql",
+  "UseRedis": false,
+  "UseDocker": true,
+  
+  "APIPort": 8080,
+  "APIPrefix": "/api/v1",
+  "EnableCORS": true,
+  
+  "UseFrontend": true,
+  "FrontendFramework": "vue3",
+  "UILibrary": "naive-ui",
+  
+  "Environment": "development",
+  "EnableHTTPS": false,
+  "DomainName": "localhost",
+  
+  "EnableAuth": true,
+  "EnableLogging": true,
+  "EnableMonitoring": false,
+  "EnableTesting": true,
+  
+  "MaxConnections": 100,
+  "TimeoutSeconds": 30,
+  "RetryAttempts": 3,
+  
+  "SupportedLanguages": [
+    "zh-CN",
+    "en-US"
+  ],
+  
+  "DatabaseConfig": {
+    "host": "localhost",
+    "port": 3306,
+    "username": "root",
+    "password": "password",
+    "database": "myapp"
+  }
+}

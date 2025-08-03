@@ -214,7 +214,7 @@ type TemplateFilesDownloadZipRes struct {
 type TemplateFilesMoveReq struct {
 	g.Meta      `path:"/templateFiles/move" method:"put" tags:"模板文件" summary:"模板文件-移动"`
 	Id          interface{} `json:"id" v:"required#文件ID不能为空"`
-	NewParentId interface{} `json:"newParentId" v:"required#新父目录ID不能为空"`
+	NewParentId interface{} `json:"newParentId"` // 新父目录ID，null或0表示移动到根目录
 }
 
 type TemplateFilesMoveRes struct {

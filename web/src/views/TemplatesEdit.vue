@@ -1177,15 +1177,24 @@ async function onMoveFile(payload) {
     const sourceName = sourceNode?.fileName || sourceNode?.label || '未知文件'
     message.success(`已将 "${sourceName}" 移动到 "${targetName}"`)
     
+    // 保存当前正在编辑的文件信息
+    const wasCurrentFile = currentFileId.value === String(sourceId)
+    const currentContent = currentFileContent.value
+    const currentName = currentFileName.value
+    
     // 重新加载文件树
     await loadTree()
     
-    // 如果移动的是当前文件，清除当前文件状态
-    if (currentFileId.value === String(sourceId)) {
-      currentFileContent.value = ''
-      currentFileName.value = ''
-      currentFileId.value = ''
-      templateFileStore.setCurrentFileContent('')
+    // 如果移动的是当前文件，重新选择它以保持编辑状态
+    if (wasCurrentFile) {
+      // 重新设置当前文件信息（文件ID没有变化，只是位置变了）
+      currentFileId.value = String(sourceId)
+      currentFileName.value = currentName
+      currentFileContent.value = currentContent
+      templateFileStore.setCurrentFileContent(currentContent)
+      
+      // 更新文件树选中状态
+      currentFile.value = String(sourceId)
     }
   } catch (error) {
     console.error('移动失败:', error)

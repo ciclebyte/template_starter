@@ -1,0 +1,52 @@
+# Template Starter CLI 变量配置示例
+
+# 项目基本信息
+ProjectName: "my-awesome-project"
+ProjectDescription: "A sample project created with Template Starter CLI"
+Author: "Your Name"
+Email: "your.email@example.com"
+
+# 技术栈选择
+UseDatabase: true
+DatabaseType: "mysql"  # mysql, postgresql, sqlite
+UseRedis: false
+UseDocker: true
+
+# API配置
+APIPort: 8080
+APIPrefix: "/api/v1"
+EnableCORS: true
+
+# 前端配置
+UseFrontend: true
+FrontendFramework: "vue3"  # vue3, react, angular
+UILibrary: "naive-ui"      # naive-ui, element-plus, antd
+
+# 部署配置
+Environment: "development"  # development, staging, production
+EnableHTTPS: false
+DomainName: "localhost"
+
+# 功能模块
+EnableAuth: true
+EnableLogging: true
+EnableMonitoring: false
+EnableTesting: true
+
+# 数值配置
+MaxConnections: 100
+TimeoutSeconds: 30
+RetryAttempts: 3
+
+# 数组配置
+SupportedLanguages:
+  - "zh-CN"
+  - "en-US"
+
+# 对象配置
+DatabaseConfig:
+  host: "localhost"
+  port: 3306
+  username: "root"
+  password: "password"
+  database: "myapp"
