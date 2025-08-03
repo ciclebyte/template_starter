@@ -410,6 +410,17 @@
         </div>
       </div>
     </n-modal>
+
+    <!-- AI助手组件 -->
+    <AIAssistant
+      :current-file-name="currentFileName"
+      :current-file-content="currentFileContent"
+      :template-variables="templateVariables"
+      @insert-code="onAIInsertCode"
+      @add-variable="onAIAddVariable"
+      @create-file="onAICreateFile"
+      @apply-suggestion="onAIApplySuggestion"
+    />
   </div>
 </template>
 
@@ -424,6 +435,7 @@ import TemplateExplorer from '@/components/TemplateFileTree.vue'
 import TemplateEditor from '@/components/TemplateEditor.vue'
 import VariableManager from '@/components/VariableManager.vue'
 import TemplatePreview from '@/components/TemplatePreview.vue'
+import AIAssistant from '@/components/AIAssistant.vue'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
 import { useMessage, NIcon, NTag, NButton, NSpin, NForm, NFormItem, NSwitch, NSelect, NRadioGroup, NRadio, NInput } from 'naive-ui'
 import { ChevronDown, ChevronUp, Add, Settings, Pricetag } from '@vicons/ionicons5'
@@ -1586,6 +1598,91 @@ async function saveCondition() {
   } catch (error) {
     console.error('保存条件失败:', error)
     message.error('保存条件失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+  }
+}
+
+// AI助手事件处理
+// AI插入代码
+function onAIInsertCode(code) {
+  if (templateEditorRef.value) {
+    templateEditorRef.value.insertVariable(code)
+    message.success('AI代码已插入到编辑器')
+  } else {
+    message.warning('请先选择一个文件进行编辑')
+  }
+}
+
+// AI添加变量
+async function onAIAddVariable(variable) {
+  try {
+    await addTemplateVariable({
+      templateId: parseInt(route.params.id),
+      name: variable.name,
+      variableType: variable.type || 'string',
+      description: variable.description || '',
+      defaultValue: variable.defaultValue || '',
+      isRequired: variable.required ? 1 : 0,
+      sort: templateVariables.value.length + 1
+    })
+    await loadVariables()
+    message.success(`AI建议的变量 "${variable.name}" 已添加`)
+  } catch (error) {
+    message.error('AI变量添加失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+  }
+}
+
+// AI创建文件
+async function onAICreateFile(fileInfo) {
+  try {
+    const templateId = route.params.id
+    const isDirectory = fileInfo.type === 'folder' ? 1 : 0
+    
+    await addTemplateFile({
+      templateId,
+      fileName: fileInfo.name,
+      fileContent: fileInfo.content || '',
+      fileSize: (fileInfo.content || '').length,
+      isDirectory,
+      md5: '',
+      sort: 0,
+      parentId: fileInfo.parentId || null
+    })
+    
+    await loadTree()
+    message.success(`AI生成的${isDirectory ? '文件夹' : '文件'} "${fileInfo.name}" 已创建`)
+  } catch (error) {
+    message.error('AI文件创建失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+  }
+}
+
+// AI应用建议
+function onAIApplySuggestion(suggestion) {
+  switch (suggestion.type) {
+    case 'code-optimization':
+      // 代码优化建议
+      if (suggestion.code && templateEditorRef.value) {
+        templateEditorRef.value.insertVariable(suggestion.code)
+        message.success('AI优化建议已应用')
+      }
+      break
+    case 'variable-suggestion':
+      // 变量建议
+      if (suggestion.variables) {
+        suggestion.variables.forEach(variable => {
+          onAIAddVariable(variable)
+        })
+      }
+      break
+    case 'template-structure':
+      // 模板结构建议
+      if (suggestion.structure) {
+        suggestion.structure.forEach(file => {
+          onAICreateFile(file)
+        })
+      }
+      break
+    default:
+      message.info('AI建议已接收')
   }
 }
 </script>
