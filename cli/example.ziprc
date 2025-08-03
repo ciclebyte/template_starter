@@ -1,0 +1,157 @@
+# ZIP压缩配置文件示例
+# 使用方法: template-cli zip --config .ziprc
+
+# 排除的目录（目录名称，不支持路径）
+[exclude_dirs]
+# 版本控制
+.git
+.svn
+.hg
+
+# 依赖包
+node_modules
+vendor
+bower_components
+
+# IDE配置
+.vscode
+.idea
+.vs
+
+# 编译输出
+target
+build
+dist
+out
+bin
+obj
+
+# 缓存目录
+.cache
+.gradle
+.maven
+__pycache__
+.pytest_cache
+
+# 临时目录
+tmp
+temp
+.tmp
+.temp
+
+# 日志目录
+logs
+log
+
+# 排除的文件模式（支持通配符）
+[exclude_files]
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 日志和临时文件
+*.log
+*.tmp
+*.temp
+
+# 编辑器临时文件
+*.swp
+*.swo
+*~
+
+# 环境配置文件
+.env
+.env.local
+.env.*.local
+
+# 锁文件和PID文件
+*.pid
+*.lock
+
+# 合并冲突文件
+*.orig
+*.rej
+
+# 备份文件
+*.bak
+*.backup
+
+# 二进制文件扩展名
+[binary_extensions]
+# 可执行文件
+exe
+dll
+so
+dylib
+bin
+app
+
+# 归档文件
+zip
+tar
+gz
+rar
+7z
+bz2
+xz
+
+# 图片文件
+jpg
+jpeg
+png
+gif
+bmp
+tiff
+ico
+
+# 音频文件
+mp3
+wav
+flac
+aac
+ogg
+m4a
+
+# 视频文件
+mp4
+avi
+mov
+wmv
+flv
+mkv
+webm
+
+# 字体文件
+ttf
+otf
+woff
+woff2
+eot
+
+# 文档文件
+pdf
+doc
+docx
+xls
+xlsx
+ppt
+pptx
+
+# 数据库文件
+db
+sqlite
+sqlite3
+mdb
+
+# 编译产物
+class
+jar
+war
+ear
+pdb
+idb
+pyc
+pyo
+pyd
+node
