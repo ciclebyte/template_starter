@@ -66,11 +66,6 @@ const routes = [
         component: () => import('@/views/admin/LanguagesManage.vue')
       },
       {
-        path: 'files',
-        name: 'admin-files',
-        component: () => import('@/views/Templates.vue') // 临时使用现有组件
-      },
-      {
         path: 'analytics',
         name: 'admin-analytics',
         component: () => import('@/views/admin/Analytics.vue')
