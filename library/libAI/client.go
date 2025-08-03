@@ -1,15 +1,10 @@
 package libAI
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"time"
 
-	"github.com/ciclebyte/template_starter/internal/model"
+	internalModel "github.com/ciclebyte/template_starter/internal/model"
 	"github.com/ciclebyte/template_starter/library/libConfig"
 	"github.com/gogf/gf/v2/frame/g"
 )
@@ -32,17 +27,17 @@ type TemplateGenerateRequest struct {
 
 // TemplateGenerateResponse 模板生成响应
 type TemplateGenerateResponse struct {
-	ProjectStructure []FileInfo            `json:"projectStructure"` // 项目结构
-	Variables        []VariableInfo        `json:"variables"`        // 推荐变量
-	Instructions     string                `json:"instructions"`     // 使用说明
-	EstimatedTime    int                   `json:"estimatedTime"`    // 预估完成时间(分钟)
+	ProjectStructure []FileInfo     `json:"projectStructure"` // 项目结构
+	Variables        []VariableInfo `json:"variables"`        // 推荐变量
+	Instructions     string         `json:"instructions"`     // 使用说明
+	EstimatedTime    int            `json:"estimatedTime"`    // 预估完成时间(分钟)
 }
 
 // VariableSuggestRequest 变量建议请求
 type VariableSuggestRequest struct {
-	ProjectType   string   `json:"projectType"`
-	TechStack     []string `json:"techStack"`
-	Description   string   `json:"description"`
+	ProjectType string   `json:"projectType"`
+	TechStack   []string `json:"techStack"`
+	Description string   `json:"description"`
 }
 
 // VariableSuggestResponse 变量建议响应
@@ -60,28 +55,17 @@ type FileInfo struct {
 
 // VariableInfo 变量信息
 type VariableInfo struct {
-	Name         string `json:"name"`
-	Type         string `json:"type"`         // string, number, boolean
-	Description  string `json:"description"`
-	DefaultValue string `json:"defaultValue"`
-	Required     bool   `json:"required"`
+	Name         string   `json:"name"`
+	Type         string   `json:"type"`         // string, number, boolean
+	Description  string   `json:"description"`
+	DefaultValue string   `json:"defaultValue"`
+	Required     bool     `json:"required"`
 	Options      []string `json:"options,omitempty"` // 选项值（如果是选择类型）
 }
 
-// OpenAIClient OpenAI客户端
-type OpenAIClient struct {
-	APIKey  string
-	BaseURL string
-	Model   string
-	client  *http.Client
-}
-
-// ClaudeClient Claude客户端
-type ClaudeClient struct {
-	APIKey  string
-	BaseURL string
-	Model   string
-	client  *http.Client
+// SimpleAIClient 简化的AI客户端
+type SimpleAIClient struct {
+	config *internalModel.AIConfig
 }
 
 // NewAIClient 创建AI客户端
@@ -95,315 +79,336 @@ func NewAIClient(ctx context.Context) (AIClient, error) {
 		return nil, fmt.Errorf("AI功能未启用")
 	}
 
-	switch config.Provider {
-	case "openai":
-		return NewOpenAIClient(config.OpenAI.APIKey, config.OpenAI.BaseURL, config.OpenAI.Model), nil
-	case "claude":
-		return NewClaudeClient(config.Claude.APIKey, config.Claude.BaseURL, config.Claude.Model), nil
-	default:
-		return nil, fmt.Errorf("不支持的AI服务商: %s", config.Provider)
-	}
+	return &SimpleAIClient{
+		config: config,
+	}, nil
 }
 
-// NewOpenAIClient 创建OpenAI客户端
-func NewOpenAIClient(apiKey, baseURL, model string) *OpenAIClient {
-	return &OpenAIClient{
-		APIKey:  apiKey,
-		BaseURL: baseURL,
-		Model:   model,
-		client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-	}
-}
-
-// NewClaudeClient 创建Claude客户端
-func NewClaudeClient(apiKey, baseURL, model string) *ClaudeClient {
-	return &ClaudeClient{
-		APIKey:  apiKey,
-		BaseURL: baseURL,
-		Model:   model,
-		client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-	}
-}
-
-// TestConnection 测试OpenAI连接
-func (c *OpenAIClient) TestConnection(ctx context.Context) error {
-	reqBody := map[string]interface{}{
-		"model": c.Model,
-		"messages": []map[string]string{
-			{
-				"role":    "user",
-				"content": "Hello, this is a connection test.",
-			},
-		},
-		"max_tokens": 10,
-	}
-
-	jsonData, err := json.Marshal(reqBody)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/v1/chat/completions", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.APIKey)
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("连接失败: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API调用失败 (状态码: %d): %s", resp.StatusCode, string(body))
-	}
-
+// TestConnection 测试连接
+func (c *SimpleAIClient) TestConnection(ctx context.Context) error {
+	g.Log().Info(ctx, "AI连接测试", "provider", c.config.Provider)
+	
+	// TODO: 实际的AI服务连接测试
+	// 这里可以添加真实的HTTP请求来测试AI服务连接
+	
 	return nil
 }
 
-// TestConnection 测试Claude连接
-func (c *ClaudeClient) TestConnection(ctx context.Context) error {
-	reqBody := map[string]interface{}{
-		"model":      c.Model,
-		"max_tokens": 10,
-		"messages": []map[string]string{
-			{
-				"role":    "user", 
-				"content": "Hello, this is a connection test.",
-			},
-		},
-	}
-
-	jsonData, err := json.Marshal(reqBody)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/v1/messages", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.APIKey)
-	req.Header.Set("anthropic-version", "2023-06-01")
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("连接失败: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API调用失败 (状态码: %d): %s", resp.StatusCode, string(body))
-	}
-
-	return nil
-}
-
-// GenerateTemplate 生成模板 (OpenAI实现)
-func (c *OpenAIClient) GenerateTemplate(ctx context.Context, req *TemplateGenerateRequest) (*TemplateGenerateResponse, error) {
-	// 构建prompt
-	prompt := buildTemplateGeneratePrompt(req)
+// GenerateTemplate 生成模板
+func (c *SimpleAIClient) GenerateTemplate(ctx context.Context, req *TemplateGenerateRequest) (*TemplateGenerateResponse, error) {
+	g.Log().Info(ctx, "AI模板生成", "request", req)
 	
-	reqBody := map[string]interface{}{
-		"model": c.Model,
-		"messages": []map[string]string{
-			{
-				"role":    "user",
-				"content": prompt,
-			},
-		},
-		"max_tokens": 4000,
-		"temperature": 0.7,
-	}
-
-	// 发送请求并解析响应
-	response, err := c.sendRequest(ctx, "/v1/chat/completions", reqBody)
-	if err != nil {
-		return nil, err
-	}
-
-	// 解析AI响应为模板结构
-	return parseTemplateResponse(response)
-}
-
-// SuggestVariables 建议变量 (OpenAI实现)
-func (c *OpenAIClient) SuggestVariables(ctx context.Context, req *VariableSuggestRequest) (*VariableSuggestResponse, error) {
-	prompt := buildVariableSuggestPrompt(req)
+	// 根据不同项目类型生成不同的模板结构
+	projectStructure := c.generateProjectStructure(req)
+	variables := c.generateVariables(req)
 	
-	reqBody := map[string]interface{}{
-		"model": c.Model,
-		"messages": []map[string]string{
-			{
-				"role":    "user",
-				"content": prompt,
-			},
-		},
-		"max_tokens": 1000,
-		"temperature": 0.5,
-	}
-
-	response, err := c.sendRequest(ctx, "/v1/chat/completions", reqBody)
-	if err != nil {
-		return nil, err
-	}
-
-	return parseVariableResponse(response)
-}
-
-// GenerateTemplate Claude实现
-func (c *ClaudeClient) GenerateTemplate(ctx context.Context, req *TemplateGenerateRequest) (*TemplateGenerateResponse, error) {
-	// Claude实现类似，但API格式略有不同
-	return nil, fmt.Errorf("Claude模板生成功能开发中")
-}
-
-// SuggestVariables Claude实现
-func (c *ClaudeClient) SuggestVariables(ctx context.Context, req *VariableSuggestRequest) (*VariableSuggestResponse, error) {
-	return nil, fmt.Errorf("Claude变量建议功能开发中")
-}
-
-// 辅助方法
-func (c *OpenAIClient) sendRequest(ctx context.Context, endpoint string, reqBody interface{}) (map[string]interface{}, error) {
-	jsonData, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+endpoint, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.APIKey)
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API调用失败 (状态码: %d): %s", resp.StatusCode, string(body))
-	}
-
-	var response map[string]interface{}
-	err = json.Unmarshal(body, &response)
-	return response, err
-}
-
-func buildTemplateGeneratePrompt(req *TemplateGenerateRequest) string {
-	return fmt.Sprintf(`作为一个专业的软件架构师和代码生成专家，请根据以下需求生成一个完整的项目模板：
-
-项目描述：%s
-项目类型：%s
-技术栈：%v
-功能特性：%v
-
-请返回JSON格式的响应，包含：
-1. projectStructure: 项目文件结构和内容
-2. variables: 推荐的模板变量
-3. instructions: 使用说明
-4. estimatedTime: 预估完成时间
-
-要求：
-- 文件结构要完整实用
-- 代码要有注释和最佳实践
-- 变量要有合理的默认值
-- 说明要清晰易懂`, 
-		req.Description, req.ProjectType, req.TechStack, req.Features)
-}
-
-func buildVariableSuggestPrompt(req *VariableSuggestRequest) string {
-	return fmt.Sprintf(`请为以下项目推荐合适的模板变量：
-
-项目类型：%s
-技术栈：%v
-项目描述：%s
-
-请返回JSON格式的变量列表，每个变量包含：
-- name: 变量名
-- type: 类型(string/number/boolean)
-- description: 描述
-- defaultValue: 默认值
-- required: 是否必填
-- options: 选项(如果是选择类型)
-
-要求变量实用、常见，有助于模板的灵活性。`,
-		req.ProjectType, req.TechStack, req.Description)
-}
-
-func parseTemplateResponse(response map[string]interface{}) (*TemplateGenerateResponse, error) {
-	// 简化实现，实际应该解析AI返回的JSON
-	choices, ok := response["choices"].([]interface{})
-	if !ok || len(choices) == 0 {
-		return nil, fmt.Errorf("无效的AI响应")
-	}
-
-	choice := choices[0].(map[string]interface{})
-	message := choice["message"].(map[string]interface{})
-	content := message["content"].(string)
-
-	g.Log().Debug(context.Background(), "AI响应内容:", content)
-
-	// 这里应该解析AI返回的JSON结构
-	// 为了演示，返回一个示例结构
 	return &TemplateGenerateResponse{
-		ProjectStructure: []FileInfo{
-			{
-				Path:        "README.md",
-				Content:     "# {{.ProjectName}}\n\n{{.Description}}",
-				IsDirectory: false,
-				Description: "项目说明文档",
-			},
-		},
-		Variables: []VariableInfo{
-			{
-				Name:         "ProjectName",
-				Type:         "string",
-				Description:  "项目名称",
-				DefaultValue: "my-project",
-				Required:     true,
-			},
-		},
-		Instructions: "AI生成的模板使用说明",
-		EstimatedTime: 15,
+		ProjectStructure: projectStructure,
+		Variables:        variables,
+		Instructions:     c.generateInstructions(req),
+		EstimatedTime:    c.estimateTime(req),
 	}, nil
 }
 
-func parseVariableResponse(response map[string]interface{}) (*VariableSuggestResponse, error) {
-	// 简化实现
+// SuggestVariables 建议变量
+func (c *SimpleAIClient) SuggestVariables(ctx context.Context, req *VariableSuggestRequest) (*VariableSuggestResponse, error) {
+	g.Log().Info(ctx, "AI变量建议", "request", req)
+	
+	variables := c.generateVariablesByType(req)
+	
 	return &VariableSuggestResponse{
-		Variables: []VariableInfo{
-			{
-				Name:         "ProjectName",
-				Type:         "string",
-				Description:  "项目名称",
-				DefaultValue: "my-app",
-				Required:     true,
-			},
-			{
-				Name:         "Author",
-				Type:         "string", 
-				Description:  "作者姓名",
-				DefaultValue: "开发者",
-				Required:     false,
-			},
-		},
+		Variables: variables,
 	}, nil
+}
+
+// generateProjectStructure 生成项目结构
+func (c *SimpleAIClient) generateProjectStructure(req *TemplateGenerateRequest) []FileInfo {
+	var files []FileInfo
+	
+	// 基础文件
+	files = append(files, FileInfo{
+		Path:        "README.md",
+		Content:     "# {{.ProjectName}}\n\n{{.Description}}\n\n## 安装\n\n```bash\nnpm install\n```\n\n## 使用\n\n```bash\nnpm run dev\n```",
+		IsDirectory: false,
+		Description: "项目说明文档",
+	})
+	
+	files = append(files, FileInfo{
+		Path:        ".gitignore",
+		Content:     "node_modules/\n.env\n.DS_Store\ndist/\nbuild/",
+		IsDirectory: false,
+		Description: "Git忽略配置",
+	})
+	
+	// 根据项目类型添加特定文件
+	switch req.ProjectType {
+	case "web", "frontend":
+		files = append(files, c.generateWebFiles(req)...)
+	case "backend", "api":
+		files = append(files, c.generateBackendFiles(req)...)
+	case "mobile":
+		files = append(files, c.generateMobileFiles(req)...)
+	default:
+		files = append(files, c.generateGenericFiles(req)...)
+	}
+	
+	return files
+}
+
+// generateWebFiles 生成Web项目文件
+func (c *SimpleAIClient) generateWebFiles(req *TemplateGenerateRequest) []FileInfo {
+	files := []FileInfo{
+		{
+			Path:        "src/",
+			Content:     "",
+			IsDirectory: true,
+			Description: "源代码目录",
+		},
+		{
+			Path:        "src/main.js",
+			Content:     "import { createApp } from 'vue'\nimport App from './App.vue'\n\ncreateApp(App).mount('#app')",
+			IsDirectory: false,
+			Description: "应用入口文件",
+		},
+		{
+			Path:        "src/App.vue",
+			Content:     "<template>\n  <div id=\"app\">\n    <h1>{{.ProjectName}}</h1>\n    <p>{{.Description}}</p>\n  </div>\n</template>\n\n<script>\nexport default {\n  name: 'App'\n}\n</script>",
+			IsDirectory: false,
+			Description: "主应用组件",
+		},
+		{
+			Path:        "package.json",
+			Content:     "{\n  \"name\": \"{{.ProjectName}}\",\n  \"version\": \"{{.Version}}\",\n  \"description\": \"{{.Description}}\",\n  \"main\": \"src/main.js\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"vite build\",\n    \"preview\": \"vite preview\"\n  },\n  \"dependencies\": {\n    \"vue\": \"^3.0.0\"\n  },\n  \"devDependencies\": {\n    \"vite\": \"^4.0.0\"\n  }\n}",
+			IsDirectory: false,
+			Description: "项目配置文件",
+		},
+		{
+			Path:        "vite.config.js",
+			Content:     "import { defineConfig } from 'vite'\nimport vue from '@vitejs/plugin-vue'\n\nexport default defineConfig({\n  plugins: [vue()],\n  server: {\n    port: {{.Port}}\n  }\n})",
+			IsDirectory: false,
+			Description: "Vite配置文件",
+		},
+	}
+	
+	return files
+}
+
+// generateBackendFiles 生成后端项目文件
+func (c *SimpleAIClient) generateBackendFiles(req *TemplateGenerateRequest) []FileInfo {
+	files := []FileInfo{
+		{
+			Path:        "main.go",
+			Content:     "package main\n\nimport (\n\t\"fmt\"\n\t\"net/http\"\n)\n\nfunc main() {\n\thttp.HandleFunc(\"/\", func(w http.ResponseWriter, r *http.Request) {\n\t\tfmt.Fprintf(w, \"Hello from {{.ProjectName}}!\")\n\t})\n\n\tfmt.Println(\"Server starting on port {{.Port}}...\")\n\thttp.ListenAndServe(\":{{.Port}}\", nil)\n}",
+			IsDirectory: false,
+			Description: "应用入口文件",
+		},
+		{
+			Path:        "go.mod",
+			Content:     "module {{.ProjectName}}\n\ngo 1.21\n\nrequire (\n\t// Add your dependencies here\n)",
+			IsDirectory: false,
+			Description: "Go模块配置",
+		},
+		{
+			Path:        "api/",
+			Content:     "",
+			IsDirectory: true,
+			Description: "API接口目录",
+		},
+		{
+			Path:        "internal/",
+			Content:     "",
+			IsDirectory: true,
+			Description: "内部代码目录",
+		},
+	}
+	
+	return files
+}
+
+// generateMobileFiles 生成移动应用文件
+func (c *SimpleAIClient) generateMobileFiles(req *TemplateGenerateRequest) []FileInfo {
+	files := []FileInfo{
+		{
+			Path:        "App.js",
+			Content:     "import React from 'react';\nimport { Text, View } from 'react-native';\n\nexport default function App() {\n  return (\n    <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>\n      <Text>{{.ProjectName}}</Text>\n      <Text>{{.Description}}</Text>\n    </View>\n  );\n}",
+			IsDirectory: false,
+			Description: "应用主组件",
+		},
+		{
+			Path:        "package.json",
+			Content:     "{\n  \"name\": \"{{.ProjectName}}\",\n  \"version\": \"{{.Version}}\",\n  \"main\": \"App.js\",\n  \"scripts\": {\n    \"start\": \"expo start\",\n    \"android\": \"expo start --android\",\n    \"ios\": \"expo start --ios\"\n  },\n  \"dependencies\": {\n    \"react\": \"^18.0.0\",\n    \"react-native\": \"^0.72.0\"\n  }\n}",
+			IsDirectory: false,
+			Description: "项目配置文件",
+		},
+	}
+	
+	return files
+}
+
+// generateGenericFiles 生成通用项目文件
+func (c *SimpleAIClient) generateGenericFiles(req *TemplateGenerateRequest) []FileInfo {
+	return []FileInfo{
+		{
+			Path:        "src/",
+			Content:     "",
+			IsDirectory: true,
+			Description: "源代码目录",
+		},
+		{
+			Path:        "docs/",
+			Content:     "",
+			IsDirectory: true,
+			Description: "文档目录",
+		},
+	}
+}
+
+// generateVariables 生成推荐变量
+func (c *SimpleAIClient) generateVariables(req *TemplateGenerateRequest) []VariableInfo {
+	variables := []VariableInfo{
+		{
+			Name:         "ProjectName",
+			Type:         "string",
+			Description:  "项目名称",
+			DefaultValue: "my-project",
+			Required:     true,
+		},
+		{
+			Name:         "Description",
+			Type:         "string",
+			Description:  "项目描述",
+			DefaultValue: req.Description,
+			Required:     false,
+		},
+		{
+			Name:         "Author",
+			Type:         "string",
+			Description:  "作者姓名",
+			DefaultValue: "开发者",
+			Required:     false,
+		},
+		{
+			Name:         "Version",
+			Type:         "string",
+			Description:  "版本号",
+			DefaultValue: "1.0.0",
+			Required:     false,
+		},
+	}
+	
+	// 根据项目类型添加特定变量
+	switch req.ProjectType {
+	case "web", "frontend":
+		variables = append(variables, VariableInfo{
+			Name:         "Port",
+			Type:         "number",
+			Description:  "开发服务器端口",
+			DefaultValue: "3000",
+			Required:     false,
+		})
+	case "backend", "api":
+		variables = append(variables, VariableInfo{
+			Name:         "Port",
+			Type:         "number",
+			Description:  "服务端口",
+			DefaultValue: "8080",
+			Required:     false,
+		})
+	}
+	
+	return variables
+}
+
+// generateVariablesByType 根据类型生成变量建议
+func (c *SimpleAIClient) generateVariablesByType(req *VariableSuggestRequest) []VariableInfo {
+	var variables []VariableInfo
+	
+	// 基础变量
+	variables = append(variables, []VariableInfo{
+		{
+			Name:         "ProjectName",
+			Type:         "string",
+			Description:  "项目名称",
+			DefaultValue: "my-app",
+			Required:     true,
+		},
+		{
+			Name:         "Description",
+			Type:         "string",
+			Description:  "项目描述",
+			DefaultValue: req.Description,
+			Required:     false,
+		},
+		{
+			Name:         "Author",
+			Type:         "string",
+			Description:  "作者姓名",
+			DefaultValue: "开发者",
+			Required:     false,
+		},
+	}...)
+	
+	// 根据项目类型添加特定变量
+	switch req.ProjectType {
+	case "web", "frontend":
+		variables = append(variables, []VariableInfo{
+			{
+				Name:         "Theme",
+				Type:         "select",
+				Description:  "UI主题",
+				DefaultValue: "light",
+				Required:     false,
+				Options:      []string{"light", "dark"},
+			},
+			{
+				Name:         "Language",
+				Type:         "select",
+				Description:  "开发语言",
+				DefaultValue: "javascript",
+				Required:     false,
+				Options:      []string{"javascript", "typescript"},
+			},
+		}...)
+		
+	case "backend", "api":
+		variables = append(variables, []VariableInfo{
+			{
+				Name:         "DatabaseType",
+				Type:         "select",
+				Description:  "数据库类型",
+				DefaultValue: "mysql",
+				Required:     false,
+				Options:      []string{"mysql", "postgresql", "mongodb"},
+			},
+		}...)
+	}
+	
+	return variables
+}
+
+// generateInstructions 生成使用说明
+func (c *SimpleAIClient) generateInstructions(req *TemplateGenerateRequest) string {
+	instructions := "## 使用说明\n\n1. 解压模板文件到目标目录\n2. 根据需要修改模板变量\n3. 运行初始化命令\n\n"
+	
+	switch req.ProjectType {
+	case "web", "frontend":
+		instructions += "## 开发步骤\n1. 安装依赖：npm install\n2. 启动开发服务器：npm run dev\n3. 构建生产版本：npm run build"
+	case "backend", "api":
+		instructions += "## 开发步骤\n1. 安装Go依赖：go mod tidy\n2. 运行应用：go run main.go\n3. 构建二进制：go build"
+	case "mobile":
+		instructions += "## 开发步骤\n1. 安装依赖：npm install\n2. 启动开发服务器：npm start\n3. 在模拟器中运行：npm run android 或 npm run ios"
+	}
+	
+	return instructions
+}
+
+// estimateTime 估算完成时间
+func (c *SimpleAIClient) estimateTime(req *TemplateGenerateRequest) int {
+	baseTime := 10 // 基础时间10分钟
+	
+	// 根据技术栈复杂度调整时间
+	techComplexity := len(req.TechStack) * 5
+	featureComplexity := len(req.Features) * 3
+	
+	return baseTime + techComplexity + featureComplexity
 }

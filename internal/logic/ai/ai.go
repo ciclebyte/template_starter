@@ -8,6 +8,7 @@ import (
 	"github.com/ciclebyte/template_starter/internal/service"
 	"github.com/ciclebyte/template_starter/library/libAI"
 	"github.com/ciclebyte/template_starter/library/libConfig"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 )
 
@@ -89,7 +90,7 @@ func (s *sAI) GenerateTemplate(ctx context.Context, req *aiApi.GenerateTemplateR
 	}
 
 	if !config.Enabled || !config.Features.TemplateGeneration {
-		return nil, g.Err("AI模板生成功能未启用")
+		return nil, gerror.New("AI模板生成功能未启用")
 	}
 
 	// 创建AI客户端
@@ -155,7 +156,7 @@ func (s *sAI) SuggestVariables(ctx context.Context, req *aiApi.SuggestVariablesR
 	}
 
 	if !config.Enabled || !config.Features.VariableSuggestion {
-		return nil, g.Err("AI变量建议功能未启用")
+		return nil, gerror.New("AI变量建议功能未启用")
 	}
 
 	// 创建AI客户端
