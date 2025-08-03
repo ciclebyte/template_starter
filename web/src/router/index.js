@@ -73,7 +73,7 @@ const routes = [
       {
         path: 'analytics',
         name: 'admin-analytics',
-        component: () => import('@/views/Templates.vue') // 临时使用现有组件
+        component: () => import('@/views/admin/Analytics.vue')
       },
       {
         path: 'settings',
