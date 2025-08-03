@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -74,6 +75,18 @@ type RenderedFile struct {
 	Path        string `json:"path"`
 	Content     string `json:"content"`
 	IsDirectory bool   `json:"isDirectory"`
+}
+
+// TreeNode 树形文件结构
+type TreeNode struct {
+	ID          int64      `json:"id"`
+	FilePath    string     `json:"filePath"`
+	FileName    string     `json:"fileName"`
+	FileContent string     `json:"fileContent"`
+	FileSize    int64      `json:"fileSize"`
+	IsDirectory int        `json:"isDirectory"`
+	ParentID    int64      `json:"parentId"`
+	Children    []TreeNode `json:"children"`
 }
 
 // ListTemplates 获取模板列表
@@ -189,6 +202,8 @@ func (c *Client) RenderTemplate(templateID string, variables map[string]interfac
 		"variables":  variables,
 	}
 	
+	fmt.Printf("🔄 发送渲染请求: templateId=%s, variables=%+v\n", templateID, variables)
+	
 	resp, err := c.makeRequest("POST", endpoint, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("请求模板渲染失败: %w", err)
@@ -198,12 +213,52 @@ func (c *Client) RenderTemplate(templateID string, variables map[string]interfac
 		return nil, fmt.Errorf("模板渲染失败: %s", resp.Message)
 	}
 	
-	var renderedFiles []RenderedFile
-	if err := json.Unmarshal(resp.Data, &renderedFiles); err != nil {
+	fmt.Printf("📥 收到渲染响应 (长度: %d): %s\n", len(resp.Data), string(resp.Data)[:min(500, len(resp.Data))])
+	
+	// 解析树形响应结构
+	var renderResponse struct {
+		TemplateID int64      `json:"templateId"`
+		Tree       []TreeNode `json:"tree"`
+	}
+	if err := json.Unmarshal(resp.Data, &renderResponse); err != nil {
 		return nil, fmt.Errorf("解析渲染结果失败: %w", err)
 	}
 	
+	fmt.Printf("✅ 解析树形结构成功，根节点数量: %d\n", len(renderResponse.Tree))
+	
+	// 将树形结构转换为平铺的文件列表
+	var renderedFiles []RenderedFile
+	for _, node := range renderResponse.Tree {
+		flattenTreeNode(node, &renderedFiles)
+	}
+	
+	fmt.Printf("📄 转换后的文件数量: %d\n", len(renderedFiles))
 	return renderedFiles, nil
+}
+
+// flattenTreeNode 将树形节点转换为平铺的文件列表
+func flattenTreeNode(node TreeNode, files *[]RenderedFile) {
+	// 使用node.FilePath作为完整路径，将反斜杠转换为正斜杠
+	fullPath := strings.ReplaceAll(node.FilePath, "\\", "/")
+	
+	// 添加当前节点
+	*files = append(*files, RenderedFile{
+		Path:        fullPath,
+		Content:     node.FileContent,
+		IsDirectory: node.IsDirectory == 1,
+	})
+	
+	// 递归处理子节点
+	for _, child := range node.Children {
+		flattenTreeNode(child, files)
+	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // SearchTemplates 搜索模板

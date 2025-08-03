@@ -26,6 +26,9 @@ func NewGenerator(outputDir string, force bool) *Generator {
 func (g *Generator) GenerateProject(projectName string, renderedFiles []client.RenderedFile) error {
 	projectDir := filepath.Join(g.OutputDir, projectName)
 	
+	fmt.Printf("📂 项目目录: %s\n", projectDir)
+	fmt.Printf("📄 待生成文件数量: %d\n", len(renderedFiles))
+	
 	// 检查目录是否存在
 	if _, err := os.Stat(projectDir); err == nil && !g.Force {
 		return fmt.Errorf("目录 %s 已存在，使用 --force 强制覆盖", projectDir)
@@ -37,7 +40,8 @@ func (g *Generator) GenerateProject(projectName string, renderedFiles []client.R
 	}
 	
 	// 生成文件
-	for _, file := range renderedFiles {
+	for i, file := range renderedFiles {
+		fmt.Printf("📝 正在处理文件 %d/%d: %s\n", i+1, len(renderedFiles), file.Path)
 		if err := g.writeFile(projectDir, file); err != nil {
 			return fmt.Errorf("写入文件 %s 失败: %w", file.Path, err)
 		}
