@@ -76,6 +76,12 @@ func CollectVariables(template *client.Template) (map[string]interface{}, error)
 	fmt.Printf("\n配置模板变量 (%s)\n", template.Name)
 	fmt.Println(strings.Repeat("-", 50))
 
+	// 如果模板没有定义变量，直接返回空变量集
+	if len(template.Variables) == 0 {
+		fmt.Println("该模板没有配置变量，直接使用内置变量。")
+		return variables, nil
+	}
+
 	for _, variable := range template.Variables {
 		value, err := collectSingleVariable(variable)
 		if err != nil {
@@ -94,18 +100,18 @@ func collectSingleVariable(variable client.TemplateVariable) (interface{}, error
 	if variable.Description != "" {
 		label += fmt.Sprintf(" (%s)", variable.Description)
 	}
-	if variable.Required {
+	if variable.IsRequired == 1 {
 		label += " *"
 	}
 
-	switch variable.Type {
-	case "boolean":
+	switch variable.VariableType {
+	case "boolean", "conditional":
 		return collectBooleanVariable(variable, label)
 	case "number":
 		return collectNumberVariable(variable, label)
 	case "select":
 		return collectSelectVariable(variable, label)
-	default: // string
+	default: // string 或 text
 		return collectStringVariable(variable, label)
 	}
 }
@@ -113,7 +119,7 @@ func collectSingleVariable(variable client.TemplateVariable) (interface{}, error
 // collectStringVariable 收集字符串变量
 func collectStringVariable(variable client.TemplateVariable, label string) (string, error) {
 	validate := func(input string) error {
-		if variable.Required && strings.TrimSpace(input) == "" {
+		if variable.IsRequired == 1 && strings.TrimSpace(input) == "" {
 			return fmt.Errorf("该字段为必填项")
 		}
 		return nil
@@ -125,10 +131,8 @@ func collectStringVariable(variable client.TemplateVariable, label string) (stri
 	}
 
 	// 设置默认值
-	if variable.DefaultValue != nil {
-		if defaultStr, ok := variable.DefaultValue.(string); ok {
-			prompt.Default = defaultStr
-		}
+	if variable.DefaultValue != "" {
+		prompt.Default = variable.DefaultValue
 	}
 
 	result, err := prompt.Run()
@@ -143,10 +147,8 @@ func collectStringVariable(variable client.TemplateVariable, label string) (stri
 func collectBooleanVariable(variable client.TemplateVariable, label string) (bool, error) {
 	// 确定默认值
 	defaultValue := false
-	if variable.DefaultValue != nil {
-		if defaultBool, ok := variable.DefaultValue.(bool); ok {
-			defaultValue = defaultBool
-		}
+	if variable.DefaultValue != "" {
+		defaultValue = variable.DefaultValue == "true" || variable.DefaultValue == "1"
 	}
 
 	prompt := promptui.Prompt{
@@ -175,7 +177,7 @@ func collectBooleanVariable(variable client.TemplateVariable, label string) (boo
 // collectNumberVariable 收集数字变量
 func collectNumberVariable(variable client.TemplateVariable, label string) (float64, error) {
 	validate := func(input string) error {
-		if variable.Required && strings.TrimSpace(input) == "" {
+		if variable.IsRequired == 1 && strings.TrimSpace(input) == "" {
 			return fmt.Errorf("该字段为必填项")
 		}
 		if input != "" {
@@ -192,12 +194,8 @@ func collectNumberVariable(variable client.TemplateVariable, label string) (floa
 	}
 
 	// 设置默认值
-	if variable.DefaultValue != nil {
-		if defaultNum, ok := variable.DefaultValue.(float64); ok {
-			prompt.Default = fmt.Sprintf("%.0f", defaultNum)
-		} else if defaultInt, ok := variable.DefaultValue.(int); ok {
-			prompt.Default = strconv.Itoa(defaultInt)
-		}
+	if variable.DefaultValue != "" {
+		prompt.Default = variable.DefaultValue
 	}
 
 	result, err := prompt.Run()
@@ -214,23 +212,9 @@ func collectNumberVariable(variable client.TemplateVariable, label string) (floa
 
 // collectSelectVariable 收集选择变量
 func collectSelectVariable(variable client.TemplateVariable, label string) (string, error) {
-	if len(variable.Options) == 0 {
-		// 如果没有选项，回退到字符串输入
-		return collectStringVariable(variable, label)
-	}
-
-	prompt := promptui.Select{
-		Label: label,
-		Items: variable.Options,
-		Size:  10,
-	}
-
-	_, result, err := prompt.Run()
-	if err != nil {
-		return "", err
-	}
-
-	return result, nil
+	// 由于后端模型没有Options字段，这里回退到字符串输入
+	// 或者可以从Description中解析选项
+	return collectStringVariable(variable, label)
 }
 
 // ConfirmVariables 确认变量配置
@@ -238,8 +222,12 @@ func ConfirmVariables(variables map[string]interface{}) (bool, error) {
 	fmt.Println("\n变量配置预览:")
 	fmt.Println(strings.Repeat("-", 30))
 	
-	for key, value := range variables {
-		fmt.Printf("  %s: %v\n", key, value)
+	if len(variables) == 0 {
+		fmt.Println("  (无自定义变量，将使用内置变量)")
+	} else {
+		for key, value := range variables {
+			fmt.Printf("  %s: %v\n", key, value)
+		}
 	}
 	
 	prompt := promptui.Prompt{

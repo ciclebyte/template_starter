@@ -51,12 +51,14 @@ type TemplateLanguage struct {
 
 // TemplateVariable 模板变量结构
 type TemplateVariable struct {
-	Name         string      `json:"name"`
-	Type         string      `json:"type"`
-	Description  string      `json:"description"`
-	DefaultValue interface{} `json:"defaultValue"`
-	Required     bool        `json:"required"`
-	Options      []string    `json:"options,omitempty"`
+	ID           int64  `json:"id"`
+	TemplateId   int64  `json:"templateId"`
+	Name         string `json:"name"`
+	VariableType string `json:"variableType"`
+	Description  string `json:"description"`
+	DefaultValue string `json:"defaultValue"`
+	IsRequired   int    `json:"isRequired"`
+	Sort         int    `json:"sort"`
 }
 
 // TemplateFile 模板文件结构
@@ -152,6 +154,30 @@ func (c *Client) GetTemplateInfo(templateID string) (*Template, error) {
 	}
 	
 	return detailResponse.TemplatesInfo, nil
+}
+
+// GetTemplateVariables 获取模板变量
+func (c *Client) GetTemplateVariables(templateID string) ([]TemplateVariable, error) {
+	endpoint := fmt.Sprintf("/api/v1/templates/%s/variables", url.PathEscape(templateID))
+	
+	resp, err := c.makeRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("请求模板变量失败: %w", err)
+	}
+	
+	if resp.Code != 0 {
+		return nil, fmt.Errorf("获取模板变量失败: %s", resp.Message)
+	}
+	
+	// 解析响应结构
+	var variablesResponse struct {
+		CustomVariables []TemplateVariable `json:"customVariables"`
+	}
+	if err := json.Unmarshal(resp.Data, &variablesResponse); err != nil {
+		return nil, fmt.Errorf("解析模板变量失败: %w", err)
+	}
+	
+	return variablesResponse.CustomVariables, nil
 }
 
 // RenderTemplate 渲染模板

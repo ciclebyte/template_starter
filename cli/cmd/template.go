@@ -111,16 +111,16 @@ var templateInfoCmd = &cobra.Command{
 		if showVariables && len(template.Variables) > 0 {
 			fmt.Printf("\n变量列表:\n")
 			for _, variable := range template.Variables {
-				fmt.Printf("• %s (%s)", variable.Name, variable.Type)
-				if variable.Required {
+				fmt.Printf("• %s (%s)", variable.Name, variable.VariableType)
+				if variable.IsRequired == 1 {
 					fmt.Printf(" *必需*")
 				}
 				fmt.Println()
 				if variable.Description != "" {
 					fmt.Printf("  %s\n", variable.Description)
 				}
-				if variable.DefaultValue != nil {
-					fmt.Printf("  默认值: %v\n", variable.DefaultValue)
+				if variable.DefaultValue != "" {
+					fmt.Printf("  默认值: %s\n", variable.DefaultValue)
 				}
 				fmt.Println()
 			}

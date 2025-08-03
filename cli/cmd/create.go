@@ -114,6 +114,15 @@ func runCreateCommand(cmd *cobra.Command, args []string) error {
 	fmt.Printf("\n使用模板: %s\n", selectedTemplate.Name)
 	fmt.Printf("模板描述: %s\n", selectedTemplate.Description)
 
+	// 获取模板变量
+	templateVariables, err := apiClient.GetTemplateVariables(fmt.Sprintf("%d", selectedTemplate.ID))
+	if err != nil {
+		return fmt.Errorf("获取模板变量失败: %w", err)
+	}
+	
+	// 将变量信息设置到模板中
+	selectedTemplate.Variables = templateVariables
+
 	// 收集变量
 	variables := make(map[string]interface{})
 
