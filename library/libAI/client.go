@@ -70,18 +70,28 @@ type SimpleAIClient struct {
 
 // NewAIClient 创建AI客户端
 func NewAIClient(ctx context.Context) (AIClient, error) {
-	config, err := libConfig.GetAIConfig(ctx)
+	// 尝试创建简化eino客户端，如果失败则回退到完全简化版本
+	einoClient, err := NewSimpleEinoClient(ctx)
 	if err != nil {
-		return nil, err
+		g.Log().Warning(ctx, "简化Eino客户端创建失败，使用基础版本:", err)
+		
+		// 回退到基础版本
+		config, err := libConfig.GetAIConfig(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		if !config.Enabled {
+			return nil, fmt.Errorf("AI功能未启用")
+		}
+
+		return &SimpleAIClient{
+			config: config,
+		}, nil
 	}
 
-	if !config.Enabled {
-		return nil, fmt.Errorf("AI功能未启用")
-	}
-
-	return &SimpleAIClient{
-		config: config,
-	}, nil
+	g.Log().Info(ctx, "使用简化Eino AI客户端")
+	return einoClient, nil
 }
 
 // TestConnection 测试连接

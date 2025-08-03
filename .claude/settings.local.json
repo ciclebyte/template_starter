@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "mcp__context7__get-library-docs"
     ],
     "deny": []
   }
