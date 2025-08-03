@@ -20,34 +20,36 @@ type TemplateFilesDao struct {
 
 // TemplateFilesColumns defines and stores column names for table template_files.
 type TemplateFilesColumns struct {
-	Id          string // 文件ID，自增主键
-	TemplateId  string // 所属模板ID
-	FilePath    string // 文件路径（相对路径）
-	FileName    string // 文件名
-	FileContent string // 文件内容
-	FileSize    string // 文件大小（字节）
-	IsDirectory string // 是否为目录
-	Md5         string // md5
-	Sort        string // 排序
-	ParentId    string // 父目录ID，如果是文件则指向所属目录
-	CreatedAt   string // 记录创建时间
-	UpdatedAt   string //
+	Id                string // 文件ID，自增主键
+	TemplateId        string // 所属模板ID
+	FilePath          string // 文件路径（相对路径）
+	FileName          string // 文件名
+	FileContent       string // 文件内容
+	FileSize          string // 文件大小（字节）
+	IsDirectory       string // 是否为目录
+	Md5               string // md5
+	Sort              string // 排序
+	ParentId          string // 父目录ID，如果是文件则指向所属目录
+	CreatedAt         string // 记录创建时间
+	UpdatedAt         string //
+	GenerateCondition string //
 }
 
 // templateFilesColumns holds the columns for table template_files.
 var templateFilesColumns = TemplateFilesColumns{
-	Id:          "id",
-	TemplateId:  "template_id",
-	FilePath:    "file_path",
-	FileName:    "file_name",
-	FileContent: "file_content",
-	FileSize:    "file_size",
-	IsDirectory: "is_directory",
-	Md5:         "md5",
-	Sort:        "sort",
-	ParentId:    "parent_id",
-	CreatedAt:   "created_at",
-	UpdatedAt:   "updated_at",
+	Id:                "id",
+	TemplateId:        "template_id",
+	FilePath:          "file_path",
+	FileName:          "file_name",
+	FileContent:       "file_content",
+	FileSize:          "file_size",
+	IsDirectory:       "is_directory",
+	Md5:               "md5",
+	Sort:              "sort",
+	ParentId:          "parent_id",
+	CreatedAt:         "created_at",
+	UpdatedAt:         "updated_at",
+	GenerateCondition: "generate_condition",
 }
 
 // NewTemplateFilesDao creates and returns a new DAO object for table data access.
