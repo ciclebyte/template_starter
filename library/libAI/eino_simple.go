@@ -553,6 +553,58 @@ func (c *SimpleEinoClient) chatWithEino(ctx context.Context, req *ChatRequest) (
 
 	g.Log().Info(ctx, "eino流式响应成功", "content_length", len(fullContent))
 
+	// 使用与流式相同的JSON解析逻辑
+	cleanContent := fullContent
+	
+	// 移除markdown代码块标记
+	if strings.HasPrefix(cleanContent, "```json") {
+		cleanContent = strings.TrimPrefix(cleanContent, "```json")
+	}
+	if strings.HasPrefix(cleanContent, "```") {
+		cleanContent = strings.TrimPrefix(cleanContent, "```")
+	}
+	if strings.HasSuffix(cleanContent, "```") {
+		cleanContent = strings.TrimSuffix(cleanContent, "```")
+	}
+	
+	// 去除首尾空白字符
+	cleanContent = strings.TrimSpace(cleanContent)
+	
+	var aiResponse struct {
+		Content     string `json:"content"`
+		Suggestions []struct {
+			Type        string  `json:"type"`
+			Name        string  `json:"name"`
+			Description string  `json:"description"`
+			Code        string  `json:"code"`
+			Confidence  float64 `json:"confidence"`
+			Priority    string  `json:"priority"`
+		} `json:"suggestions"`
+	}
+	
+	var finalContent string
+	var suggestions []ChatSuggestion
+	
+	if err := json.Unmarshal([]byte(cleanContent), &aiResponse); err != nil {
+		g.Log().Warning(ctx, "非流式AI响应不是有效JSON，使用原始内容", "error", err)
+		finalContent = fullContent
+	} else {
+		g.Log().Info(ctx, "成功解析非流式AI JSON响应", "suggestions_count", len(aiResponse.Suggestions))
+		finalContent = aiResponse.Content
+		
+		// 转换suggestions
+		for _, s := range aiResponse.Suggestions {
+			suggestions = append(suggestions, ChatSuggestion{
+				Type:        s.Type,
+				Name:        s.Name,
+				Description: s.Description,
+				Code:        s.Code,
+				Confidence:  s.Confidence,
+				Priority:    s.Priority,
+			})
+		}
+	}
+
 	// 生成元数据
 	metadata := map[string]interface{}{
 		"model":          "eino-chat",
@@ -561,11 +613,12 @@ func (c *SimpleEinoClient) chatWithEino(ctx context.Context, req *ChatRequest) (
 		"response_time":  1.5,
 		"prompt_version": "v1.0",
 		"real_ai":        true,
+		"json_parsed":    len(suggestions) > 0,
 	}
 
 	return &ChatResponse{
-		Content:     fullContent,
-		Suggestions: []ChatSuggestion{}, // 可以根据需要解析建议
+		Content:     finalContent,
+		Suggestions: suggestions,
 		Metadata:    metadata,
 	}, nil
 }
@@ -639,6 +692,77 @@ func (c *SimpleEinoClient) ChatStream(ctx context.Context, req *ChatRequest, onC
 
 	g.Log().Info(ctx, "eino流式聊天完成", "content_length", len(fullContent))
 
+	// 尝试解析JSON响应，首先清理可能的markdown代码块格式
+	cleanContent := fullContent
+	
+	// 移除markdown代码块标记
+	if strings.HasPrefix(cleanContent, "```json") {
+		cleanContent = strings.TrimPrefix(cleanContent, "```json")
+	}
+	if strings.HasPrefix(cleanContent, "```") {
+		cleanContent = strings.TrimPrefix(cleanContent, "```")
+	}
+	if strings.HasSuffix(cleanContent, "```") {
+		cleanContent = strings.TrimSuffix(cleanContent, "```")
+	}
+	
+	// 去除首尾空白字符
+	cleanContent = strings.TrimSpace(cleanContent)
+	
+	g.Log().Debug(ctx, "清理后的AI响应", "original_length", len(fullContent), "clean_length", len(cleanContent))
+	
+	var aiResponse struct {
+		Content     string `json:"content"`
+		Suggestions []struct {
+			Type        string  `json:"type"`
+			Name        string  `json:"name"`
+			Description string  `json:"description"`
+			Code        string  `json:"code"`
+			Confidence  float64 `json:"confidence"`
+			Priority    string  `json:"priority"`
+		} `json:"suggestions"`
+	}
+	
+	var finalContent string
+	var suggestions []ChatSuggestion
+	
+	jsonParsed := false
+	if err := json.Unmarshal([]byte(cleanContent), &aiResponse); err != nil {
+		contentPreview := cleanContent
+		if len(contentPreview) > 200 {
+			contentPreview = contentPreview[:200] + "..."
+		}
+		g.Log().Warning(ctx, "AI响应不是有效JSON，尝试原始内容", "error", err, "content", contentPreview)
+		
+		// 如果清理后仍然无法解析，尝试原始内容
+		if err2 := json.Unmarshal([]byte(fullContent), &aiResponse); err2 != nil {
+			g.Log().Warning(ctx, "原始内容也无法解析为JSON，使用纯文本", "error", err2)
+			finalContent = fullContent
+		} else {
+			g.Log().Info(ctx, "使用原始内容成功解析JSON")
+			finalContent = aiResponse.Content
+			jsonParsed = true
+		}
+	} else {
+		g.Log().Info(ctx, "成功解析清理后的AI JSON响应", "suggestions_count", len(aiResponse.Suggestions))
+		finalContent = aiResponse.Content
+		jsonParsed = true
+	}
+	
+	// 如果成功解析JSON，转换suggestions
+	if jsonParsed {
+		for _, s := range aiResponse.Suggestions {
+			suggestions = append(suggestions, ChatSuggestion{
+				Type:        s.Type,
+				Name:        s.Name,
+				Description: s.Description,
+				Code:        s.Code,
+				Confidence:  s.Confidence,
+				Priority:    s.Priority,
+			})
+		}
+	}
+
 	// 生成元数据
 	metadata := map[string]interface{}{
 		"model":          "eino-stream",
@@ -647,11 +771,12 @@ func (c *SimpleEinoClient) ChatStream(ctx context.Context, req *ChatRequest, onC
 		"response_time":  1.5,
 		"prompt_version": "v1.0",
 		"real_ai":        true,
+		"json_parsed":    len(suggestions) > 0,
 	}
 
 	return &ChatResponse{
-		Content:     fullContent,
-		Suggestions: []ChatSuggestion{}, // 可以根据需要解析建议
+		Content:     finalContent,
+		Suggestions: suggestions,
 		Metadata:    metadata,
 	}, nil
 }
@@ -696,75 +821,170 @@ func (c *SimpleEinoClient) buildPromptForAction(req *ChatRequest) string {
 
 	switch req.Action {
 	case "optimize_code":
-		basePrompt = `你是一个专业的代码优化专家。请分析用户的代码并提供具体的优化建议。
+		basePrompt = `你是一个专业的代码优化专家。请分析用户的代码并提供优化建议。
 
-要求：
-1. 指出性能瓶颈和改进点
-2. 提供优化后的代码示例
-3. 解释优化的理由和预期效果
-4. 注意代码的可读性和维护性
+⚠️ 重要约束：
+1. 只能返回纯JSON，禁止markdown代码块格式（禁止三个反引号json三个反引号）
+2. 不能添加任何解释、说明或其他文字
+3. 直接输出JSON对象，第一个字符必须是{
+4. 最后一个字符必须是}
 
-请用中文回复，使用Markdown格式。`
+必须严格按照以下JSON格式返回：
+{
+  "content": "优化建议的详细说明",
+  "suggestions": [
+    {
+      "type": "code",
+      "name": "建议名称",
+      "description": "建议描述",
+      "code": "优化后的代码",
+      "confidence": 0.9,
+      "priority": "high"
+    }
+  ]
+}`
 
 	case "explain_code":
 		basePrompt = `你是一个代码分析专家。请详细解释用户提供的代码的功能和逻辑。
 
-要求：
-1. 解释代码的整体功能和目的
-2. 分析关键部分的实现逻辑
-3. 指出重要的设计模式或算法
-4. 说明代码的优缺点
+⚠️ 重要约束：
+1. 只能返回纯JSON，禁止markdown代码块格式（禁止三个反引号json三个反引号）
+2. 不能添加任何解释、说明或其他文字
+3. 直接输出JSON对象，第一个字符必须是{
+4. 最后一个字符必须是}
 
-请用中文回复，使用Markdown格式。`
+必须严格按照以下JSON格式返回：
+{
+  "content": "代码解释的详细说明",
+  "suggestions": [
+    {
+      "type": "action",
+      "name": "相关操作",
+      "description": "操作描述",
+      "confidence": 0.8,
+      "priority": "medium"
+    }
+  ]
+}`
 
 	case "suggest_variables":
 		basePrompt = `你是一个模板系统专家。请为用户的项目推荐合适的模板变量。
 
-要求：
-1. 分析项目类型和技术栈
-2. 推荐必要的模板变量
-3. 为每个变量提供合理的默认值
-4. 说明变量的用途和重要性
+⚠️ 重要约束：
+1. 只能返回纯JSON，禁止markdown代码块格式（禁止三个反引号json三个反引号）
+2. 不能添加任何解释、说明或其他文字
+3. 直接输出JSON对象，第一个字符必须是{
+4. 最后一个字符必须是}
 
-请用中文回复，使用Markdown格式。`
+必须严格按照以下JSON格式返回：
+{
+  "content": "变量建议说明",
+  "suggestions": [
+    {
+      "type": "variable",
+      "name": "变量名",
+      "description": "变量用途说明",
+      "code": "{{.变量名}}",
+      "confidence": 0.9,
+      "priority": "high"
+    }
+  ]
+}`
 
 	case "generate_template":
 		basePrompt = `你是一个项目模板生成专家。请根据用户需求生成完整的项目模板。
 
-要求：
-1. 创建合理的项目目录结构
-2. 生成必要的配置文件
-3. 提供基础的代码模板
-4. 包含使用说明和最佳实践
+⚠️ 重要约束：
+1. 只能返回纯JSON，禁止markdown代码块格式（禁止三个反引号json三个反引号）
+2. 不能添加任何解释、说明或其他文字
+3. 直接输出JSON对象，第一个字符必须是{
+4. 最后一个字符必须是}
 
-请用中文回复，使用Markdown格式。`
+必须严格按照以下JSON格式返回：
+{
+  "content": "模板生成说明和使用指南",
+  "suggestions": [
+    {
+      "type": "file",
+      "name": "文件名",
+      "description": "文件说明",
+      "code": "文件内容模板",
+      "confidence": 0.9,
+      "priority": "high"
+    }
+  ]
+}`
 
 	case "refactor_code":
 		basePrompt = `你是一个代码重构专家。请提供具体的代码重构建议。
 
-要求：
-1. 识别代码中的问题和改进点
-2. 提供重构后的代码示例
-3. 解释重构的理由和好处
-4. 保持功能不变的前提下改进结构
+⚠️ 重要约束：
+1. 只能返回纯JSON，禁止markdown代码块格式（禁止三个反引号json三个反引号）
+2. 不能添加任何解释、说明或其他文字
+3. 直接输出JSON对象，第一个字符必须是{
+4. 最后一个字符必须是}
 
-请用中文回复，使用Markdown格式。`
+必须严格按照以下JSON格式返回：
+{
+  "content": "重构建议详细说明",
+  "suggestions": [
+    {
+      "type": "code",
+      "name": "重构方案",
+      "description": "重构说明",
+      "code": "重构后的代码",
+      "confidence": 0.8,
+      "priority": "medium"
+    }
+  ]
+}`
 
 	case "add_comments":
 		basePrompt = `你是一个代码文档专家。请为用户的代码添加适当的注释。
 
-要求：
-1. 为函数和类添加说明注释
-2. 为复杂逻辑添加解释注释
-3. 遵循代码注释的最佳实践
-4. 注释要简洁明了，不冗余
+⚠️ 重要约束：
+1. 只能返回纯JSON，禁止markdown代码块格式（禁止三个反引号json三个反引号）
+2. 不能添加任何解释、说明或其他文字
+3. 直接输出JSON对象，第一个字符必须是{
+4. 最后一个字符必须是}
 
-请用中文回复，提供带注释的代码。`
+必须严格按照以下JSON格式返回：
+{
+  "content": "注释添加说明",
+  "suggestions": [
+    {
+      "type": "code",
+      "name": "带注释的代码",
+      "description": "注释说明",
+      "code": "添加注释后的完整代码",
+      "confidence": 0.9,
+      "priority": "high"
+    }
+  ]
+}`
 
 	default:
 		basePrompt = `你是一个AI编程助手，可以帮助用户解决各种编程相关问题。
 
-请根据用户的问题提供有帮助的建议和解决方案。用中文回复，使用清晰的格式。`
+⚠️ 重要约束：
+1. 只能返回纯JSON，禁止markdown代码块格式（禁止三个反引号json三个反引号）
+2. 不能添加任何解释、说明或其他文字
+3. 直接输出JSON对象，第一个字符必须是{
+4. 最后一个字符必须是}
+
+必须严格按照以下JSON格式返回：
+{
+  "content": "回答内容",
+  "suggestions": [
+    {
+      "type": "action",
+      "name": "相关建议",
+      "description": "建议描述",
+      "confidence": 0.7,
+      "priority": "medium"
+    }
+  ]
+}`
 	}
 
 	// 添加上下文信息
