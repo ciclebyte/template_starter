@@ -29,6 +29,9 @@ func (router *Router) BindController(ctx context.Context, group *ghttp.RouterGro
 			controller.AI,
 		)
 
+		// 手动注册流式AI聊天端点
+		group.POST("/ai/chat/stream", controller.AI.ChatStream)
+
 		//自动绑定定义的控制器
 		if err := libRouter.RouterAutoBind(ctx, router, group); err != nil {
 			panic(err)

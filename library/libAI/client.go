@@ -18,6 +18,7 @@ type AIClient interface {
 	GenerateTemplate(ctx context.Context, req *TemplateGenerateRequest) (*TemplateGenerateResponse, error)
 	SuggestVariables(ctx context.Context, req *VariableSuggestRequest) (*VariableSuggestResponse, error)
 	Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error)
+	ChatStream(ctx context.Context, req *ChatRequest, onChunk func(chunk string)) (*ChatResponse, error)
 }
 
 // TemplateGenerateRequest 模板生成请求
@@ -1015,6 +1016,38 @@ func getFileExtension(fileName string) string {
 	}
 	
 	return ext
+}
+
+// ChatStream 流式聊天接口 - SimpleAIClient的实现
+func (c *SimpleAIClient) ChatStream(ctx context.Context, req *ChatRequest, onChunk func(chunk string)) (*ChatResponse, error) {
+	g.Log().Info(ctx, "==== SimpleAIClient.ChatStream 调用 ====", "action", req.Action, "userInput", req.UserInput)
+	
+	// SimpleAIClient暂时不支持真正的流式，先调用普通Chat然后模拟流式输出
+	response, err := c.Chat(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	
+	// 模拟流式输出
+	if onChunk != nil {
+		content := response.Content
+		chunkSize := 20 // 每次发送的字符数
+		
+		for i := 0; i < len(content); i += chunkSize {
+			end := i + chunkSize
+			if end > len(content) {
+				end = len(content)
+			}
+			
+			chunk := content[i:end]
+			onChunk(chunk)
+			
+			// 模拟打字延迟
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+	
+	return response, nil
 }
 
 func contains(text string, keywords []string) bool {

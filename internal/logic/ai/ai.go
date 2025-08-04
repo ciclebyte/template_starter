@@ -272,8 +272,14 @@ func (s *sAI) ChatStream(ctx context.Context, req *aiApi.ChatReq, r *ghttp.Reque
 	// 发送流式数据的辅助函数
 	writeSSE := func(data *aiApi.ChatStreamData) {
 		jsonData, _ := gjson.Marshal(data)
-		r.Response.Write("data: " + string(jsonData) + "\n\n")
+		sseData := "data: " + string(jsonData) + "\n\n"
+		g.Log().Debug(ctx, "=== 写入SSE数据 ===", "type", data.Type, "content_length", len(data.Content))
+		
+		r.Response.Write(sseData)
+		g.Log().Debug(ctx, "=== SSE写入完成 ===")
+		
 		r.Response.Flush()
+		g.Log().Debug(ctx, "=== SSE Flush完成 ===")
 	}
 
 	// 检查AI功能是否启用
@@ -317,15 +323,28 @@ func (s *sAI) ChatStream(ctx context.Context, req *aiApi.ChatReq, r *ghttp.Reque
 	}
 
 	// 发送开始信号
+	g.Log().Info(ctx, "=== 发送开始信号 ===")
 	writeSSE(&aiApi.ChatStreamData{
 		Type:    "start",
 		Content: "开始生成AI响应...",
 		Done:    false,
 	})
 
-	// 调用AI聊天 - 这里暂时使用非流式调用，后续可以改进为真正的流式
-	aiRes, err := client.Chat(ctx, aiReq)
+	// 使用真正的AI流式调用
+	g.Log().Info(ctx, "=== 开始调用AI流式客户端 ===")
+	
+	aiRes, err := client.ChatStream(ctx, aiReq, func(chunk string) {
+		// 实时接收AI流式数据并发送给前端
+		g.Log().Debug(ctx, "=== 收到AI流式数据块 ===", "chunk_length", len(chunk))
+		writeSSE(&aiApi.ChatStreamData{
+			Type:    "chunk",
+			Content: chunk,
+			Done:    false,
+		})
+	})
+	
 	if err != nil {
+		g.Log().Error(ctx, "=== AI流式调用失败 ===", "error", err)
 		writeSSE(&aiApi.ChatStreamData{
 			Type:    "error",
 			Content: "AI调用失败: " + err.Error(),
@@ -334,26 +353,7 @@ func (s *sAI) ChatStream(ctx context.Context, req *aiApi.ChatReq, r *ghttp.Reque
 		return
 	}
 
-	// 模拟流式输出（逐字输出）
-	content := aiRes.Content
-	chunkSize := 20 // 每次发送的字符数
-	
-	for i := 0; i < len(content); i += chunkSize {
-		end := i + chunkSize
-		if end > len(content) {
-			end = len(content)
-		}
-		
-		chunk := content[i:end]
-		writeSSE(&aiApi.ChatStreamData{
-			Type:    "chunk",
-			Content: chunk,
-			Done:    false,
-		})
-		
-		// 模拟打字效果
-		time.Sleep(50 * time.Millisecond)
-	}
+	g.Log().Info(ctx, "=== AI流式调用完成 ===", "content_length", len(aiRes.Content))
 
 	// 发送建议和元数据
 	var suggestions []aiApi.ChatSuggestion

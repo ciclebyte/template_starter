@@ -5,7 +5,9 @@ import (
 
 	aiApi "github.com/ciclebyte/template_starter/api/v1/ai"
 	"github.com/ciclebyte/template_starter/internal/service"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/net/ghttp"
 )
 
 var AI = cAI{}
@@ -35,14 +37,30 @@ func (c *cAI) SuggestVariables(ctx context.Context, req *aiApi.SuggestVariablesR
 // Chat 统一AI聊天接口
 func (c *cAI) Chat(ctx context.Context, req *aiApi.ChatReq) (res *aiApi.ChatRes, err error) {
 	g.Log().Debug(ctx, "AI.Chat called with action:", req.Action, "stream:", req.Stream)
-
-	// 根据stream参数决定使用流式还是普通响应
+	
+	// 如果请求流式响应，返回错误提示使用专门的流式端点
 	if req.Stream {
-		// 流式响应需要直接操作HTTP响应，获取Request对象
-		r := g.RequestFromCtx(ctx)
-		service.AI().ChatStream(ctx, req, r)
-		return nil, nil // 流式响应不返回标准响应
-	} else {
-		return service.AI().Chat(ctx, req)
+		return nil, gerror.New("流式响应请使用 /api/v1/ai/chat/stream 端点")
 	}
+	
+	return service.AI().Chat(ctx, req)
+}
+
+// ChatStream 流式AI聊天接口 - 专门处理流式响应
+func (c *cAI) ChatStream(r *ghttp.Request) {
+	ctx := r.Context()
+	g.Log().Debug(ctx, "AI.ChatStream called")
+	
+	// 解析请求体
+	var req *aiApi.ChatReq
+	if err := r.Parse(&req); err != nil {
+		r.Response.WriteStatus(400, "请求参数解析失败: "+err.Error())
+		return
+	}
+	
+	// 强制设置为流式响应
+	req.Stream = true
+	
+	g.Log().Debug(ctx, "AI.ChatStream parsed request with action:", req.Action)
+	service.AI().ChatStream(ctx, req, r)
 }

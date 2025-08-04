@@ -522,27 +522,135 @@ func (c *SimpleEinoClient) chatWithEino(ctx context.Context, req *ChatRequest) (
 
 	g.Log().Info(ctx, "eino发送消息", "message_count", len(messages))
 	
-	// 使用eino生成响应
-	resp, err := c.chatModel.Generate(timeoutCtx, messages)
+	// 使用eino流式生成响应
+	stream, err := c.chatModel.Stream(timeoutCtx, messages)
 	if err != nil {
-		g.Log().Error(ctx, "eino生成失败", "error", err)
-		return nil, fmt.Errorf("Eino聊天失败: %v", err)
+		g.Log().Error(ctx, "eino流式生成失败", "error", err)
+		return nil, fmt.Errorf("Eino流式聊天失败: %v", err)
+	}
+	defer stream.Close()
+
+	var fullContent string
+	
+	// 处理流式响应 - 使用正确的eino Stream API
+	for {
+		resp, err := stream.Recv()
+		if err != nil {
+			// 检查是否是正常结束
+			if err.Error() == "EOF" || strings.Contains(err.Error(), "EOF") {
+				g.Log().Info(ctx, "eino流式响应完成", "total_length", len(fullContent))
+				break
+			}
+			g.Log().Error(ctx, "eino流式读取失败", "error", err)
+			return nil, fmt.Errorf("Eino流式读取失败: %v", err)
+		}
+		
+		if resp != nil && resp.Content != "" {
+			fullContent += resp.Content
+			g.Log().Debug(ctx, "eino收到流式数据块", "chunk_length", len(resp.Content), "total_length", len(fullContent))
+		}
 	}
 
-	g.Log().Info(ctx, "eino响应成功", "content_length", len(resp.Content))
+	g.Log().Info(ctx, "eino流式响应成功", "content_length", len(fullContent))
 
 	// 生成元数据
 	metadata := map[string]interface{}{
 		"model":          "eino-chat",
 		"provider":       "eino",
-		"tokens_used":    len(resp.Content) / 4,
+		"tokens_used":    len(fullContent) / 4,
 		"response_time":  1.5,
 		"prompt_version": "v1.0",
 		"real_ai":        true,
 	}
 
 	return &ChatResponse{
-		Content:     resp.Content,
+		Content:     fullContent,
+		Suggestions: []ChatSuggestion{}, // 可以根据需要解析建议
+		Metadata:    metadata,
+	}, nil
+}
+
+// ChatStream 流式聊天接口 - 支持实时回调
+func (c *SimpleEinoClient) ChatStream(ctx context.Context, req *ChatRequest, onChunk func(chunk string)) (*ChatResponse, error) {
+	g.Log().Info(ctx, "开始eino流式聊天", "action", req.Action, "userInput", req.UserInput)
+	
+	// 创建带超时的context，防止请求卡死 - 设置为5分钟支持长文本处理
+	timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	
+	// 构建系统提示词
+	systemPrompt := c.buildPromptForAction(req)
+	
+	// 构建消息序列
+	messages := []*schema.Message{
+		schema.SystemMessage(systemPrompt),
+	}
+
+	// 添加聊天历史
+	for _, msg := range req.ChatHistory {
+		role := schema.User
+		if msg.Role == "assistant" {
+			role = schema.Assistant
+		}
+		messages = append(messages, &schema.Message{
+			Role:    role,
+			Content: msg.Content,
+		})
+	}
+
+	// 添加当前用户输入
+	messages = append(messages, schema.UserMessage(req.UserInput))
+
+	g.Log().Info(ctx, "eino发送流式消息", "message_count", len(messages))
+	
+	// 使用eino流式生成响应
+	stream, err := c.chatModel.Stream(timeoutCtx, messages)
+	if err != nil {
+		g.Log().Error(ctx, "eino流式生成失败", "error", err)
+		return nil, fmt.Errorf("Eino流式聊天失败: %v", err)
+	}
+	defer stream.Close()
+
+	var fullContent string
+	
+	// 处理流式响应并实时回调 - 使用正确的eino Stream API
+	for {
+		resp, err := stream.Recv()
+		if err != nil {
+			// 检查是否是正常结束
+			if err.Error() == "EOF" || strings.Contains(err.Error(), "EOF") {
+				g.Log().Info(ctx, "eino流式响应完成", "total_length", len(fullContent))
+				break
+			}
+			g.Log().Error(ctx, "eino流式读取失败", "error", err)
+			return nil, fmt.Errorf("Eino流式读取失败: %v", err)
+		}
+		
+		if resp != nil && resp.Content != "" {
+			fullContent += resp.Content
+			g.Log().Debug(ctx, "eino收到流式数据块", "chunk_length", len(resp.Content), "total_length", len(fullContent))
+			
+			// 实时回调发送数据块
+			if onChunk != nil {
+				onChunk(resp.Content)
+			}
+		}
+	}
+
+	g.Log().Info(ctx, "eino流式聊天完成", "content_length", len(fullContent))
+
+	// 生成元数据
+	metadata := map[string]interface{}{
+		"model":          "eino-stream",
+		"provider":       "eino",
+		"tokens_used":    len(fullContent) / 4,
+		"response_time":  1.5,
+		"prompt_version": "v1.0",
+		"real_ai":        true,
+	}
+
+	return &ChatResponse{
+		Content:     fullContent,
 		Suggestions: []ChatSuggestion{}, // 可以根据需要解析建议
 		Metadata:    metadata,
 	}, nil
