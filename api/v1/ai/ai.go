@@ -57,6 +57,40 @@ type FileInfo struct {
 	Description string `json:"description"`
 }
 
+// AI统一聊天请求
+type ChatReq struct {
+	g.Meta      `path:"/ai/chat" method:"post" tags:"AI服务" summary:"AI服务-统一聊天接口"`
+	Action      string                 `json:"action" v:"required#操作类型不能为空"`      // 操作类型：optimize_code, explain_code, suggest_variables, generate_template, refactor_code, add_comments, general_chat
+	Context     map[string]interface{} `json:"context"`                              // 上下文信息
+	UserInput   string                 `json:"userInput" v:"required#用户输入不能为空"`    // 用户输入
+	Preferences map[string]interface{} `json:"preferences"`                          // 用户偏好设置
+	ChatHistory []ChatMessage          `json:"chatHistory"`                          // 聊天历史
+}
+
+type ChatRes struct {
+	g.Meta      `mime:"application/json" example:"string"`
+	Content     string                 `json:"content"`     // AI回复的主要内容
+	Suggestions []ChatSuggestion       `json:"suggestions"` // 建议项
+	Metadata    map[string]interface{} `json:"metadata"`    // 元数据（模型信息、耗时等）
+}
+
+// 聊天消息
+type ChatMessage struct {
+	Role      string `json:"role"`      // user, assistant
+	Content   string `json:"content"`   // 消息内容
+	Timestamp string `json:"timestamp"` // 时间戳
+}
+
+// 聊天建议
+type ChatSuggestion struct {
+	Type        string  `json:"type"`        // code, variable, file, action
+	Name        string  `json:"name"`        // 建议名称
+	Description string  `json:"description"` // 建议描述
+	Code        string  `json:"code"`        // 建议的代码内容
+	Confidence  float64 `json:"confidence"`  // 置信度
+	Priority    string  `json:"priority"`    // high, medium, low
+}
+
 // 变量信息
 type VariableInfo struct {
 	Name         string   `json:"name"`

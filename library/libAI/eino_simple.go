@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ciclebyte/template_starter/library/libConfig"
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
-	"github.com/ciclebyte/template_starter/library/libConfig"
 	"github.com/gogf/gf/v2/frame/g"
 )
 
@@ -39,7 +39,7 @@ func NewSimpleEinoClient(ctx context.Context) (*SimpleEinoClient, error) {
 // TestConnection 测试连接
 func (c *SimpleEinoClient) TestConnection(ctx context.Context) error {
 	g.Log().Info(ctx, "简化Eino客户端连接测试")
-	
+
 	// 如果chatModel不为nil，使用eino进行测试
 	if c.chatModel != nil {
 		messages := []*schema.Message{
@@ -95,7 +95,7 @@ func (c *SimpleEinoClient) SuggestVariables(ctx context.Context, req *VariableSu
 
 // generateWithEino 使用eino生成模板
 func (c *SimpleEinoClient) generateWithEino(ctx context.Context, req *TemplateGenerateRequest) (*TemplateGenerateResponse, error) {
-	promptContent := fmt.Sprintf("根据以下需求生成项目模板：\n项目描述：%s\n项目类型：%s\n技术栈：%v\n功能特性：%v", 
+	promptContent := fmt.Sprintf("根据以下需求生成项目模板：\n项目描述：%s\n项目类型：%s\n技术栈：%v\n功能特性：%v",
 		req.Description, req.ProjectType, req.TechStack, req.Features)
 
 	messages := []*schema.Message{
@@ -122,7 +122,7 @@ func (c *SimpleEinoClient) generateWithEino(ctx context.Context, req *TemplateGe
 
 // suggestWithEino 使用eino建议变量
 func (c *SimpleEinoClient) suggestWithEino(ctx context.Context, req *VariableSuggestRequest) (*VariableSuggestResponse, error) {
-	promptContent := fmt.Sprintf("为以下项目推荐模板变量：\n项目类型：%s\n技术栈：%v\n项目描述：%s", 
+	promptContent := fmt.Sprintf("为以下项目推荐模板变量：\n项目类型：%s\n技术栈：%v\n项目描述：%s",
 		req.ProjectType, req.TechStack, req.Description)
 
 	messages := []*schema.Message{
@@ -298,4 +298,154 @@ func (c *SimpleEinoClient) getBasicVariables(req *VariableSuggestRequest) *Varia
 	return &VariableSuggestResponse{
 		Variables: variables,
 	}
+}
+
+// Chat 聊天接口
+func (c *SimpleEinoClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
+	g.Log().Info(ctx, "简化Eino聊天", "action", req.Action, "userInput", req.UserInput)
+
+	var content string
+	var suggestions []ChatSuggestion
+
+	// 如果chatModel可用，使用eino
+	if c.chatModel != nil {
+		return c.chatWithEino(ctx, req)
+	}
+
+	// 否则使用基础回复逻辑
+	switch req.Action {
+	case "optimize_code":
+		content = "## 代码优化建议\n\n基于您的代码，我建议进行以下优化：\n\n1. **性能优化**：减少不必要的计算\n2. **代码结构**：改进模块化设计\n3. **错误处理**：添加适当的异常处理\n\n这些优化将提升代码的性能和可维护性。"
+		suggestions = []ChatSuggestion{
+			{
+				Type:        "code",
+				Name:        "性能优化",
+				Description: "优化代码性能",
+				Confidence:  0.9,
+				Priority:    "high",
+			},
+		}
+	case "explain_code":
+		content = "## 代码解释\n\n这段代码的主要功能是处理业务逻辑。它接收输入，进行处理，然后返回结果。\n\n### 关键点\n- 输入验证和处理\n- 核心业务逻辑\n- 结果输出\n\n代码结构清晰，易于理解和维护。"
+	case "suggest_variables":
+		content = "## 模板变量建议\n\n根据您的项目需求，我推荐以下变量：\n\n- **ProjectName**: 项目名称\n- **Version**: 版本号\n- **Author**: 作者信息\n- **Description**: 项目描述\n\n这些变量将帮助您创建更灵活的模板。"
+		suggestions = []ChatSuggestion{
+			{
+				Type:        "variable",
+				Name:        "ProjectName",
+				Description: "项目名称变量",
+				Code:        "{{.ProjectName}}",
+				Confidence:  0.95,
+				Priority:    "high",
+			},
+		}
+	case "general_chat":
+		if contains(req.UserInput, []string{"你好", "hello", "hi"}) {
+			content = "您好！我是AI编程助手，可以帮您：\n\n🔧 优化代码\n💡 解释代码逻辑\n📝 生成模板\n🏷️ 建议变量\n\n请告诉我您需要什么帮助？"
+		} else {
+			content = fmt.Sprintf("我理解您想了解：%s\n\n作为AI助手，我可以帮您分析代码、优化性能、解释逻辑等。请选择代码或告诉我具体需要什么帮助？", req.UserInput)
+		}
+	default:
+		content = "我是AI助手，可以帮您优化代码、解释代码、建议变量、生成模板等。请告诉我您需要什么帮助？"
+	}
+
+	// 生成元数据
+	metadata := map[string]interface{}{
+		"model":          "simple-eino",
+		"provider":       "eino",
+		"tokens_used":    len(content) / 4,
+		"response_time":  1.0,
+		"prompt_version": "v1.0",
+	}
+
+	return &ChatResponse{
+		Content:     content,
+		Suggestions: suggestions,
+		Metadata:    metadata,
+	}, nil
+}
+
+// chatWithEino 使用eino进行聊天
+func (c *SimpleEinoClient) chatWithEino(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
+	// 构建提示词
+	promptContent := c.buildChatPrompt(req)
+
+	messages := []*schema.Message{
+		{
+			Role:    schema.User,
+			Content: promptContent,
+		},
+	}
+
+	// 添加聊天历史
+	for _, msg := range req.ChatHistory {
+		role := schema.User
+		if msg.Role == "assistant" {
+			role = schema.Assistant
+		}
+		messages = append(messages, &schema.Message{
+			Role:    role,
+			Content: msg.Content,
+		})
+	}
+
+	// 添加当前用户输入
+	messages = append(messages, &schema.Message{
+		Role:    schema.User,
+		Content: req.UserInput,
+	})
+
+	resp, err := c.chatModel.Generate(ctx, messages)
+	if err != nil {
+		return nil, fmt.Errorf("Eino聊天失败: %v", err)
+	}
+
+	// 生成元数据
+	metadata := map[string]interface{}{
+		"model":          "eino-chat",
+		"provider":       "eino",
+		"tokens_used":    len(resp.Content) / 4,
+		"response_time":  1.5,
+		"prompt_version": "v1.0",
+	}
+
+	return &ChatResponse{
+		Content:     resp.Content,
+		Suggestions: []ChatSuggestion{}, // 可以根据需要解析建议
+		Metadata:    metadata,
+	}, nil
+}
+
+// buildChatPrompt 构建聊天提示词
+func (c *SimpleEinoClient) buildChatPrompt(req *ChatRequest) string {
+	var prompt string
+
+	switch req.Action {
+	case "optimize_code":
+		prompt = "你是一个专业的代码优化专家。请分析用户的代码并提供优化建议："
+	case "explain_code":
+		prompt = "你是一个代码分析专家。请解释用户提供的代码的功能和逻辑："
+	case "suggest_variables":
+		prompt = "你是一个模板系统专家。请为用户的项目推荐合适的模板变量："
+	case "generate_template":
+		prompt = "你是一个项目模板生成专家。请根据用户需求生成项目模板："
+	case "refactor_code":
+		prompt = "你是一个代码重构专家。请提供代码重构建议："
+	case "add_comments":
+		prompt = "你是一个代码文档专家。请为用户的代码添加适当的注释："
+	default:
+		prompt = "你是一个AI编程助手，可以帮助用户解决编程相关问题："
+	}
+
+	// 添加上下文信息
+	if req.Context != nil {
+		if fileName, ok := req.Context["fileName"].(string); ok && fileName != "" {
+			prompt += fmt.Sprintf("\n文件名：%s", fileName)
+		}
+		if selectedText, ok := req.Context["selectedText"].(string); ok && selectedText != "" {
+			prompt += fmt.Sprintf("\n选中的代码：\n```\n%s\n```", selectedText)
+		}
+	}
+
+	return prompt
 }

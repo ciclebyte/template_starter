@@ -31,3 +31,9 @@ func (c *cAI) SuggestVariables(ctx context.Context, req *aiApi.SuggestVariablesR
 	g.Log().Debug(ctx, "AI.SuggestVariables called")
 	return service.AI().SuggestVariables(ctx, req)
 }
+
+// Chat 统一AI聊天接口
+func (c *cAI) Chat(ctx context.Context, req *aiApi.ChatReq) (res *aiApi.ChatRes, err error) {
+	g.Log().Debug(ctx, "AI.Chat called with action:", req.Action)
+	return service.AI().Chat(ctx, req)
+}

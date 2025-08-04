@@ -200,3 +200,72 @@ func (s *sAI) SuggestVariables(ctx context.Context, req *aiApi.SuggestVariablesR
 
 	return res, nil
 }
+
+// Chat 统一AI聊天接口
+func (s *sAI) Chat(ctx context.Context, req *aiApi.ChatReq) (*aiApi.ChatRes, error) {
+	g.Log().Debug(ctx, "AI.Chat called with action:", req.Action)
+
+	// 检查AI功能是否启用
+	config, err := libConfig.GetAIConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if !config.Enabled {
+		return nil, gerror.New("AI功能未启用")
+	}
+
+	// 创建AI客户端
+	client, err := libAI.NewAIClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// 构建请求
+	aiReq := &libAI.ChatRequest{
+		Action:      req.Action,
+		Context:     req.Context,
+		UserInput:   req.UserInput,
+		Preferences: req.Preferences,
+		ChatHistory: convertChatHistory(req.ChatHistory),
+	}
+
+	// 调用AI聊天
+	aiRes, err := client.Chat(ctx, aiReq)
+	if err != nil {
+		return nil, err
+	}
+
+	// 转换响应格式
+	res := &aiApi.ChatRes{
+		Content:  aiRes.Content,
+		Metadata: aiRes.Metadata,
+	}
+
+	// 转换建议
+	for _, suggestion := range aiRes.Suggestions {
+		res.Suggestions = append(res.Suggestions, aiApi.ChatSuggestion{
+			Type:        suggestion.Type,
+			Name:        suggestion.Name,
+			Description: suggestion.Description,
+			Code:        suggestion.Code,
+			Confidence:  suggestion.Confidence,
+			Priority:    suggestion.Priority,
+		})
+	}
+
+	return res, nil
+}
+
+// convertChatHistory 转换聊天历史格式
+func convertChatHistory(apiHistory []aiApi.ChatMessage) []libAI.ChatMessage {
+	var result []libAI.ChatMessage
+	for _, msg := range apiHistory {
+		result = append(result, libAI.ChatMessage{
+			Role:      msg.Role,
+			Content:   msg.Content,
+			Timestamp: msg.Timestamp,
+		})
+	}
+	return result
+}

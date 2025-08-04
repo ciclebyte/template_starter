@@ -10,6 +10,7 @@ type IAIService interface {
 	TestConnection(ctx context.Context, req *aiApi.TestConnectionReq) (*aiApi.TestConnectionRes, error)
 	GenerateTemplate(ctx context.Context, req *aiApi.GenerateTemplateReq) (*aiApi.GenerateTemplateRes, error)
 	SuggestVariables(ctx context.Context, req *aiApi.SuggestVariablesReq) (*aiApi.SuggestVariablesRes, error)
+	Chat(ctx context.Context, req *aiApi.ChatReq) (*aiApi.ChatRes, error)
 }
 
 var localAIService IAIService
