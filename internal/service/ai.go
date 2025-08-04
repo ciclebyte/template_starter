@@ -4,6 +4,7 @@ import (
 	"context"
 
 	aiApi "github.com/ciclebyte/template_starter/api/v1/ai"
+	"github.com/gogf/gf/v2/net/ghttp"
 )
 
 type IAIService interface {
@@ -11,6 +12,7 @@ type IAIService interface {
 	GenerateTemplate(ctx context.Context, req *aiApi.GenerateTemplateReq) (*aiApi.GenerateTemplateRes, error)
 	SuggestVariables(ctx context.Context, req *aiApi.SuggestVariablesReq) (*aiApi.SuggestVariablesRes, error)
 	Chat(ctx context.Context, req *aiApi.ChatReq) (*aiApi.ChatRes, error)
+	ChatStream(ctx context.Context, req *aiApi.ChatReq, r *ghttp.Request)
 }
 
 var localAIService IAIService

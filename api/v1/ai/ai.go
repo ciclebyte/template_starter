@@ -65,6 +65,7 @@ type ChatReq struct {
 	UserInput   string                 `json:"userInput" v:"required#用户输入不能为空"`    // 用户输入
 	Preferences map[string]interface{} `json:"preferences"`                          // 用户偏好设置
 	ChatHistory []ChatMessage          `json:"chatHistory"`                          // 聊天历史
+	Stream      bool                   `json:"stream"`                               // 是否使用流式响应
 }
 
 type ChatRes struct {
@@ -72,6 +73,15 @@ type ChatRes struct {
 	Content     string                 `json:"content"`     // AI回复的主要内容
 	Suggestions []ChatSuggestion       `json:"suggestions"` // 建议项
 	Metadata    map[string]interface{} `json:"metadata"`    // 元数据（模型信息、耗时等）
+}
+
+// 流式响应数据
+type ChatStreamData struct {
+	Type        string                 `json:"type"`        // chunk, metadata, suggestions, done
+	Content     string                 `json:"content"`     // 内容片段
+	Suggestions []ChatSuggestion       `json:"suggestions"` // 建议项（在最后发送）
+	Metadata    map[string]interface{} `json:"metadata"`    // 元数据（在最后发送）
+	Done        bool                   `json:"done"`        // 是否完成
 }
 
 // 聊天消息

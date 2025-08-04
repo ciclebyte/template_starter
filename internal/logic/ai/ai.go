@@ -8,8 +8,10 @@ import (
 	"github.com/ciclebyte/template_starter/internal/service"
 	"github.com/ciclebyte/template_starter/library/libAI"
 	"github.com/ciclebyte/template_starter/library/libConfig"
+	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/net/ghttp"
 )
 
 type sAI struct{}
@@ -255,6 +257,138 @@ func (s *sAI) Chat(ctx context.Context, req *aiApi.ChatReq) (*aiApi.ChatRes, err
 	}
 
 	return res, nil
+}
+
+// ChatStream 流式AI聊天接口
+func (s *sAI) ChatStream(ctx context.Context, req *aiApi.ChatReq, r *ghttp.Request) {
+	g.Log().Debug(ctx, "AI.ChatStream called with action:", req.Action)
+
+	// 设置SSE响应头
+	r.Response.Header().Set("Content-Type", "text/event-stream")
+	r.Response.Header().Set("Cache-Control", "no-cache")
+	r.Response.Header().Set("Connection", "keep-alive")
+	r.Response.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// 发送流式数据的辅助函数
+	writeSSE := func(data *aiApi.ChatStreamData) {
+		jsonData, _ := gjson.Marshal(data)
+		r.Response.Write("data: " + string(jsonData) + "\n\n")
+		r.Response.Flush()
+	}
+
+	// 检查AI功能是否启用
+	config, err := libConfig.GetAIConfig(ctx)
+	if err != nil {
+		writeSSE(&aiApi.ChatStreamData{
+			Type:    "error",
+			Content: "获取AI配置失败: " + err.Error(),
+			Done:    true,
+		})
+		return
+	}
+
+	if !config.Enabled {
+		writeSSE(&aiApi.ChatStreamData{
+			Type:    "error",
+			Content: "AI功能未启用",
+			Done:    true,
+		})
+		return
+	}
+
+	// 创建AI客户端
+	client, err := libAI.NewAIClient(ctx)
+	if err != nil {
+		writeSSE(&aiApi.ChatStreamData{
+			Type:    "error",
+			Content: "创建AI客户端失败: " + err.Error(),
+			Done:    true,
+		})
+		return
+	}
+
+	// 构建请求
+	aiReq := &libAI.ChatRequest{
+		Action:      req.Action,
+		Context:     req.Context,
+		UserInput:   req.UserInput,
+		Preferences: req.Preferences,
+		ChatHistory: convertChatHistory(req.ChatHistory),
+	}
+
+	// 发送开始信号
+	writeSSE(&aiApi.ChatStreamData{
+		Type:    "start",
+		Content: "开始生成AI响应...",
+		Done:    false,
+	})
+
+	// 调用AI聊天 - 这里暂时使用非流式调用，后续可以改进为真正的流式
+	aiRes, err := client.Chat(ctx, aiReq)
+	if err != nil {
+		writeSSE(&aiApi.ChatStreamData{
+			Type:    "error",
+			Content: "AI调用失败: " + err.Error(),
+			Done:    true,
+		})
+		return
+	}
+
+	// 模拟流式输出（逐字输出）
+	content := aiRes.Content
+	chunkSize := 20 // 每次发送的字符数
+	
+	for i := 0; i < len(content); i += chunkSize {
+		end := i + chunkSize
+		if end > len(content) {
+			end = len(content)
+		}
+		
+		chunk := content[i:end]
+		writeSSE(&aiApi.ChatStreamData{
+			Type:    "chunk",
+			Content: chunk,
+			Done:    false,
+		})
+		
+		// 模拟打字效果
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	// 发送建议和元数据
+	var suggestions []aiApi.ChatSuggestion
+	for _, suggestion := range aiRes.Suggestions {
+		suggestions = append(suggestions, aiApi.ChatSuggestion{
+			Type:        suggestion.Type,
+			Name:        suggestion.Name,
+			Description: suggestion.Description,
+			Code:        suggestion.Code,
+			Confidence:  suggestion.Confidence,
+			Priority:    suggestion.Priority,
+		})
+	}
+
+	if len(suggestions) > 0 {
+		writeSSE(&aiApi.ChatStreamData{
+			Type:        "suggestions",
+			Suggestions: suggestions,
+			Done:        false,
+		})
+	}
+
+	// 发送元数据
+	writeSSE(&aiApi.ChatStreamData{
+		Type:     "metadata",
+		Metadata: aiRes.Metadata,
+		Done:     false,
+	})
+
+	// 发送完成信号  
+	writeSSE(&aiApi.ChatStreamData{
+		Type:    "done",
+		Content: "",
+		Done:    true,
+	})
 }
 
 // convertChatHistory 转换聊天历史格式

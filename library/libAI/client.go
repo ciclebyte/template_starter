@@ -2,8 +2,10 @@ package libAI
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	internalModel "github.com/ciclebyte/template_starter/internal/model"
 	"github.com/ciclebyte/template_starter/library/libConfig"
@@ -105,12 +107,12 @@ type SimpleAIClient struct {
 
 // NewAIClient 创建AI客户端
 func NewAIClient(ctx context.Context) (AIClient, error) {
-	// 尝试创建简化eino客户端，如果失败则回退到完全简化版本
+	// 优先尝试创建SimpleEinoClient，现在它也支持真实AI调用
 	einoClient, err := NewSimpleEinoClient(ctx)
 	if err != nil {
-		g.Log().Warning(ctx, "简化Eino客户端创建失败，使用基础版本:", err)
+		g.Log().Warning(ctx, "SimpleEinoClient创建失败，使用SimpleAIClient:", err)
 		
-		// 回退到基础版本
+		// 回退到SimpleAIClient
 		config, err := libConfig.GetAIConfig(ctx)
 		if err != nil {
 			return nil, err
@@ -120,12 +122,13 @@ func NewAIClient(ctx context.Context) (AIClient, error) {
 			return nil, fmt.Errorf("AI功能未启用")
 		}
 
+		g.Log().Info(ctx, "==== 创建SimpleAIClient ====", "provider", config.Provider, "model", config.OpenAI.Model)
 		return &SimpleAIClient{
 			config: config,
 		}, nil
 	}
 
-	g.Log().Info(ctx, "使用简化Eino AI客户端")
+	g.Log().Info(ctx, "==== 使用SimpleEinoClient（支持真实AI） ====")
 	return einoClient, nil
 }
 
@@ -460,7 +463,311 @@ func (c *SimpleAIClient) estimateTime(req *TemplateGenerateRequest) int {
 
 // Chat 聊天接口
 func (c *SimpleAIClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
-	g.Log().Info(ctx, "AI聊天", "action", req.Action, "userInput", req.UserInput)
+	g.Log().Info(ctx, "==== SimpleAIClient.Chat 调用 ====", "action", req.Action, "userInput", req.UserInput)
+	
+	// 检查配置
+	if !c.config.Enabled {
+		return nil, fmt.Errorf("AI功能未启用，请在系统配置中设置 ai.enabled = true")
+	}
+	
+	if c.config.OpenAI.APIKey == "" {
+		return nil, fmt.Errorf("AI API密钥未配置，请在系统配置中设置 ai.openai.api_key")
+	}
+	
+	// 调用真实AI
+	apiKeyPrefix := c.config.OpenAI.APIKey
+	if len(apiKeyPrefix) > 10 {
+		apiKeyPrefix = apiKeyPrefix[:10] + "..."
+	}
+	g.Log().Info(ctx, "调用真实AI服务", "provider", c.config.Provider, "api_key_prefix", apiKeyPrefix)
+	
+	// 尝试真实AI调用，失败时返回详细错误
+	response, err := c.callRealAI(ctx, req)
+	if err != nil {
+		// 如果是网络或API错误，提供详细的错误信息和建议
+		g.Log().Error(ctx, "真实AI调用失败", "error", err)
+		return nil, fmt.Errorf("AI服务调用失败: %v\n\n建议检查：\n1. 网络连接是否正常\n2. API密钥是否正确\n3. API服务器地址是否正确: %s", err, c.config.OpenAI.BaseURL)
+	}
+	
+	return response, nil
+}
+
+// callRealAI 调用真实的AI服务
+func (c *SimpleAIClient) callRealAI(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
+	g.Log().Info(ctx, "调用真实AI服务", "provider", c.config.Provider, "model", c.config.OpenAI.Model)
+	
+	// 构建提示词
+	prompt := c.buildPromptForAction(req)
+	
+	// 根据provider调用不同的AI服务
+	switch c.config.Provider {
+	case "openai", "moonshot":
+		return c.callOpenAICompatible(ctx, prompt, req)
+	case "claude":
+		return c.callClaude(ctx, prompt, req)
+	default:
+		// 默认使用OpenAI兼容接口
+		return c.callOpenAICompatible(ctx, prompt, req)
+	}
+}
+
+// callOpenAICompatible 调用OpenAI兼容的API
+func (c *SimpleAIClient) callOpenAICompatible(ctx context.Context, prompt string, req *ChatRequest) (*ChatResponse, error) {
+	// 构建消息历史
+	messages := []map[string]interface{}{
+		{
+			"role":    "system",
+			"content": prompt,
+		},
+	}
+	
+	// 添加聊天历史
+	for _, msg := range req.ChatHistory {
+		messages = append(messages, map[string]interface{}{
+			"role":    msg.Role,
+			"content": msg.Content,
+		})
+	}
+	
+	// 添加用户当前输入
+	messages = append(messages, map[string]interface{}{
+		"role":    "user",
+		"content": req.UserInput,
+	})
+	
+	// 构建请求体
+	requestBody := map[string]interface{}{
+		"model":       c.config.OpenAI.Model,
+		"messages":    messages,
+		"max_tokens":  c.config.OpenAI.MaxTokens,
+		"temperature": c.config.OpenAI.Temperature,
+		"stream":      false,
+	}
+	
+	// 创建HTTP客户端 - 使用链式调用方式
+	client := g.Client()
+	
+	apiURL := strings.TrimRight(c.config.OpenAI.BaseURL, "/") + "/v1/chat/completions"
+	
+	g.Log().Info(ctx, "发送AI请求", "url", apiURL, "model", c.config.OpenAI.Model)
+	
+	// 序列化请求体
+	requestJson, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("序列化请求体失败: %v", err)
+	}
+	
+	g.Log().Debug(ctx, "请求体", "json", string(requestJson))
+	
+	// 使用链式调用方式发送请求
+	responseBody := client.Header(map[string]string{
+		"Authorization": "Bearer " + c.config.OpenAI.APIKey,
+		"Content-Type":  "application/json",
+		"User-Agent":    "GoFrame-AI-Client/1.0",
+	}).Timeout(60*time.Second).PostContent(ctx, apiURL, string(requestJson))
+	
+	g.Log().Info(ctx, "收到AI响应", "body_length", len(responseBody))
+	
+	// 解析响应
+	var apiResponse struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+		Usage struct {
+			TotalTokens int `json:"total_tokens"`
+		} `json:"usage"`
+		Error struct {
+			Message string `json:"message"`
+			Type    string `json:"type"`
+		} `json:"error"`
+	}
+	
+	// 检查响应是否为空或错误
+	if len(responseBody) == 0 {
+		return nil, fmt.Errorf("AI API返回空响应")
+	}
+	
+	if err := json.Unmarshal([]byte(responseBody), &apiResponse); err != nil {
+		g.Log().Error(ctx, "AI响应解析失败:", err, "response:", responseBody)
+		return nil, fmt.Errorf("AI API响应格式错误: %v\n原始响应: %s", err, responseBody)
+	}
+	
+	// 检查是否有错误
+	if apiResponse.Error.Message != "" {
+		g.Log().Error(ctx, "AI API错误:", apiResponse.Error.Message, apiResponse.Error.Type)
+		return nil, fmt.Errorf("AI API调用失败: %s (类型: %s)", apiResponse.Error.Message, apiResponse.Error.Type)
+	}
+	
+	// 检查是否有有效响应
+	if len(apiResponse.Choices) == 0 {
+		g.Log().Warning(ctx, "AI API返回空响应")
+		return nil, fmt.Errorf("AI API返回空响应，请检查API配置或稍后重试")
+	}
+	
+	content := apiResponse.Choices[0].Message.Content
+	
+	// 生成建议（可以根据内容解析或使用固定建议）
+	suggestions := c.generateSuggestionsForAction(req)
+	
+	// 生成元数据
+	metadata := map[string]interface{}{
+		"model":         c.config.OpenAI.Model,
+		"provider":      c.config.Provider,
+		"tokens_used":   apiResponse.Usage.TotalTokens,
+		"response_time": 2.0, // 可以记录实际响应时间
+		"prompt_version": "v1.0",
+		"real_ai":       true,
+	}
+	
+	g.Log().Info(ctx, "AI真实响应成功", "tokens", apiResponse.Usage.TotalTokens, "length", len(content))
+	
+	return &ChatResponse{
+		Content:     content,
+		Suggestions: suggestions,
+		Metadata:    metadata,
+	}, nil
+}
+
+// callClaude 调用Claude API
+func (c *SimpleAIClient) callClaude(ctx context.Context, prompt string, req *ChatRequest) (*ChatResponse, error) {
+	return nil, fmt.Errorf("Claude API集成尚未实现，请使用 openai 或 moonshot 作为 AI provider")
+}
+
+// buildPromptForAction 根据操作类型构建提示词
+func (c *SimpleAIClient) buildPromptForAction(req *ChatRequest) string {
+	var basePrompt string
+	
+	switch req.Action {
+	case "optimize_code":
+		basePrompt = `你是一个专业的代码优化专家。请分析用户的代码并提供具体的优化建议。
+
+要求：
+1. 指出性能瓶颈和改进点
+2. 提供优化后的代码示例
+3. 解释优化的理由和预期效果
+4. 注意代码的可读性和维护性
+
+请用中文回复，使用Markdown格式。`
+
+	case "explain_code":
+		basePrompt = `你是一个代码分析专家。请详细解释用户提供的代码的功能和逻辑。
+
+要求：
+1. 解释代码的整体功能和目的
+2. 分析关键部分的实现逻辑
+3. 指出重要的设计模式或算法
+4. 说明代码的优缺点
+
+请用中文回复，使用Markdown格式。`
+
+	case "suggest_variables":
+		basePrompt = `你是一个模板系统专家。请为用户的项目推荐合适的模板变量。
+
+要求：
+1. 分析项目类型和技术栈
+2. 推荐必要的模板变量
+3. 为每个变量提供合理的默认值
+4. 说明变量的用途和重要性
+
+请用中文回复，使用Markdown格式。`
+
+	case "generate_template":
+		basePrompt = `你是一个项目模板生成专家。请根据用户需求生成完整的项目模板。
+
+要求：
+1. 创建合理的项目目录结构
+2. 生成必要的配置文件
+3. 提供基础的代码模板
+4. 包含使用说明和最佳实践
+
+请用中文回复，使用Markdown格式。`
+
+	case "refactor_code":
+		basePrompt = `你是一个代码重构专家。请提供具体的代码重构建议。
+
+要求：
+1. 识别代码中的问题和改进点
+2. 提供重构后的代码示例
+3. 解释重构的理由和好处
+4. 保持功能不变的前提下改进结构
+
+请用中文回复，使用Markdown格式。`
+
+	case "add_comments":
+		basePrompt = `你是一个代码文档专家。请为用户的代码添加适当的注释。
+
+要求：
+1. 为函数和类添加说明注释
+2. 为复杂逻辑添加解释注释
+3. 遵循代码注释的最佳实践
+4. 注释要简洁明了，不冗余
+
+请用中文回复，提供带注释的代码。`
+
+	default:
+		basePrompt = `你是一个AI编程助手，可以帮助用户解决各种编程相关问题。
+
+请根据用户的问题提供有帮助的建议和解决方案。用中文回复，使用清晰的格式。`
+	}
+	
+	// 添加上下文信息
+	if req.Context != nil {
+		if fileName, ok := req.Context["fileName"].(string); ok && fileName != "" {
+			basePrompt += fmt.Sprintf("\n\n文件名：%s", fileName)
+		}
+		
+		if selectedText, ok := req.Context["selectedText"].(string); ok && selectedText != "" {
+			basePrompt += fmt.Sprintf("\n\n用户选中的代码：\n```\n%s\n```", selectedText)
+		} else if fileContent, ok := req.Context["fileContent"].(string); ok && fileContent != "" {
+			// 如果没有选中文本但有文件内容，截取前1000个字符
+			content := fileContent
+			if len(content) > 1000 {
+				content = content[:1000] + "..."
+			}
+			basePrompt += fmt.Sprintf("\n\n完整文件内容：\n```\n%s\n```", content)
+		}
+		
+		if variables, ok := req.Context["variables"].([]interface{}); ok && len(variables) > 0 {
+			basePrompt += fmt.Sprintf("\n\n模板变量：%v", variables)
+		}
+	}
+	
+	return basePrompt
+}
+
+// generateSuggestionsForAction 根据操作类型生成建议
+func (c *SimpleAIClient) generateSuggestionsForAction(req *ChatRequest) []ChatSuggestion {
+	switch req.Action {
+	case "optimize_code":
+		return []ChatSuggestion{
+			{
+				Type:        "code",
+				Name:        "应用优化建议",
+				Description: "将AI建议的优化应用到代码中",
+				Confidence:  0.9,
+				Priority:    "high",
+			},
+		}
+	case "suggest_variables":
+		return []ChatSuggestion{
+			{
+				Type:        "variable",
+				Name:        "添加推荐变量",
+				Description: "将AI推荐的变量添加到模板中",
+				Confidence:  0.95,
+				Priority:    "high",
+			},
+		}
+	default:
+		return []ChatSuggestion{}
+	}
+}
+
+// generateMockResponse 生成模拟响应（回退方案）
+func (c *SimpleAIClient) generateMockResponse(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
+	g.Log().Warning(ctx, "使用模拟AI响应")
 	
 	var content string
 	var suggestions []ChatSuggestion
@@ -500,6 +807,7 @@ func (c *SimpleAIClient) Chat(ctx context.Context, req *ChatRequest) (*ChatRespo
 		"tokens_used":  len(content) / 4, // 简单估算
 		"response_time": 1.2,
 		"prompt_version": "v1.0",
+		"real_ai":       false,
 	}
 	
 	return &ChatResponse{

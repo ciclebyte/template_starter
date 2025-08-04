@@ -34,6 +34,15 @@ func (c *cAI) SuggestVariables(ctx context.Context, req *aiApi.SuggestVariablesR
 
 // Chat 统一AI聊天接口
 func (c *cAI) Chat(ctx context.Context, req *aiApi.ChatReq) (res *aiApi.ChatRes, err error) {
-	g.Log().Debug(ctx, "AI.Chat called with action:", req.Action)
-	return service.AI().Chat(ctx, req)
+	g.Log().Debug(ctx, "AI.Chat called with action:", req.Action, "stream:", req.Stream)
+
+	// 根据stream参数决定使用流式还是普通响应
+	if req.Stream {
+		// 流式响应需要直接操作HTTP响应，获取Request对象
+		r := g.RequestFromCtx(ctx)
+		service.AI().ChatStream(ctx, req, r)
+		return nil, nil // 流式响应不返回标准响应
+	} else {
+		return service.AI().Chat(ctx, req)
+	}
 }

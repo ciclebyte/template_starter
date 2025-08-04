@@ -2,9 +2,14 @@ package libAI
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
 
+	internalModel "github.com/ciclebyte/template_starter/internal/model"
 	"github.com/ciclebyte/template_starter/library/libConfig"
+	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 	"github.com/gogf/gf/v2/frame/g"
@@ -27,13 +32,47 @@ func NewSimpleEinoClient(ctx context.Context) (*SimpleEinoClient, error) {
 		return nil, fmt.Errorf("AI功能未启用")
 	}
 
-	g.Log().Info(ctx, "创建简化Eino客户端", "provider", config.Provider)
+	g.Log().Info(ctx, "创建Eino客户端", "provider", config.Provider)
 
-	// 暂时返回一个基础实现，避免复杂的eino API问题
+	// 尝试创建真实的eino chatModel
+	var chatModel model.ChatModel
+
+	if config.OpenAI.APIKey != "" {
+		// 使用eino创建OpenAI兼容的ChatModel
+		chatModel, err = createEinoChatModel(ctx, config)
+		if err != nil {
+			g.Log().Warning(ctx, "创建eino ChatModel失败，使用HTTP回退:", err)
+			chatModel = nil
+		} else {
+			g.Log().Info(ctx, "成功创建eino ChatModel")
+		}
+	}
+
 	return &SimpleEinoClient{
-		chatModel: nil, // 暂时为nil，需要时再实现
+		chatModel: chatModel,
 		config:    config,
 	}, nil
+}
+
+// createEinoChatModel 创建eino的ChatModel
+func createEinoChatModel(ctx context.Context, config *internalModel.AIConfig) (model.ChatModel, error) {
+	g.Log().Info(ctx, "创建eino ChatModel", "baseURL", config.OpenAI.BaseURL, "model", config.OpenAI.Model)
+
+	// 根据用户提供的官方示例，使用eino-ext创建ChatModel
+	chatModel, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
+		APIKey:  config.OpenAI.APIKey,
+		BaseURL: config.OpenAI.BaseURL,
+		Model:   config.OpenAI.Model,
+		Timeout: 5 * time.Minute, // 增加超时时间到5分钟，支持长文本处理
+	})
+
+	if err != nil {
+		g.Log().Error(ctx, "创建eino ChatModel失败", "error", err)
+		return nil, fmt.Errorf("eino ChatModel创建失败: %v", err)
+	}
+
+	g.Log().Info(ctx, "eino ChatModel创建成功")
+	return chatModel, nil
 }
 
 // TestConnection 测试连接
@@ -302,79 +341,168 @@ func (c *SimpleEinoClient) getBasicVariables(req *VariableSuggestRequest) *Varia
 
 // Chat 聊天接口
 func (c *SimpleEinoClient) Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
-	g.Log().Info(ctx, "简化Eino聊天", "action", req.Action, "userInput", req.UserInput)
+	g.Log().Info(ctx, "==== SimpleEinoClient.Chat 调用 ====", "action", req.Action, "userInput", req.UserInput)
 
-	var content string
-	var suggestions []ChatSuggestion
+	// 获取AI配置
+	config, ok := c.config.(*internalModel.AIConfig)
+	if !ok {
+		return nil, fmt.Errorf("AI配置类型错误")
+	}
+
+	// 检查配置
+	if !config.Enabled {
+		return nil, fmt.Errorf("AI功能未启用")
+	}
+
+	if config.OpenAI.APIKey == "" {
+		return nil, fmt.Errorf("AI API密钥未配置")
+	}
 
 	// 如果chatModel可用，使用eino
 	if c.chatModel != nil {
+		g.Log().Info(ctx, "使用eino chatModel")
 		return c.chatWithEino(ctx, req)
 	}
 
-	// 否则使用基础回复逻辑
-	switch req.Action {
-	case "optimize_code":
-		content = "## 代码优化建议\n\n基于您的代码，我建议进行以下优化：\n\n1. **性能优化**：减少不必要的计算\n2. **代码结构**：改进模块化设计\n3. **错误处理**：添加适当的异常处理\n\n这些优化将提升代码的性能和可维护性。"
-		suggestions = []ChatSuggestion{
-			{
-				Type:        "code",
-				Name:        "性能优化",
-				Description: "优化代码性能",
-				Confidence:  0.9,
-				Priority:    "high",
-			},
-		}
-	case "explain_code":
-		content = "## 代码解释\n\n这段代码的主要功能是处理业务逻辑。它接收输入，进行处理，然后返回结果。\n\n### 关键点\n- 输入验证和处理\n- 核心业务逻辑\n- 结果输出\n\n代码结构清晰，易于理解和维护。"
-	case "suggest_variables":
-		content = "## 模板变量建议\n\n根据您的项目需求，我推荐以下变量：\n\n- **ProjectName**: 项目名称\n- **Version**: 版本号\n- **Author**: 作者信息\n- **Description**: 项目描述\n\n这些变量将帮助您创建更灵活的模板。"
-		suggestions = []ChatSuggestion{
-			{
-				Type:        "variable",
-				Name:        "ProjectName",
-				Description: "项目名称变量",
-				Code:        "{{.ProjectName}}",
-				Confidence:  0.95,
-				Priority:    "high",
-			},
-		}
-	case "general_chat":
-		if contains(req.UserInput, []string{"你好", "hello", "hi"}) {
-			content = "您好！我是AI编程助手，可以帮您：\n\n🔧 优化代码\n💡 解释代码逻辑\n📝 生成模板\n🏷️ 建议变量\n\n请告诉我您需要什么帮助？"
-		} else {
-			content = fmt.Sprintf("我理解您想了解：%s\n\n作为AI助手，我可以帮您分析代码、优化性能、解释逻辑等。请选择代码或告诉我具体需要什么帮助？", req.UserInput)
-		}
-	default:
-		content = "我是AI助手，可以帮您优化代码、解释代码、建议变量、生成模板等。请告诉我您需要什么帮助？"
+	// 否则使用HTTP客户端直接调用API（与SimpleAIClient相同的逻辑）
+	g.Log().Info(ctx, "eino chatModel未初始化，使用HTTP直接调用")
+	return c.callAPIDirectly(ctx, req, config)
+}
+
+// callAPIDirectly 直接调用HTTP API（与SimpleAIClient相同的逻辑）
+func (c *SimpleEinoClient) callAPIDirectly(ctx context.Context, req *ChatRequest, config *internalModel.AIConfig) (*ChatResponse, error) {
+	// 构建提示词
+	prompt := c.buildPromptForAction(req)
+
+	// 构建消息历史
+	messages := []map[string]interface{}{
+		{
+			"role":    "system",
+			"content": prompt,
+		},
 	}
+
+	// 添加聊天历史
+	for _, msg := range req.ChatHistory {
+		messages = append(messages, map[string]interface{}{
+			"role":    msg.Role,
+			"content": msg.Content,
+		})
+	}
+
+	// 添加用户当前输入
+	messages = append(messages, map[string]interface{}{
+		"role":    "user",
+		"content": req.UserInput,
+	})
+
+	// 构建请求体
+	requestBody := map[string]interface{}{
+		"model":       config.OpenAI.Model,
+		"messages":    messages,
+		"max_tokens":  config.OpenAI.MaxTokens,
+		"temperature": config.OpenAI.Temperature,
+		"stream":      false,
+	}
+
+	// 创建HTTP客户端 - 使用更简单的方式
+	client := g.Client()
+
+	apiURL := strings.TrimRight(config.OpenAI.BaseURL, "/") + "/v1/chat/completions"
+
+	g.Log().Info(ctx, "Eino发送AI请求", "url", apiURL, "model", config.OpenAI.Model)
+
+	// 序列化请求体
+	requestJson, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("序列化请求体失败: %v", err)
+	}
+
+	g.Log().Debug(ctx, "请求体", "json", string(requestJson))
+
+	// 使用更基础的方式发送请求
+	response := client.Header(map[string]string{
+		"Authorization": "Bearer " + config.OpenAI.APIKey,
+		"Content-Type":  "application/json",
+		"User-Agent":    "GoFrame-AI-Client/1.0",
+	}).Timeout(60*time.Second).PostContent(ctx, apiURL, string(requestJson))
+
+	g.Log().Info(ctx, "收到AI响应", "body_length", len(response))
+
+	responseBody := response
+
+	// 解析响应
+	var apiResponse struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+		Usage struct {
+			TotalTokens int `json:"total_tokens"`
+		} `json:"usage"`
+		Error struct {
+			Message string `json:"message"`
+			Type    string `json:"type"`
+		} `json:"error"`
+	}
+
+	// 检查响应是否为空
+	if len(responseBody) == 0 {
+		return nil, fmt.Errorf("AI API返回空响应")
+	}
+
+	if err := json.Unmarshal([]byte(responseBody), &apiResponse); err != nil {
+		g.Log().Error(ctx, "Eino AI响应解析失败:", err, "response:", responseBody)
+		return nil, fmt.Errorf("AI API响应格式错误: %v\n原始响应: %s", err, responseBody)
+	}
+
+	// 检查是否有错误
+	if apiResponse.Error.Message != "" {
+		g.Log().Error(ctx, "Eino AI API错误:", apiResponse.Error.Message)
+		return nil, fmt.Errorf("AI API调用失败: %s", apiResponse.Error.Message)
+	}
+
+	// 检查是否有有效响应
+	if len(apiResponse.Choices) == 0 {
+		return nil, fmt.Errorf("AI API返回空响应")
+	}
+
+	content := apiResponse.Choices[0].Message.Content
 
 	// 生成元数据
 	metadata := map[string]interface{}{
-		"model":          "simple-eino",
-		"provider":       "eino",
-		"tokens_used":    len(content) / 4,
-		"response_time":  1.0,
+		"model":          config.OpenAI.Model,
+		"provider":       "eino-http",
+		"tokens_used":    apiResponse.Usage.TotalTokens,
+		"response_time":  2.0,
 		"prompt_version": "v1.0",
+		"real_ai":        true,
 	}
+
+	g.Log().Info(ctx, "Eino AI真实响应成功", "tokens", apiResponse.Usage.TotalTokens)
 
 	return &ChatResponse{
 		Content:     content,
-		Suggestions: suggestions,
+		Suggestions: []ChatSuggestion{}, // 可以根据需要添加建议
 		Metadata:    metadata,
 	}, nil
 }
 
 // chatWithEino 使用eino进行聊天
 func (c *SimpleEinoClient) chatWithEino(ctx context.Context, req *ChatRequest) (*ChatResponse, error) {
-	// 构建提示词
-	promptContent := c.buildChatPrompt(req)
-
+	g.Log().Info(ctx, "开始eino聊天", "action", req.Action, "userInput", req.UserInput)
+	
+	// 创建带超时的context，防止请求卡死 - 设置为5分钟支持长文本处理
+	timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	
+	// 构建系统提示词
+	systemPrompt := c.buildPromptForAction(req)
+	
+	// 构建消息序列
 	messages := []*schema.Message{
-		{
-			Role:    schema.User,
-			Content: promptContent,
-		},
+		schema.SystemMessage(systemPrompt),
 	}
 
 	// 添加聊天历史
@@ -390,15 +518,18 @@ func (c *SimpleEinoClient) chatWithEino(ctx context.Context, req *ChatRequest) (
 	}
 
 	// 添加当前用户输入
-	messages = append(messages, &schema.Message{
-		Role:    schema.User,
-		Content: req.UserInput,
-	})
+	messages = append(messages, schema.UserMessage(req.UserInput))
 
-	resp, err := c.chatModel.Generate(ctx, messages)
+	g.Log().Info(ctx, "eino发送消息", "message_count", len(messages))
+	
+	// 使用eino生成响应
+	resp, err := c.chatModel.Generate(timeoutCtx, messages)
 	if err != nil {
+		g.Log().Error(ctx, "eino生成失败", "error", err)
 		return nil, fmt.Errorf("Eino聊天失败: %v", err)
 	}
+
+	g.Log().Info(ctx, "eino响应成功", "content_length", len(resp.Content))
 
 	// 生成元数据
 	metadata := map[string]interface{}{
@@ -407,6 +538,7 @@ func (c *SimpleEinoClient) chatWithEino(ctx context.Context, req *ChatRequest) (
 		"tokens_used":    len(resp.Content) / 4,
 		"response_time":  1.5,
 		"prompt_version": "v1.0",
+		"real_ai":        true,
 	}
 
 	return &ChatResponse{
@@ -448,4 +580,106 @@ func (c *SimpleEinoClient) buildChatPrompt(req *ChatRequest) string {
 	}
 
 	return prompt
+}
+
+// buildPromptForAction 根据操作类型构建提示词（与SimpleAIClient相同）
+func (c *SimpleEinoClient) buildPromptForAction(req *ChatRequest) string {
+	var basePrompt string
+
+	switch req.Action {
+	case "optimize_code":
+		basePrompt = `你是一个专业的代码优化专家。请分析用户的代码并提供具体的优化建议。
+
+要求：
+1. 指出性能瓶颈和改进点
+2. 提供优化后的代码示例
+3. 解释优化的理由和预期效果
+4. 注意代码的可读性和维护性
+
+请用中文回复，使用Markdown格式。`
+
+	case "explain_code":
+		basePrompt = `你是一个代码分析专家。请详细解释用户提供的代码的功能和逻辑。
+
+要求：
+1. 解释代码的整体功能和目的
+2. 分析关键部分的实现逻辑
+3. 指出重要的设计模式或算法
+4. 说明代码的优缺点
+
+请用中文回复，使用Markdown格式。`
+
+	case "suggest_variables":
+		basePrompt = `你是一个模板系统专家。请为用户的项目推荐合适的模板变量。
+
+要求：
+1. 分析项目类型和技术栈
+2. 推荐必要的模板变量
+3. 为每个变量提供合理的默认值
+4. 说明变量的用途和重要性
+
+请用中文回复，使用Markdown格式。`
+
+	case "generate_template":
+		basePrompt = `你是一个项目模板生成专家。请根据用户需求生成完整的项目模板。
+
+要求：
+1. 创建合理的项目目录结构
+2. 生成必要的配置文件
+3. 提供基础的代码模板
+4. 包含使用说明和最佳实践
+
+请用中文回复，使用Markdown格式。`
+
+	case "refactor_code":
+		basePrompt = `你是一个代码重构专家。请提供具体的代码重构建议。
+
+要求：
+1. 识别代码中的问题和改进点
+2. 提供重构后的代码示例
+3. 解释重构的理由和好处
+4. 保持功能不变的前提下改进结构
+
+请用中文回复，使用Markdown格式。`
+
+	case "add_comments":
+		basePrompt = `你是一个代码文档专家。请为用户的代码添加适当的注释。
+
+要求：
+1. 为函数和类添加说明注释
+2. 为复杂逻辑添加解释注释
+3. 遵循代码注释的最佳实践
+4. 注释要简洁明了，不冗余
+
+请用中文回复，提供带注释的代码。`
+
+	default:
+		basePrompt = `你是一个AI编程助手，可以帮助用户解决各种编程相关问题。
+
+请根据用户的问题提供有帮助的建议和解决方案。用中文回复，使用清晰的格式。`
+	}
+
+	// 添加上下文信息
+	if req.Context != nil {
+		if fileName, ok := req.Context["fileName"].(string); ok && fileName != "" {
+			basePrompt += fmt.Sprintf("\n\n文件名：%s", fileName)
+		}
+
+		if selectedText, ok := req.Context["selectedText"].(string); ok && selectedText != "" {
+			basePrompt += fmt.Sprintf("\n\n用户选中的代码：\n```\n%s\n```", selectedText)
+		} else if fileContent, ok := req.Context["fileContent"].(string); ok && fileContent != "" {
+			// 如果没有选中文本但有文件内容，截取前1000个字符
+			content := fileContent
+			if len(content) > 1000 {
+				content = content[:1000] + "..."
+			}
+			basePrompt += fmt.Sprintf("\n\n完整文件内容：\n```\n%s\n```", content)
+		}
+
+		if variables, ok := req.Context["variables"].([]interface{}); ok && len(variables) > 0 {
+			basePrompt += fmt.Sprintf("\n\n模板变量：%v", variables)
+		}
+	}
+
+	return basePrompt
 }
