@@ -314,6 +314,7 @@
           @contentChange="onEditorContentChange"
           @insertVariable="onInsertVariable"
           @preview="onPreview"
+          @selectionChange="onEditorSelectionChange"
         />
       </div>
       
@@ -416,6 +417,7 @@
       :current-file-name="currentFileName"
       :current-file-content="currentFileContent"
       :template-variables="templateVariables"
+      :editor-selection="editorSelection"
       @insert-code="onAIInsertCode"
       @add-variable="onAIAddVariable"
       @create-file="onAICreateFile"
@@ -467,6 +469,15 @@ const variableValues = ref({})
 const currentFileNode = ref(null)
 const templatePreviewRef = ref(null)
 const previewFileId = ref(null)
+
+// 编辑器选中状态
+const editorSelection = ref({
+  hasSelection: false,
+  selectedText: '',
+  selectionStart: 0,
+  selectionEnd: 0,
+  selectionLength: 0
+})
 
 // 条件设置相关
 const showConditionModal = ref(false)
@@ -1011,6 +1022,9 @@ function findNodeByKey(list, key) {
 async function onSelectFile(key) {
   console.log('选择文件:', { key, treeDataLength: treeData.value.length })
   
+  // 重置编辑器选中状态
+  resetEditorSelection()
+  
   currentFile.value = key
   const node = findNodeByKey(treeData.value, key)
   currentFileNode.value = node
@@ -1057,6 +1071,22 @@ async function onSelectFile(key) {
 function onEditorContentChange({ content }) {
   currentFileContent.value = content
   templateFileStore.setCurrentFileContent(content)
+}
+
+// 处理编辑器选中变化
+function onEditorSelectionChange(selectionInfo) {
+  editorSelection.value = selectionInfo
+}
+
+// 重置编辑器选中状态
+function resetEditorSelection() {
+  editorSelection.value = {
+    hasSelection: false,
+    selectedText: '',
+    selectionStart: 0,
+    selectionEnd: 0,
+    selectionLength: 0
+  }
 }
 
 function onTreeReload(payload) {

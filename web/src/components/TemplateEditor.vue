@@ -121,7 +121,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['contentChange', 'insertVariable', 'preview'])
+const emit = defineEmits(['contentChange', 'insertVariable', 'preview', 'selectionChange'])
 
 const editorContainer = ref(null)
 const htmlPreviewFrame = ref(null)
@@ -253,9 +253,53 @@ function triggerPreview() {
   emit('preview', { fileId: props.currentFileId, fileName: props.currentFileName })
 }
 
+// 获取选中文本
+function getSelectedText() {
+  if (!editorView) return ''
+  
+  const selection = editorView.state.selection.main
+  if (selection.empty) return ''
+  
+  return editorView.state.doc.sliceString(selection.from, selection.to)
+}
+
+// 获取光标位置
+function getCursorPosition() {
+  if (!editorView) return { line: 0, column: 0 }
+  
+  const selection = editorView.state.selection.main
+  const line = editorView.state.doc.lineAt(selection.head)
+  
+  return {
+    line: line.number,
+    column: selection.head - line.from,
+    offset: selection.head
+  }
+}
+
+// 获取选中范围信息
+function getSelectionInfo() {
+  if (!editorView) return null
+  
+  const selection = editorView.state.selection.main
+  const selectedText = getSelectedText()
+  const cursorPosition = getCursorPosition()
+  
+  return {
+    hasSelection: !selection.empty,
+    selectedText,
+    selectionStart: selection.from,
+    selectionEnd: selection.to,
+    cursorPosition
+  }
+}
+
 // 暴露方法给父组件
 defineExpose({
-  insertVariable
+  insertVariable,
+  getSelectedText,
+  getCursorPosition,
+  getSelectionInfo
 })
 
 function runHtmlFile() {
@@ -469,6 +513,21 @@ function createEditorExtensionsWithListener(languageExtension = null) {
       if (update.docChanged) {
         const content = update.state.doc.toString()
         emit('contentChange', { content })
+      }
+      
+      // 监听选择变化
+      if (update.selectionSet) {
+        const selection = update.state.selection.main
+        const selectedText = selection.empty ? '' : update.state.doc.sliceString(selection.from, selection.to)
+        const hasSelection = !selection.empty
+        
+        emit('selectionChange', {
+          hasSelection,
+          selectedText,
+          selectionStart: selection.from,
+          selectionEnd: selection.to,
+          selectionLength: selectedText.length
+        })
       }
     })
   ]
