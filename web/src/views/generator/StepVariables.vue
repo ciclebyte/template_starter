@@ -499,12 +499,14 @@ const handleNext = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
 }
 
 .variables-content {
   flex: 1;
   padding: 40px;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .loading-container {
@@ -519,7 +521,6 @@ const handleNext = () => {
   width: 100%;
   max-width: 800px;
   margin: 0 auto;
-  overflow-y: auto;
 }
 
 .form-title {

@@ -424,7 +424,7 @@
       @apply-suggestion="onAIApplySuggestion"
     />
     
-    <!-- AI SDK面板组件 -->
+    <!-- AI SDK面板组件 - 暂时隐藏 -->
     <AISDKPanel
       :current-file-name="currentFileName"
       :current-file-content="currentFileContent"
@@ -434,6 +434,7 @@
       @add-variable="onAIAddVariable"
       @create-file="onAICreateFile"
       @apply-suggestion="onAIApplySuggestion"
+      style="display: none;"
     />
   </div>
 </template>
