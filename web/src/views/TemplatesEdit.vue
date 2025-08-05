@@ -423,6 +423,18 @@
       @create-file="onAICreateFile"
       @apply-suggestion="onAIApplySuggestion"
     />
+    
+    <!-- AI SDK面板组件 -->
+    <AISDKPanel
+      :current-file-name="currentFileName"
+      :current-file-content="currentFileContent"
+      :template-variables="templateVariables"
+      :editor-selection="editorSelection"
+      @insert-code="onAIInsertCode"
+      @add-variable="onAIAddVariable"
+      @create-file="onAICreateFile"
+      @apply-suggestion="onAIApplySuggestion"
+    />
   </div>
 </template>
 
@@ -438,6 +450,7 @@ import TemplateEditor from '@/components/TemplateEditor.vue'
 import VariableManager from '@/components/VariableManager.vue'
 import TemplatePreview from '@/components/TemplatePreview.vue'
 import AIAssistant from '@/components/AIAssistant.vue'
+import AISDKPanel from '@/components/AISDKPanel.vue'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
 import { useMessage, NIcon, NTag, NButton, NSpin, NForm, NFormItem, NSwitch, NSelect, NRadioGroup, NRadio, NInput } from 'naive-ui'
 import { ChevronDown, ChevronUp, Add, Settings, Pricetag } from '@vicons/ionicons5'
