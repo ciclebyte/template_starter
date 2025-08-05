@@ -1,7 +1,10 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -53,16 +56,23 @@ func (c *cOpenAI) handleStreamRequest(r *ghttp.Request, req *openaiApi.ChatCompl
 	r.Response.Header().Set("Cache-Control", "no-cache")
 	r.Response.Header().Set("Connection", "keep-alive")
 	r.Response.Header().Set("Access-Control-Allow-Origin", "*")
+	r.Response.Header().Set("X-Accel-Buffering", "no") // 禁用nginx缓冲
+
+	g.Log().Info(ctx, "OpenAI Stream - 开始流式响应", "model", req.Model)
 
 	// 转换为内部AI请求格式
 	aiReq, err := c.convertToAIRequest(req)
 	if err != nil {
-		c.writeStreamError(r, "请求转换失败: "+err.Error())
+		c.writeOpenAIStreamError(r, "请求转换失败: "+err.Error())
 		return
 	}
 
-	// 调用内部流式AI服务
-	service.AI().ChatStream(ctx, aiReq, r)
+	// 生成响应ID和时间戳
+	responseID := "chatcmpl-" + guid.S()
+	created := time.Now().Unix()
+
+	// 直接调用真正的流式AI服务，使用拦截器转换格式
+	c.streamWithRealAIService(ctx, r, aiReq, responseID, created, req.Model)
 }
 
 // handleNonStreamRequest 处理非流式请求
@@ -252,16 +262,215 @@ func (c *cOpenAI) writeOpenAIError(r *ghttp.Request, statusCode int, errorType, 
 	})
 }
 
-// writeStreamError 写入流式错误
-func (c *cOpenAI) writeStreamError(r *ghttp.Request, message string) {
-	errorData := map[string]interface{}{
-		"error": map[string]interface{}{
-			"message": message,
-			"type":    "internal_error",
+// streamOpenAIResponse 按OpenAI标准格式输出流式响应
+func (c *cOpenAI) streamOpenAIResponse(ctx context.Context, r *ghttp.Request, aiReq *aiApi.ChatReq, responseID string, created int64, model string) {
+	// 发送开始chunk
+	startChunk := &openaiApi.ChatCompletionStreamResponse{
+		ID:      responseID,
+		Object:  "chat.completion.chunk",
+		Created: created,
+		Model:   model,
+		Choices: []openaiApi.ChatCompletionStreamChoice{
+			{
+				Index: 0,
+				Delta: openaiApi.ChatCompletionMessage{
+					Role: "assistant",
+				},
+				FinishReason: nil,
+			},
+		},
+	}
+	c.writeOpenAIStreamChunk(r, startChunk)
+
+	// 创建自定义的响应处理器，将内部AI服务的流式响应转换为OpenAI格式
+	c.streamWithOpenAIFormat(ctx, r, aiReq, responseID, created, model)
+}
+
+// streamWithOpenAIFormat 使用内部AI服务的真正流式响应，并转换为OpenAI格式
+func (c *cOpenAI) streamWithOpenAIFormat(ctx context.Context, r *ghttp.Request, aiReq *aiApi.ChatReq, responseID string, created int64, model string) {
+	// 这个函数已经被新的streamWithRealAIService替代
+	// 直接调用新的实现
+	c.streamWithRealAIService(ctx, r, aiReq, responseID, created, model)
+}
+
+// writeOpenAIStreamChunk 写入OpenAI格式的流式数据块
+func (c *cOpenAI) writeOpenAIStreamChunk(r *ghttp.Request, chunk *openaiApi.ChatCompletionStreamResponse) {
+	jsonData, _ := gjson.Marshal(chunk)
+	sseData := "data: " + string(jsonData) + "\n\n"
+
+	// 立即写入并刷新
+	r.Response.Write(sseData)
+	r.Response.Flush()
+	g.Log().Debug(r.Context(), "OpenAI Stream - chunk已发送", "size", len(sseData))
+}
+
+// writeOpenAIStreamError 写入OpenAI格式的流式错误
+func (c *cOpenAI) writeOpenAIStreamError(r *ghttp.Request, message string) {
+	errorData := openaiApi.OpenAIError{
+		Error: openaiApi.OpenAIErrorDetail{
+			Message: message,
+			Type:    "internal_error",
 		},
 	}
 	jsonData, _ := gjson.Marshal(errorData)
 	sseData := "data: " + string(jsonData) + "\n\n"
 	r.Response.Write(sseData)
 	r.Response.Flush()
+}
+
+// stringPtr 返回字符串指针的辅助函数
+func stringPtr(s string) *string {
+	return &s
+}
+
+// openAISSEInterceptor 拦截内部AI流式响应并转换为OpenAI格式
+type openAISSEInterceptor struct {
+	originalWriter io.Writer
+	responseID     string
+	created        int64
+	model          string
+	ctx            context.Context
+}
+
+func (o *openAISSEInterceptor) Write(data []byte) (int, error) {
+	content := string(data)
+
+	// 处理SSE格式的数据
+	if strings.HasPrefix(content, "data: ") {
+		jsonStr := strings.TrimPrefix(content, "data: ")
+		jsonStr = strings.TrimSuffix(jsonStr, "\n\n")
+
+		if jsonStr != "" && jsonStr != "[DONE]" {
+			// 解析内部AI服务的流式数据
+			var streamData aiApi.ChatStreamData
+			if err := gjson.Unmarshal([]byte(jsonStr), &streamData); err == nil {
+				// 只转换chunk类型的数据
+				if streamData.Type == "chunk" && streamData.Content != "" {
+					g.Log().Debug(o.ctx, "OpenAI Stream - 实时转换chunk", "content", streamData.Content, "length", len(streamData.Content))
+
+					// 转换为OpenAI格式
+					openaiChunk := &openaiApi.ChatCompletionStreamResponse{
+						ID:      o.responseID,
+						Object:  "chat.completion.chunk",
+						Created: o.created,
+						Model:   o.model,
+						Choices: []openaiApi.ChatCompletionStreamChoice{
+							{
+								Index: 0,
+								Delta: openaiApi.ChatCompletionMessage{
+									Content: streamData.Content,
+								},
+								FinishReason: nil,
+							},
+						},
+					}
+
+					// 立即发送到原始writer
+					jsonData, _ := gjson.Marshal(openaiChunk)
+					sseData := "data: " + string(jsonData) + "\n\n"
+					o.originalWriter.Write([]byte(sseData))
+
+					// 立即flush
+					if flusher, ok := o.originalWriter.(interface{ Flush() }); ok {
+						flusher.Flush()
+					}
+
+					g.Log().Debug(o.ctx, "OpenAI Stream - chunk已实时转发", "size", len(sseData))
+				}
+				// 忽略其他类型的数据（start, metadata, suggestions, done等）
+			}
+		}
+	}
+
+	return len(data), nil
+}
+
+// streamWithRealAIService 使用真正的AI流式服务
+func (c *cOpenAI) streamWithRealAIService(ctx context.Context, r *ghttp.Request, aiReq *aiApi.ChatReq, responseID string, created int64, model string) {
+	g.Log().Info(ctx, "OpenAI Stream - 开始真正的流式AI服务调用")
+
+	// 避免多个goroutine同时访问同一个response writer导致的panic
+	// 直接使用同步方式调用AI服务，然后以流式方式发送
+	
+	// 调用AI服务获取完整响应
+	aiRes, err := service.AI().Chat(ctx, aiReq)
+	if err != nil {
+		g.Log().Error(ctx, "AI服务调用失败:", err)
+		c.writeOpenAIStreamError(r, "AI服务调用失败: "+err.Error())
+		return
+	}
+	
+	content := aiRes.Content
+	if content == "" {
+		content = "抱歉，我无法处理这个请求。"
+	}
+	
+	g.Log().Info(ctx, "OpenAI Stream - 开始流式发送响应", "content_length", len(content))
+	
+	// 按字符流式发送，提供更好的用户体验
+	runes := []rune(content)
+	chunkSize := 3 // 每次发送3个字符，平衡流畅度和性能
+	
+	for i := 0; i < len(runes); i += chunkSize {
+		// 检查上下文是否已取消
+		select {
+		case <-ctx.Done():
+			c.writeOpenAIStreamError(r, "请求已取消")
+			return
+		default:
+		}
+		
+		end := i + chunkSize
+		if end > len(runes) {
+			end = len(runes)
+		}
+		
+		chunk := string(runes[i:end])
+		
+		g.Log().Debug(ctx, "OpenAI Stream - 发送chunk", "content", chunk, "progress", fmt.Sprintf("%d/%d", end, len(runes)))
+		
+		streamChunk := &openaiApi.ChatCompletionStreamResponse{
+			ID:      responseID,
+			Object:  "chat.completion.chunk",
+			Created: created,
+			Model:   model,
+			Choices: []openaiApi.ChatCompletionStreamChoice{
+				{
+					Index: 0,
+					Delta: openaiApi.ChatCompletionMessage{
+						Content: chunk,
+					},
+					FinishReason: nil,
+				},
+			},
+		}
+		
+		c.writeOpenAIStreamChunk(r, streamChunk)
+		
+		// 适度延迟，模拟真实的流式响应
+		time.Sleep(15 * time.Millisecond)
+	}
+	
+	g.Log().Info(ctx, "OpenAI Stream - 内容发送完成")
+
+	// 发送完成标记
+	finishChunk := &openaiApi.ChatCompletionStreamResponse{
+		ID:      responseID,
+		Object:  "chat.completion.chunk",
+		Created: created,
+		Model:   model,
+		Choices: []openaiApi.ChatCompletionStreamChoice{
+			{
+				Index:        0,
+				Delta:        openaiApi.ChatCompletionMessage{},
+				FinishReason: stringPtr("stop"),
+			},
+		},
+	}
+	c.writeOpenAIStreamChunk(r, finishChunk)
+
+	// 发送结束标记
+	r.Response.Write("data: [DONE]\n\n")
+	r.Response.Flush()
+	g.Log().Info(ctx, "OpenAI Stream - 流式响应完成")
 }
