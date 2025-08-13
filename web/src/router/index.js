@@ -1,9 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
 import AdminLayout from '@/layouts/AdminLayout.vue'
-import Home from '@/views/Home.vue'
-import Templates from '@/views/Templates.vue'
-import TemplatesEdit from '@/views/TemplatesEdit.vue'
 
 const routes = [
   // 前台路由
@@ -14,12 +11,12 @@ const routes = [
       {
         path: '',
         name: 'home',
-        component: Home
+        component: () => import('@/views/client/home/index.vue')
       },
       {
         path: '/templates',
         name: 'templates',
-        component: () => import('@/views/TemplatesPublic.vue')
+        component: () => import('@/views/client/templates-public/index.vue')
       },
     ]
   },
@@ -27,17 +24,17 @@ const routes = [
   {
     path: '/templates/edit/:id',
     name: 'TemplatesEdit',
-    component: TemplatesEdit
+    component: () => import('@/views/client/templates-edit/index.vue')
   },
   {
     path: '/template-generator',
     name: 'generator',
-    component: () => import('@/views/TemplateGenerator.vue')
+    component: () => import('@/views/client/template-generator/index.vue')
   },
   {
     path: '/template-generator/:id',
     name: 'TemplateGenerator',
-    component: () => import('@/views/TemplateGenerator.vue')
+    component: () => import('@/views/client/template-generator/index.vue')
   },
 
   // 后台管理路由
@@ -48,7 +45,7 @@ const routes = [
       {
         path: '',
         name: 'admin-dashboard',
-        component: () => import('@/views/admin/Dashboard/index.vue')
+        component: () => import('@/views/admin/dashboard/index.vue')
       },
       {
         path: 'templates',
@@ -73,7 +70,7 @@ const routes = [
       {
         path: 'settings',
         name: 'admin-settings',
-        component: () => import('@/views/admin/Setting/index.vue')
+        component: () => import('@/views/admin/setting/index.vue')
       }
     ]
   }

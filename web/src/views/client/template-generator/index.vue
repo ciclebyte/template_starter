@@ -81,9 +81,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import { ArrowBack } from '@vicons/ionicons5'
 import { getTemplateDetail } from '@/api/templates'
-import StepIntro from './generator/StepIntro.vue'
-import StepVariables from './generator/StepVariables.vue'
-import StepPreview from './generator/StepPreview.vue'
+import StepIntro from './components/StepIntro.vue'
+import StepVariables from './components/StepVariables.vue'
+import StepPreview from './components/StepPreview.vue'
 
 const route = useRoute()
 const router = useRouter()
