@@ -338,60 +338,14 @@
     </n-modal>
 
     <!-- 条件设置弹框 -->
-    <n-modal 
-      v-model:show="showConditionModal" 
-      preset="card" 
-      style="width: 600px;"
-      :mask-closable="false"
-    >
-      <template #header>
-        <div class="condition-modal-header">
-          <span class="modal-title">设置生成条件</span>
-          <span v-if="selectedFileForCondition" class="file-path">{{ selectedFileForCondition.fileName }}</span>
-        </div>
-      </template>
-      
-      <div class="condition-form">
-        <n-form ref="conditionFormRef" :model="conditionForm" label-placement="left" label-width="120px">
-          <n-form-item label="启用条件" path="enabled">
-            <n-switch v-model:value="conditionForm.enabled" />
-            <span class="form-help">开启后，文件将根据条件决定是否生成</span>
-          </n-form-item>
-          
-          <template v-if="conditionForm.enabled">
-            <n-form-item label="变量名称" path="variableName" :rule="{ required: true, message: '请选择变量' }">
-              <n-select 
-                v-model:value="conditionForm.variableName" 
-                :options="booleanVariableOptions"
-                placeholder="请选择一个布尔类型变量"
-                filterable
-              />
-            </n-form-item>
-            
-            <n-form-item label="期望值" path="expectedValue">
-              <n-radio-group v-model:value="conditionForm.expectedValue">
-                <n-radio :value="true">为真时生成</n-radio>
-                <n-radio :value="false">为假时生成</n-radio>
-              </n-radio-group>
-            </n-form-item>
-            
-            <n-form-item label="条件描述" path="description">
-              <n-input 
-                v-model:value="conditionForm.description" 
-                placeholder="可选：描述此条件的用途"
-                type="textarea"
-                :rows="3"
-              />
-            </n-form-item>
-          </template>
-        </n-form>
-        
-        <div class="modal-actions">
-          <n-button @click="showConditionModal = false">取消</n-button>
-          <n-button type="primary" @click="saveCondition">保存</n-button>
-        </div>
-      </div>
-    </n-modal>
+    <ConditionModal
+      ref="conditionModalRef"
+      v-model:show="showConditionModal"
+      :selected-file-for-condition="selectedFileForCondition"
+      :template-variables="templateVariables"
+      @close="showConditionModal = false"
+      @save="handleConditionSave"
+    />
 
     <!-- AI助手组件 -->
     <AIAssistant
@@ -434,6 +388,7 @@ import TemplatePreview from './components/TemplatePreview.vue'
 import AIAssistant from './components/AIAssistant.vue'
 import AISDKPanel from './components/AISDKPanel.vue'
 import EditHeader from './components/EditHeader.vue'
+import ConditionModal from './components/ConditionModal.vue'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
 import { useMessage, NIcon, NTag, NButton, NSpin, NForm, NFormItem, NSwitch, NSelect, NRadioGroup, NRadio, NInput } from 'naive-ui'
 import { ChevronDown, ChevronUp, Add, Settings, Pricetag } from '@vicons/ionicons5'
@@ -459,6 +414,7 @@ const templateFileStore = useTemplateFileStore()
 const templateVariables = ref([])
 const templateEditorRef = ref(null)
 const variableManagerRef = ref(null)
+const conditionModalRef = ref(null)
 const showVariableManager = ref(false)
 
 const variableValues = ref({})
@@ -478,12 +434,6 @@ const editorSelection = ref({
 // 条件设置相关
 const showConditionModal = ref(false)
 const selectedFileForCondition = ref(null)
-const conditionForm = ref({
-  enabled: false,
-  variableName: '',
-  expectedValue: true,
-  description: ''
-})
 
 // 内置变量列表
 const quickVariables = [
@@ -567,15 +517,6 @@ const conditionalVariables = computed(() => {
   return templateVariables.value.filter(v => v.variableType === 'conditional')
 })
 
-// 布尔类型变量选项
-const booleanVariableOptions = computed(() => {
-  return templateVariables.value
-    .filter(v => v.variableType === 'boolean' || v.variableType === '布尔值' || v.variableType === 'conditional')
-    .map(v => ({
-      label: `${v.name}${v.description ? ' - ' + v.description : ''}`,
-      value: v.name
-    }))
-})
 
 // 获取变量类型标签
 const getVariableTypeLabel = (type) => {
@@ -1568,12 +1509,9 @@ function onApplyTestData(testData) {
 async function onSetCondition(fileNode) {
   selectedFileForCondition.value = fileNode
   
-  // 重置表单为默认值
-  conditionForm.value = {
-    enabled: false,
-    variableName: '',
-    expectedValue: true,
-    description: ''
+  // 重置组件表单为默认值
+  if (conditionModalRef.value) {
+    conditionModalRef.value.resetForm()
   }
   
   // 从后端获取当前文件的条件配置
@@ -1582,11 +1520,14 @@ async function onSetCondition(fileNode) {
     const res = await getFileCondition(fileId)
     if (res.data && res.data.data && res.data.data.condition) {
       const condition = res.data.data.condition
-      conditionForm.value = {
-        enabled: condition.enabled || false,
-        variableName: condition.variableName || '',
-        expectedValue: condition.expectedValue !== undefined ? condition.expectedValue : true,
-        description: condition.description || ''
+      // 设置组件表单数据
+      if (conditionModalRef.value) {
+        conditionModalRef.value.setFormData({
+          enabled: condition.enabled || false,
+          variableName: condition.variableName || '',
+          expectedValue: condition.expectedValue !== undefined ? condition.expectedValue : true,
+          description: condition.description || ''
+        })
       }
     }
   } catch (error) {
@@ -1595,6 +1536,36 @@ async function onSetCondition(fileNode) {
   }
   
   showConditionModal.value = true
+}
+
+// 处理条件保存（来自组件的事件）
+async function handleConditionSave(formData) {
+  if (!selectedFileForCondition.value) return
+  
+  try {
+    const fileId = selectedFileForCondition.value.key || selectedFileForCondition.value.id
+    
+    // 构建条件数据
+    const conditionData = {
+      id: fileId,
+      enabled: formData.enabled,
+      variableName: formData.variableName,
+      expectedValue: formData.expectedValue,
+      description: formData.description
+    }
+    
+    // 调用后端API保存条件设置
+    await setFileCondition(conditionData)
+    
+    message.success('条件设置已保存')
+    showConditionModal.value = false
+    
+    // 重新加载文件树以显示条件标识
+    await loadTree()
+  } catch (error) {
+    console.error('保存条件失败:', error)
+    message.error('保存条件失败: ' + (error.response?.data?.message || error.message || '未知错误'))
+  }
 }
 
 // 保存条件设置
@@ -2353,35 +2324,5 @@ function onAIApplySuggestion(suggestion) {
 }
 
 /* 条件设置弹框样式 */
-.condition-modal-header {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.condition-modal-header .file-path {
-  font-size: 12px;
-  color: #666;
-  font-weight: normal;
-}
-
-.condition-form {
-  padding: 16px 0;
-}
-
-.form-help {
-  margin-left: 8px;
-  font-size: 12px;
-  color: #666;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid #e9ecef;
-}
 
 </style> 
