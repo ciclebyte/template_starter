@@ -48,32 +48,32 @@ const routes = [
       {
         path: '',
         name: 'admin-dashboard',
-        component: () => import('@/views/admin/Dashboard.vue')
+        component: () => import('@/views/admin/Dashboard/index.vue')
       },
       {
         path: 'templates',
         name: 'admin-templates-list',
-        component: () => import('@/views/admin/TemplatesList.vue')
+        component: () => import('@/views/admin/template/index.vue')
       },
       {
         path: 'categories',
         name: 'admin-categories',
-        component: () => import('@/views/admin/CategoriesManage.vue')
+        component: () => import('@/views/admin/category/index.vue')
       },
       {
         path: 'languages',
         name: 'admin-languages',
-        component: () => import('@/views/admin/LanguagesManage.vue')
+        component: () => import('@/views/admin/language/index.vue')
       },
       {
         path: 'analytics',
         name: 'admin-analytics',
-        component: () => import('@/views/admin/Analytics.vue')
+        component: () => import('@/views/admin/Analytics/index.vue')
       },
       {
         path: 'settings',
         name: 'admin-settings',
-        component: () => import('@/views/admin/Settings.vue')
+        component: () => import('@/views/admin/Setting/index.vue')
       }
     ]
   }
