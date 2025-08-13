@@ -24,7 +24,7 @@ const routes = [
   {
     path: '/templates/edit/:id',
     name: 'TemplatesEdit',
-    component: () => import('@/views/client/templates-edit/index.vue')
+    component: () => import('@/views/admin/templates-edit/index.vue')
   },
   {
     path: '/template-generator',
