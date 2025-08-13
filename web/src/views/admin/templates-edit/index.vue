@@ -1,130 +1,67 @@
 <template>
   <div class="templates-edit-fullscreen">
-    <EditHeader 
-      :is-variable-panel-open="isVariablePanelOpen"
-      @toggle-variable-panel="toggleVariablePanel"
-      @show-variable-manager="showVariableManager = true"
-      @close-edit="closeEdit"
-    />
-    
+    <EditHeader :is-variable-panel-open="isVariablePanelOpen" @toggle-variable-panel="toggleVariablePanel"
+      @show-variable-manager="showVariableManager = true" @close-edit="closeEdit" />
+
     <!-- 变量插入面板 -->
-    <VariablePanel
-      :is-open="isVariablePanelOpen"
-      :template-variables="templateVariables"
-      :template-syntax-categories="templateSyntaxCategories"
-      :builtin-function-categories="builtinFunctionCategories"
-      :sprig-function-categories="sprigFunctionCategories"
-      :loading-functions="loadingFunctions"
-      :loading-sprig-functions="loadingSprigFunctions"
-      :quick-variables="quickVariables"
-      @insert-syntax="insertSyntax"
-      @insert-function="insertFunction"
-      @insert-sprig-function="insertSprigFunction"
-      @insert-variable="insertVariable"
-      @show-variable-manager="showVariableManager = true"
-      @update:height="variablePanelHeight = $event"
-    />
-    
+    <VariablePanel :is-open="isVariablePanelOpen" :template-variables="templateVariables"
+      :template-syntax-categories="templateSyntaxCategories" :builtin-function-categories="builtinFunctionCategories"
+      :sprig-function-categories="sprigFunctionCategories" :loading-functions="loadingFunctions"
+      :loading-sprig-functions="loadingSprigFunctions" :quick-variables="quickVariables" @insert-syntax="insertSyntax"
+      @insert-function="insertFunction" @insert-sprig-function="insertSprigFunction" @insert-variable="insertVariable"
+      @show-variable-manager="showVariableManager = true" @update:height="variablePanelHeight = $event" />
+
     <div class="edit-main">
       <!-- 左侧：模板资源管理器 -->
-      <TemplateExplorer
-        v-model:treeData="treeData"
-        :currentFile="currentFile"
-        @select="onSelectFile"
-        @reload="onTreeReload"
-        @rename="onRenameFile"
-        @uploadZip="onUploadZip"
-        @uploadCodeFile="onUploadCodeFile"
-        @move="onMoveFile"
-        @setCondition="onSetCondition"
-      />
-      
+      <TemplateExplorer v-model:treeData="treeData" :currentFile="currentFile" @select="onSelectFile"
+        @reload="onTreeReload" @rename="onRenameFile" @uploadZip="onUploadZip" @uploadCodeFile="onUploadCodeFile"
+        @move="onMoveFile" @setCondition="onSetCondition" />
+
       <!-- 中间：编辑器区域 -->
       <div class="editor-container">
-        <TemplateEditor
-          ref="templateEditorRef"
-          :currentFileName="currentFileName"
-          :currentFileId="currentFileId"
-          :currentFileContent="currentFileContent"
-          @contentChange="onEditorContentChange"
-          @insertVariable="onInsertVariable"
-          @preview="onPreview"
-          @selectionChange="onEditorSelectionChange"
-        />
+        <TemplateEditor ref="templateEditorRef" :currentFileName="currentFileName" :currentFileId="currentFileId"
+          :currentFileContent="currentFileContent" @contentChange="onEditorContentChange"
+          @insertVariable="onInsertVariable" @preview="onPreview" @selectionChange="onEditorSelectionChange" />
       </div>
-      
+
       <!-- 右侧：预览面板 -->
-      <TemplatePreview
-        ref="templatePreviewRef"
-        :current-file="currentFileNode"
-        :file-id="previewFileId"
-        :variables="variableValues"
-      />
+      <TemplatePreview ref="templatePreviewRef" :current-file="currentFileNode" :file-id="previewFileId"
+        :variables="variableValues" />
     </div>
 
 
 
     <!-- 变量管理弹框 -->
-    <n-modal 
-      v-model:show="showVariableManager" 
-      preset="card" 
-      style="width: 80vw; height: 80vh; max-width: 1200px;"
-      :mask-closable="false"
-    >
+    <n-modal v-model:show="showVariableManager" preset="card" style="width: 80vw; height: 80vh; max-width: 1200px;"
+      :mask-closable="false">
       <template #header>
         <div class="variable-manager-header">
           <span class="modal-title">变量管理</span>
         </div>
       </template>
-      
+
       <div class="variable-manager-content">
-        <VariableManager
-          ref="variableManagerRef"
-          :variables="templateVariables"
-          :template-id="route.params.id"
-          @add="onAddVariable"
-          @edit="onEditVariable"
-          @delete="onDeleteVariable"
-          @insert="onInsertVariable"
-          @applyTestData="onApplyTestData"
-        />
+        <VariableManager ref="variableManagerRef" :variables="templateVariables" :template-id="route.params.id"
+          @add="onAddVariable" @edit="onEditVariable" @delete="onDeleteVariable" @insert="onInsertVariable"
+          @applyTestData="onApplyTestData" />
       </div>
     </n-modal>
 
     <!-- 条件设置弹框 -->
-    <ConditionModal
-      ref="conditionModalRef"
-      v-model:show="showConditionModal"
-      :selected-file-for-condition="selectedFileForCondition"
-      :template-variables="templateVariables"
-      @close="showConditionModal = false"
-      @save="handleConditionSave"
-    />
+    <ConditionModal ref="conditionModalRef" v-model:show="showConditionModal"
+      :selected-file-for-condition="selectedFileForCondition" :template-variables="templateVariables"
+      @close="showConditionModal = false" @save="handleConditionSave" />
 
     <!-- AI助手组件 -->
-    <AIAssistant
-      :current-file-name="currentFileName"
-      :current-file-content="currentFileContent"
-      :template-variables="templateVariables"
-      :editor-selection="editorSelection"
-      @insert-code="onAIInsertCode"
-      @add-variable="onAIAddVariable"
-      @create-file="onAICreateFile"
-      @apply-suggestion="onAIApplySuggestion"
-    />
-    
+    <AIAssistant :current-file-name="currentFileName" :current-file-content="currentFileContent"
+      :template-variables="templateVariables" :editor-selection="editorSelection" @insert-code="onAIInsertCode"
+      @add-variable="onAIAddVariable" @create-file="onAICreateFile" @apply-suggestion="onAIApplySuggestion" />
+
     <!-- AI SDK面板组件 - 暂时隐藏 -->
-    <AISDKPanel
-      :current-file-name="currentFileName"
-      :current-file-content="currentFileContent"
-      :template-variables="templateVariables"
-      :editor-selection="editorSelection"
-      @insert-code="onAIInsertCode"
-      @add-variable="onAIAddVariable"
-      @create-file="onAICreateFile"
-      @apply-suggestion="onAIApplySuggestion"
-      style="display: none;"
-    />
+    <AISDKPanel :current-file-name="currentFileName" :current-file-content="currentFileContent"
+      :template-variables="templateVariables" :editor-selection="editorSelection" @insert-code="onAIInsertCode"
+      @add-variable="onAIAddVariable" @create-file="onAICreateFile" @apply-suggestion="onAIApplySuggestion"
+      style="display: none;" />
   </div>
 </template>
 
@@ -159,7 +96,6 @@ const treeData = ref([])
 const loadingTree = ref(true)
 const noTreeData = ref(false)
 const currentFile = ref('')
-const currentFilePath = ref('')
 const currentFileContent = ref('')
 const currentFileName = ref('')
 const currentFileId = ref('')
@@ -197,19 +133,6 @@ const quickVariables = [
   { name: 'PackageName', label: '包名' }
 ]
 
-// 快捷函数列表
-const quickFunctions = [
-  { name: 'now', label: '当前时间', code: '{{now}}', description: '返回当前时间' },
-  { name: 'date', label: '格式化日期', code: '{{date "2006-01-02"}}', description: '按指定格式返回当前日期' },
-  { name: 'lower', label: '转小写', code: '{{lower .变量名}}', description: '将变量转换为小写' },
-  { name: 'upper', label: '转大写', code: '{{upper .变量名}}', description: '将变量转换为大写' },
-  { name: 'camelcase', label: '驼峰命名', code: '{{camelcase .变量名}}', description: '转换为驼峰命名格式' },
-  { name: 'snakecase', label: '下划线命名', code: '{{snakecase .变量名}}', description: '转换为下划线命名格式' },
-  { name: 'randInt', label: '随机整数', code: '{{randInt 1 100}}', description: '生成1-100之间的随机整数' },
-  { name: 'uuid', label: 'UUID', code: '{{uuid}}', description: '生成UUID' },
-  { name: 'default', label: '默认值', code: '{{default "默认值" .变量名}}', description: '如果变量为空则使用默认值' }
-]
-
 // 动态函数分类数据
 const builtinFunctionCategories = ref([])
 const loadingFunctions = ref(false)
@@ -229,46 +152,6 @@ let showTimer = null
 // 变量面板状态
 const isVariablePanelOpen = ref(false)
 const variablePanelHeight = ref(300) // 默认高度300px
-
-
-
-// 获取变量类型标签
-const getVariableTypeLabel = (type) => {
-  const typeLabels = {
-    'string': '字符串',
-    '字符串': '字符串',
-    'number': '数字',
-    '数字': '数字',
-    'boolean': '布尔值',
-    '布尔值': '布尔值',
-    'list': '列表',
-    '列表': '列表',
-    'object': '对象',
-    '对象': '对象',
-    'text': '文本',
-    'conditional': '条件逻辑' // 区别于简单布尔值
-  }
-  return typeLabels[type] || '文本'
-}
-
-// 获取变量标签样式类
-const getVariableTagClass = (type) => {
-  const typeClasses = {
-    'string': 'string',
-    '字符串': 'string',
-    'number': 'number',
-    '数字': 'number',
-    'boolean': 'boolean',
-    '布尔值': 'boolean',
-    'list': 'list',
-    '列表': 'list',
-    'object': 'object',
-    '对象': 'object',
-    'text': 'text',
-    'conditional': 'conditional'
-  }
-  return typeClasses[type] || 'text'
-}
 
 // Go模板语法数据
 const templateSyntaxCategories = ref([
@@ -484,42 +367,28 @@ const templateSyntaxCategories = ref([
   }
 ])
 
-// 变量面板拖拽调整功能
-const startVariablePanelResize = (event) => {
-  isVariablePanelResizing.value = true
-  variablePanelStartY.value = event.clientY
-  variablePanelStartHeight.value = variablePanelHeight.value
-  
-  // 添加全局鼠标事件监听
-  document.addEventListener('mousemove', onVariablePanelResize)
-  document.addEventListener('mouseup', stopVariablePanelResize)
-  
-  // 防止选中文本
-  event.preventDefault()
-  document.body.style.userSelect = 'none'
-}
 
 const onVariablePanelResize = (event) => {
   if (!isVariablePanelResizing.value) return
-  
+
   const deltaY = event.clientY - variablePanelStartY.value
   const newHeight = variablePanelStartHeight.value + deltaY
-  
+
   // 限制高度范围
   if (newHeight >= minVariablePanelHeight && newHeight <= maxVariablePanelHeight) {
     variablePanelHeight.value = newHeight
   }
-  
+
   event.preventDefault()
 }
 
 const stopVariablePanelResize = () => {
   isVariablePanelResizing.value = false
-  
+
   // 移除全局鼠标事件监听
   document.removeEventListener('mousemove', onVariablePanelResize)
   document.removeEventListener('mouseup', stopVariablePanelResize)
-  
+
   // 恢复文本选择
   document.body.style.userSelect = ''
 }
@@ -543,10 +412,10 @@ onUnmounted(() => {
   // 清理变量面板拖拽事件监听器
   document.removeEventListener('mousemove', onVariablePanelResize)
   document.removeEventListener('mouseup', stopVariablePanelResize)
-  
+
   // 恢复文本选择
   document.body.style.userSelect = ''
-  
+
   // 清理函数详情面板的定时器
   if (hideTimer) {
     clearTimeout(hideTimer)
@@ -639,24 +508,24 @@ function loadTestData() {
 
 function findNodeByKey(list, key) {
   console.log('查找节点:', { key, listLength: list?.length })
-  
+
   for (const item of list) {
     const itemKey = String(item.key || item.id)
     const targetKey = String(key)
-    
-    console.log('检查节点:', { 
-      itemKey, 
-      targetKey, 
+
+    console.log('检查节点:', {
+      itemKey,
+      targetKey,
       matches: itemKey === targetKey,
       fileName: item.fileName,
-      isDirectory: item.isDirectory 
+      isDirectory: item.isDirectory
     })
-    
+
     if (itemKey === targetKey) {
       console.log('找到匹配节点:', item)
       return item
     }
-    
+
     if (item.children) {
       const found = findNodeByKey(item.children, key)
       if (found) {
@@ -665,43 +534,43 @@ function findNodeByKey(list, key) {
       }
     }
   }
-  
+
   console.log('未找到匹配的节点')
   return null
 }
 
 async function onSelectFile(key) {
   console.log('选择文件:', { key, treeDataLength: treeData.value.length })
-  
+
   // 重置编辑器选中状态
   resetEditorSelection()
-  
+
   currentFile.value = key
   const node = findNodeByKey(treeData.value, key)
   currentFileNode.value = node
-  
+
   console.log('找到节点:', { node, isDirectory: node?.isDirectory })
-  
+
   if (node && node.isDirectory === 0) {
     try {
       // 先设置文件名，避免编辑器被销毁
       const fileName = node.fileName || node.label || String(key)
       console.log('设置文件名:', fileName)
-      
+
       currentFileName.value = fileName
       currentFileId.value = String(key)
-      
+
       // 然后异步加载文件内容
       console.log('开始加载文件内容...')
       const res = await getTemplateFileContent(key)
       const content = res.data.data.fileContent
-      
+
       console.log('文件内容加载完成:', { contentLength: content?.length })
-      
+
       // 设置文件内容
       currentFileContent.value = content
       templateFileStore.setCurrentFileContent(content)
-      
+
     } catch (e) {
       console.error('加载文件内容失败:', e)
       currentFileContent.value = ''
@@ -768,23 +637,23 @@ function onTreeReload(payload) {
 
 async function onRenameFile(payload) {
   const { id, oldName, newName, node } = payload
-  
+
   // 验证新名称
   if (!newName || newName.trim() === '' || newName === oldName) {
     return
   }
-  
+
   try {
     await renameTemplateFile({
       id: parseInt(id),
       fileName: newName.trim()
     })
-    
+
     message.success('重命名成功')
-    
+
     // 重新加载文件树
     await loadTree()
-    
+
     // 如果重命名的是当前文件，更新当前文件名
     if (currentFileId.value === String(id)) {
       currentFileName.value = newName.trim()
@@ -797,18 +666,18 @@ async function onRenameFile(payload) {
 
 async function onUploadZip(payload) {
   const { file } = payload
-  
+
   try {
     const res = await uploadZipFile(route.params.id, file)
     const { successCount, failedFiles, message: resultMessage } = res.data.data
-    
+
     if (failedFiles && failedFiles.length > 0) {
       message.warning(`${resultMessage}，成功 ${successCount} 个文件，失败 ${failedFiles.length} 个文件`)
       console.log('失败的文件:', failedFiles)
     } else {
       message.success(`${resultMessage}，成功解压 ${successCount} 个文件`)
     }
-    
+
     // 重新加载文件树
     await loadTree()
   } catch (error) {
@@ -835,49 +704,49 @@ async function onUploadCodeFile(payload) {
 
 async function onMoveFile(payload) {
   const { sourceId, targetId, sourceNode, targetNode, isRootDrop } = payload
-  
+
   // 处理特殊情况：如果是根目录拖拽但没有具体的 sourceNode 数据
   if (isRootDrop && (!sourceId || sourceId === 'unknown')) {
     console.log('根目录拖拽，但缺少源节点信息，忽略此次移动')
     message.warning('拖拽移动需要明确的源文件信息')
     return
   }
-  
+
   // 验证必要的参数
   if (!sourceId || sourceId === 'unknown') {
     console.error('移动失败：缺少源文件ID')
     message.error('移动失败：缺少源文件信息')
     return
   }
-  
+
   try {
     // 处理根目录的情况：targetId 为 '0' 时传递 null 表示移动到根目录
     const newParentId = targetId === '0' ? null : parseInt(targetId)
-    
+
     console.log('移动文件参数:', {
       sourceId: parseInt(sourceId),
       targetId,
       newParentId,
       isRootMove: targetId === '0'
     })
-    
+
     await moveTemplateFile({
       id: parseInt(sourceId),
       newParentId: newParentId
     })
-    
+
     const targetName = targetId === '0' ? '根目录' : (targetNode?.fileName || '未知目录')
     const sourceName = sourceNode?.fileName || sourceNode?.label || '未知文件'
     message.success(`已将 "${sourceName}" 移动到 "${targetName}"`)
-    
+
     // 保存当前正在编辑的文件信息
     const wasCurrentFile = currentFileId.value === String(sourceId)
     const currentContent = currentFileContent.value
     const currentName = currentFileName.value
-    
+
     // 重新加载文件树
     await loadTree()
-    
+
     // 如果移动的是当前文件，重新选择它以保持编辑状态
     if (wasCurrentFile) {
       // 重新设置当前文件信息（文件ID没有变化，只是位置变了）
@@ -885,13 +754,13 @@ async function onMoveFile(payload) {
       currentFileName.value = currentName
       currentFileContent.value = currentContent
       templateFileStore.setCurrentFileContent(currentContent)
-      
+
       // 更新文件树选中状态
       currentFile.value = String(sourceId)
     }
   } catch (error) {
     console.error('移动失败:', error)
-    
+
     // 检查是否是404错误（接口未实现）
     if (error.response?.status === 404) {
       message.error('移动功能暂未实现，请联系管理员添加后端接口')
@@ -961,10 +830,10 @@ function onInsertVariable(template) {
 
 // 预览事件处理
 function onPreview({ fileId, fileName }) {
-  
+
   // 设置预览文件ID
   previewFileId.value = fileId
-  
+
   // 从 localStorage 获取测试数据
   const templateId = route.params.id
   const testDataKey = `template_test_data_${templateId}`
@@ -979,12 +848,12 @@ function onPreview({ fileId, fileName }) {
   } else {
     variableValues.value = {}
   }
-  
+
   // 触发预览面板展开（如果已折叠）
   if (templatePreviewRef.value) {
     templatePreviewRef.value.expandPanel()
   }
-  
+
   message.success(`正在预览: ${fileName}`)
 }
 
@@ -1006,19 +875,19 @@ function insertVariable(variableName) {
 function showFunctionDetail(func, event) {
   clearHideTimer()
   clearShowTimer()
-  
+
   // 延迟显示，只有悬停800ms后才显示详情
   showTimer = setTimeout(() => {
     selectedFunction.value = func
-    
+
     // 计算面板位置 - 显示在鼠标右下角
     const panelWidth = 300  // 减小面板宽度
     const panelHeight = 200 // 减小面板高度
     const offset = 8
-    
+
     let left = event.clientX + offset
     let top = event.clientY + offset
-    
+
     // 边界检查 - 确保面板不超出屏幕
     if (left + panelWidth > window.innerWidth - 10) {
       left = event.clientX - panelWidth - offset // 显示在鼠标左下角
@@ -1026,12 +895,12 @@ function showFunctionDetail(func, event) {
     if (top + panelHeight > window.innerHeight - 10) {
       top = event.clientY - panelHeight - offset // 显示在鼠标右上角
     }
-    
+
     functionDetailStyle.value = {
       left: `${left}px`,
       top: `${top}px`
     }
-    
+
     functionDetailVisible.value = true
   }, 800) // 增加到800ms延迟，减少误触发
 }
@@ -1061,7 +930,7 @@ function onDetailPanelEnter() {
 // 隐藏函数详情 - 增加延迟隐藏时间
 function hideFunctionDetail() {
   clearShowTimer() // 取消可能的显示操作
-  
+
   hideTimer = setTimeout(() => {
     functionDetailVisible.value = false
     selectedFunction.value = null
@@ -1084,16 +953,16 @@ function insertFunction(func) {
   clearShowTimer()
   clearHideTimer()
   functionDetailVisible.value = false
-  
+
   let code = func.code
-  
+
   // 如果代码中包含"变量名"占位符，需要特殊处理
   if (code.includes('变量名')) {
     // 这里可以获取编辑器当前选中的文本，如果没有选中则插入占位符
     // 暂时使用占位符，后续可以通过props传递选中文本
     code = code.replace('变量名', '')
   }
-  
+
   if (templateEditorRef.value) {
     templateEditorRef.value.insertVariable(code)
   }
@@ -1105,9 +974,9 @@ function insertSprigFunction(func) {
   clearShowTimer()
   clearHideTimer()
   functionDetailVisible.value = false
-  
+
   const code = func.insert_text || `{{ ${func.name} }}`
-  
+
   if (templateEditorRef.value) {
     templateEditorRef.value.insertVariable(code)
   }
@@ -1119,98 +988,14 @@ function insertSyntax(syntax) {
   clearShowTimer()
   clearHideTimer()
   functionDetailVisible.value = false
-  
+
   const code = syntax.insertText || syntax.syntax
-  
+
   if (templateEditorRef.value) {
     templateEditorRef.value.insertVariable(code)
   }
 }
 
-// 显示Sprig函数详情
-function showSprigFunctionDetail(func, event) {
-  clearHideTimer()
-  clearShowTimer()
-  
-  // 延迟显示，只有悬停800ms后才显示详情
-  showTimer = setTimeout(() => {
-    selectedFunction.value = func
-    
-    // 计算面板位置 - 显示在鼠标右下角
-    const panelWidth = 300
-    const panelHeight = 250
-    const offset = 8
-    
-    let left = event.clientX + offset
-    let top = event.clientY + offset
-    
-    // 边界检测
-    const viewportWidth = window.innerWidth
-    const viewportHeight = window.innerHeight
-    
-    if (left + panelWidth > viewportWidth) {
-      left = event.clientX - panelWidth - offset
-    }
-    
-    if (top + panelHeight > viewportHeight) {
-      top = event.clientY - panelHeight - offset
-    }
-    
-    functionDetailStyle.value = {
-      left: `${left}px`,
-      top: `${top}px`,
-      zIndex: 9999
-    }
-    
-    functionDetailVisible.value = true
-  }, 800) // 与内置函数保持一致的延迟时间
-}
-
-// 显示语法详情
-function showSyntaxDetail(syntax, event) {
-  clearHideTimer()
-  clearShowTimer()
-  
-  // 延迟显示，只有悬停800ms后才显示详情
-  showTimer = setTimeout(() => {
-    selectedFunction.value = syntax
-    
-    // 计算面板位置 - 显示在鼠标右下角
-    const panelWidth = 300
-    const panelHeight = 250
-    const offset = 8
-    
-    let left = event.clientX + offset
-    let top = event.clientY + offset
-    
-    // 边界检测
-    const viewportWidth = window.innerWidth
-    const viewportHeight = window.innerHeight
-    
-    if (left + panelWidth > viewportWidth) {
-      left = event.clientX - panelWidth - offset
-    }
-    
-    if (top + panelHeight > viewportHeight) {
-      top = event.clientY - panelHeight - offset
-    }
-    
-    functionDetailStyle.value = {
-      left: `${left}px`,
-      top: `${top}px`,
-      zIndex: 9999
-    }
-    
-    functionDetailVisible.value = true
-  }, 800) // 与其他函数保持一致的延迟时间
-}
-
-// 新增变量（直接打开编辑对话框）
-function addVariable() {
-  if (variableManagerRef.value) {
-    variableManagerRef.value.addVariable()
-  }
-}
 
 // 应用测试数据
 function onApplyTestData(testData) {
@@ -1222,12 +1007,12 @@ function onApplyTestData(testData) {
 // 设置文件生成条件
 async function onSetCondition(fileNode) {
   selectedFileForCondition.value = fileNode
-  
+
   // 重置组件表单为默认值
   if (conditionModalRef.value) {
     conditionModalRef.value.resetForm()
   }
-  
+
   // 从后端获取当前文件的条件配置
   try {
     const fileId = fileNode.key || fileNode.id
@@ -1248,17 +1033,17 @@ async function onSetCondition(fileNode) {
     console.error('获取条件配置失败:', error)
     // 如果获取失败，使用默认值
   }
-  
+
   showConditionModal.value = true
 }
 
 // 处理条件保存（来自组件的事件）
 async function handleConditionSave(formData) {
   if (!selectedFileForCondition.value) return
-  
+
   try {
     const fileId = selectedFileForCondition.value.key || selectedFileForCondition.value.id
-    
+
     // 构建条件数据
     const conditionData = {
       id: fileId,
@@ -1267,43 +1052,13 @@ async function handleConditionSave(formData) {
       expectedValue: formData.expectedValue,
       description: formData.description
     }
-    
-    // 调用后端API保存条件设置
-    await setFileCondition(conditionData)
-    
-    message.success('条件设置已保存')
-    showConditionModal.value = false
-    
-    // 重新加载文件树以显示条件标识
-    await loadTree()
-  } catch (error) {
-    console.error('保存条件失败:', error)
-    message.error('保存条件失败: ' + (error.response?.data?.message || error.message || '未知错误'))
-  }
-}
 
-// 保存条件设置
-async function saveCondition() {
-  if (!selectedFileForCondition.value) return
-  
-  try {
-    const fileId = selectedFileForCondition.value.key || selectedFileForCondition.value.id
-    
-    // 构建条件数据
-    const conditionData = {
-      id: fileId,
-      enabled: conditionForm.value.enabled,
-      variableName: conditionForm.value.variableName,
-      expectedValue: conditionForm.value.expectedValue,
-      description: conditionForm.value.description
-    }
-    
     // 调用后端API保存条件设置
     await setFileCondition(conditionData)
-    
+
     message.success('条件设置已保存')
     showConditionModal.value = false
-    
+
     // 重新加载文件树以显示条件标识
     await loadTree()
   } catch (error) {
@@ -1347,7 +1102,7 @@ async function onAICreateFile(fileInfo) {
   try {
     const templateId = route.params.id
     const isDirectory = fileInfo.type === 'folder' ? 1 : 0
-    
+
     await addTemplateFile({
       templateId,
       fileName: fileInfo.name,
@@ -1358,7 +1113,7 @@ async function onAICreateFile(fileInfo) {
       sort: 0,
       parentId: fileInfo.parentId || null
     })
-    
+
     await loadTree()
     message.success(`AI生成的${isDirectory ? '文件夹' : '文件'} "${fileInfo.name}" 已创建`)
   } catch (error) {
@@ -1412,7 +1167,7 @@ function onAIApplySuggestion(suggestion) {
 .variable-panel {
   background: #fff;
   border-bottom: 1px solid #e0e0e0;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
   overflow: hidden;
   position: relative;
 }
@@ -1463,7 +1218,8 @@ function onAIApplySuggestion(suggestion) {
 }
 
 .variable-tabs {
-  height: calc(100% - 8px); /* 为拖拽手柄留出空间 */
+  height: calc(100% - 8px);
+  /* 为拖拽手柄留出空间 */
   display: flex;
   flex-direction: column;
 }
@@ -1566,7 +1322,7 @@ function onAIApplySuggestion(suggestion) {
   min-height: 400px;
   background: #1e1e1e;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
   overflow: hidden;
 }
 
@@ -1575,7 +1331,7 @@ function onAIApplySuggestion(suggestion) {
   z-index: 9999;
   background: #fff;
   border: 1px solid #eee;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   border-radius: 6px;
   min-width: 120px;
   padding: 4px 0;
@@ -1818,6 +1574,7 @@ function onAIApplySuggestion(suggestion) {
     opacity: 0;
     transform: translateY(-8px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -1860,7 +1617,8 @@ function onAIApplySuggestion(suggestion) {
 .detail-body {
   padding: 16px;
   overflow-y: auto;
-  max-height: 420px; /* 给header留出空间 */
+  max-height: 420px;
+  /* 给header留出空间 */
 }
 
 .detail-description {
@@ -2038,5 +1796,4 @@ function onAIApplySuggestion(suggestion) {
 }
 
 /* 条件设置弹框样式 */
-
-</style> 
+</style>
