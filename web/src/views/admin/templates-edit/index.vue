@@ -8,268 +8,22 @@
     />
     
     <!-- 变量插入面板 -->
-    <div v-show="isVariablePanelOpen" class="variable-panel" :style="{ height: variablePanelHeight + 'px' }">
-      <div class="variable-tabs">
-        <div class="tab-header">
-          <div 
-            v-for="tab in variableTabs" 
-            :key="tab.key"
-            class="tab-item"
-            :class="{ active: activeVariableTab === tab.key }"
-            @click="activeVariableTab = tab.key"
-          >
-            {{ tab.label }}
-          </div>
-        </div>
-        
-        <!-- 模板语法 Tab -->
-        <div v-show="activeVariableTab === 'syntax'" class="tab-content">
-          <div class="function-categories">
-            <div 
-              v-for="category in templateSyntaxCategories" 
-              :key="category.name"
-              class="category-row"
-            >
-              <span class="category-label">{{ category.name }}</span>
-              <div class="category-tags">
-                <div 
-                  v-for="syntax in category.syntaxes" 
-                  :key="syntax.name"
-                  class="variable-tag syntax"
-                  @click="insertSyntax(syntax)"
-                  @mouseenter="showSyntaxDetail(syntax, $event)"
-                  @mouseleave="hideFunctionDetail"
-                >
-                  {{ syntax.display_name || syntax.name }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 内置函数 Tab -->
-        <div v-show="activeVariableTab === 'functions'" class="tab-content">
-          <div v-if="loadingFunctions" class="loading-state">
-            <n-spin size="small" />
-            <span style="margin-left: 8px;">加载函数中...</span>
-          </div>
-          <div v-else class="function-categories">
-            <div 
-              v-for="category in builtinFunctionCategories" 
-              :key="category.name"
-              class="category-row"
-            >
-              <span class="category-label">{{ category.name }}</span>
-              <div class="category-tags">
-                <div 
-                  v-for="func in category.functions" 
-                  :key="func.name"
-                  class="variable-tag function"
-                  @click="insertFunction(formatFunction(func))"
-                  @mouseenter="showFunctionDetail(func, $event)"
-                  @mouseleave="hideFunctionDetail"
-                >
-                  {{ func.display_name || func.name }}
-                </div>
-              </div>
-            </div>
-            
-            <!-- 如果没有数据显示提示 -->
-            <div v-if="builtinFunctionCategories.length === 0" class="empty-state">
-              <span>暂无可用的内置函数</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Sprig函数 Tab -->
-        <div v-show="activeVariableTab === 'sprig'" class="tab-content">
-          <div v-if="loadingSprigFunctions" class="loading-state">
-            <n-spin size="small" />
-            <span style="margin-left: 8px;">加载Sprig函数中...</span>
-          </div>
-          <div v-else class="function-categories">
-            <div 
-              v-for="category in sprigFunctionCategories" 
-              :key="category.name"
-              class="category-row"
-            >
-              <span class="category-label">{{ category.name }}</span>
-              <div class="category-tags">
-                <div 
-                  v-for="func in category.functions" 
-                  :key="func.name"
-                  class="variable-tag function sprig"
-                  @click="insertSprigFunction(func)"
-                  @mouseenter="showSprigFunctionDetail(func, $event)"
-                  @mouseleave="hideFunctionDetail"
-                >
-                  {{ func.display_name || func.name }}
-                </div>
-              </div>
-            </div>
-            
-            <!-- 如果没有数据显示提示 -->
-            <div v-if="sprigFunctionCategories.length === 0" class="empty-state">
-              <span>暂无可用的Sprig函数</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 自定义函数详情面板 -->
-        <div 
-          v-if="functionDetailVisible && selectedFunction"
-          class="function-detail-panel"
-          :style="functionDetailStyle"
-          @mouseenter="onDetailPanelEnter"
-          @mouseleave="hideFunctionDetail"
-        >
-          <div class="detail-header">
-            <div class="detail-title">
-              <span class="function-icon">⚡</span>
-              {{ selectedFunction.display_name || selectedFunction.name }}
-            </div>
-            <div class="detail-type">{{ selectedFunction.return_type || 'string' }}</div>
-          </div>
-          
-          <div class="detail-body">
-            <div class="detail-description">
-              {{ selectedFunction.description }}
-            </div>
-            
-            <!-- 如果有usage字段，显示使用说明 -->
-            <div v-if="selectedFunction.usage" class="detail-section">
-              <div class="section-label">
-                <span class="section-icon">📖</span>
-                使用说明
-              </div>
-              <div class="section-content">
-                {{ selectedFunction.usage }}
-              </div>
-            </div>
-            
-            <!-- 参数信息 -->
-            <div v-if="selectedFunction.params && selectedFunction.params.length > 0" class="detail-section">
-              <div class="section-label">
-                <span class="section-icon">🔧</span>
-                参数列表
-              </div>
-              <div class="section-content">
-                <div class="params-list">
-                  <div 
-                    v-for="param in selectedFunction.params" 
-                    :key="param.name"
-                    class="param-item"
-                  >
-                    <div class="param-header">
-                      <span class="param-name">{{ param.name }}</span>
-                      <span class="param-type">{{ param.type }}</span>
-                      <span v-if="param.required" class="param-required">必需</span>
-                      <span v-else class="param-optional">可选</span>
-                    </div>
-                    <div class="param-description">{{ param.description }}</div>
-                    <div v-if="param.default" class="param-default">
-                      默认值: <code>{{ param.default }}</code>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div class="detail-section">
-              <div class="section-label">
-                <span class="section-icon">💡</span>
-                使用示例
-              </div>
-              <div class="section-content code-content">
-                {{ selectedFunction.example }}
-              </div>
-            </div>
-            
-            <div class="detail-section">
-              <div class="section-label">
-                <span class="section-icon">✨</span>
-                点击插入
-              </div>
-              <div class="section-content code-content insert-preview">
-                {{ selectedFunction.insert_text }}
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 内置变量 Tab -->
-        <div v-show="activeVariableTab === 'builtin'" class="tab-content">
-          <div class="variable-section">
-            <div class="section-title">文本变量</div>
-            <div class="variable-tags">
-              <div 
-                v-for="variable in quickVariables" 
-                :key="variable.name"
-                class="variable-tag builtin"
-                @click="insertVariable(variable.name)"
-                :title="`${variable.name} - ${variable.label}`"
-              >
-                {{ variable.label }}
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 用户变量 Tab -->
-        <div v-show="activeVariableTab === 'custom'" class="tab-content">
-          <div v-if="textVariables.length > 0" class="variable-section">
-            <div class="section-title">用户变量</div>
-            <div class="variable-tags">
-              <n-tag
-                v-for="variable in textVariables"
-                :key="variable.id"
-                :class="['variable-tag', getVariableTagClass(variable.variableType)]"
-                @click="insertVariable(variable.name)"
-                :title="`${variable.name} (${getVariableTypeLabel(variable.variableType)})${variable.description ? ' - ' + variable.description : ''}`"
-              >
-                {{ variable.name }}
-                <span class="variable-type-badge">{{ getVariableTypeLabel(variable.variableType) }}</span>
-              </n-tag>
-            </div>
-          </div>
-          
-          <div v-if="conditionalVariables.length > 0" class="variable-section">
-            <div class="section-title">条件变量</div>
-            <div class="variable-tags">
-              <n-tag
-                v-for="variable in conditionalVariables"
-                :key="variable.id"
-                class="variable-tag conditional"
-                @click="insertVariable(variable.name)"
-                :title="`${variable.name}${variable.description ? ' - ' + variable.description : ''}`"
-              >
-                {{ variable.name }}
-              </n-tag>
-            </div>
-          </div>
-          
-          <div v-if="templateVariables.length === 0" class="empty-variables">
-            <div class="empty-text">暂无自定义变量</div>
-            <n-button text type="primary" size="small" @click="showVariableManager = true">
-              添加变量
-            </n-button>
-          </div>
-        </div>
-      </div>
-      
-      <!-- 变量面板拖拽调整手柄 -->
-      <div 
-        class="variable-panel-resize-handle"
-        @mousedown="startVariablePanelResize"
-        :class="{ 'resizing': isVariablePanelResizing }"
-      >
-        <div class="resize-handle-dots">
-          <div class="dot"></div>
-          <div class="dot"></div>
-          <div class="dot"></div>
-        </div>
-      </div>
-    </div>
+    <VariablePanel
+      :is-open="isVariablePanelOpen"
+      :template-variables="templateVariables"
+      :template-syntax-categories="templateSyntaxCategories"
+      :builtin-function-categories="builtinFunctionCategories"
+      :sprig-function-categories="sprigFunctionCategories"
+      :loading-functions="loadingFunctions"
+      :loading-sprig-functions="loadingSprigFunctions"
+      :quick-variables="quickVariables"
+      @insert-syntax="insertSyntax"
+      @insert-function="insertFunction"
+      @insert-sprig-function="insertSprigFunction"
+      @insert-variable="insertVariable"
+      @show-variable-manager="showVariableManager = true"
+      @update:height="variablePanelHeight = $event"
+    />
     
     <div class="edit-main">
       <!-- 左侧：模板资源管理器 -->
@@ -389,6 +143,7 @@ import AIAssistant from './components/AIAssistant.vue'
 import AISDKPanel from './components/AISDKPanel.vue'
 import EditHeader from './components/EditHeader.vue'
 import ConditionModal from './components/ConditionModal.vue'
+import VariablePanel from './components/VariablePanel.vue'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
 import { useMessage, NIcon, NTag, NButton, NSpin, NForm, NFormItem, NSwitch, NSelect, NRadioGroup, NRadio, NInput } from 'naive-ui'
 import { ChevronDown, ChevronUp, Add, Settings, Pricetag } from '@vicons/ionicons5'
@@ -473,49 +228,8 @@ let showTimer = null
 
 // 变量面板状态
 const isVariablePanelOpen = ref(false)
-const activeVariableTab = ref('syntax')
 const variablePanelHeight = ref(300) // 默认高度300px
-const isResizing = ref(false)
-const startY = ref(0)
-const startHeight = ref(0)
 
-// 变量面板拖拽调整状态
-const isVariablePanelResizing = ref(false)
-const variablePanelStartY = ref(0)
-const variablePanelStartHeight = ref(0)
-const minVariablePanelHeight = 150 // 最小高度
-const maxVariablePanelHeight = 600 // 最大高度
-
-// 变量标签页配置
-const variableTabs = [
-  { key: 'syntax', label: '模板语法' },
-  { key: 'functions', label: '内置函数' },
-  { key: 'sprig', label: 'Sprig函数' },
-  { key: 'builtin', label: '内置变量' },
-  { key: 'custom', label: '用户变量' }
-]
-
-// 计算属性：按类型分组变量
-const textVariables = computed(() => {
-  return templateVariables.value.filter(v => 
-    v.variableType === 'text' || 
-    v.variableType === 'string' || 
-    v.variableType === '字符串' ||
-    v.variableType === 'number' || 
-    v.variableType === '数字' ||
-    v.variableType === 'boolean' || 
-    v.variableType === '布尔值' ||
-    v.variableType === 'list' || 
-    v.variableType === '列表' ||
-    v.variableType === 'object' || 
-    v.variableType === '对象' ||
-    !v.variableType
-  )
-})
-
-const conditionalVariables = computed(() => {
-  return templateVariables.value.filter(v => v.variableType === 'conditional')
-})
 
 
 // 获取变量类型标签
