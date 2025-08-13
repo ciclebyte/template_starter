@@ -534,7 +534,7 @@ onUnmounted(() => {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 8px;
+  height: 12px;
   background: transparent;
   cursor: ns-resize;
   display: flex;

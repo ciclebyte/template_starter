@@ -134,9 +134,11 @@ function handleResize(event) {
   const deltaX = event.clientX - resizeStartX.value
   const newWidth = resizeStartWidth.value + deltaX
   
-  // 限制最小和最大宽度
-  const minWidth = 200
-  const maxWidth = 600
+  // 动态计算最大宽度（基于可用空间）
+  const minWidth = 120
+  const container = document.querySelector('.edit-main')
+  const maxAvailableWidth = container ? container.clientWidth - 300 : 800 // 为编辑器+预览面板保留至少300px
+  const maxWidth = Math.min(Math.max(maxAvailableWidth, 400), 1000) // 最大不超过1000px，最少400px
   
   if (newWidth >= minWidth && newWidth <= maxWidth) {
     panelWidth.value = newWidth
@@ -1111,8 +1113,8 @@ function renderConditionIndicator(node) {
 
 <style scoped>
 .template-explorer {
-  min-width: 200px;
-  max-width: 600px;
+  min-width: 120px;
+  max-width: 1000px;
   background: #fff;
   border-right: 1px solid #e0e0e0;
   padding: 24px 12px 0 12px;
@@ -1181,27 +1183,49 @@ function renderConditionIndicator(node) {
 .resize-handle {
   position: absolute;
   top: 0;
-  right: 0;
-  width: 4px;
+  right: -8px;
+  width: 16px;
   height: 100%;
   background: transparent;
   cursor: ew-resize;
   z-index: 10;
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.resize-handle:before {
+  content: '';
+  width: 2px;
+  height: 40px;
+  background: transparent;
+  border-radius: 1px;
+  transition: all 0.2s;
 }
 
 .resize-handle:hover {
-  background: rgba(0, 123, 204, 0.3);
+  background: rgba(24, 160, 88, 0.1);
+}
+
+.resize-handle:hover:before {
+  background: #18a058;
+  height: 60px;
 }
 
 .resize-handle.is-resizing {
-  background: rgba(0, 123, 204, 0.6);
+  background: rgba(24, 160, 88, 0.2);
+}
+
+.resize-handle.is-resizing:before {
+  background: #18a058;
+  height: 80px;
 }
 
 /* 拖拽时的全局样式 */
 .resize-handle:active,
 .resize-handle.is-resizing {
-  background: rgba(0, 123, 204, 0.6);
+  background: rgba(24, 160, 88, 0.2);
 }
 
 /* 拖拽移动样式 */

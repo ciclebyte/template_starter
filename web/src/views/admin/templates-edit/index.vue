@@ -1,7 +1,8 @@
 <template>
   <div class="templates-edit-fullscreen">
-    <EditHeader :is-variable-panel-open="isVariablePanelOpen" @toggle-variable-panel="toggleVariablePanel"
-      @show-variable-manager="showVariableManager = true" @close-edit="closeEdit" />
+    <EditHeader :is-variable-panel-open="isVariablePanelOpen" :is-file-tree-visible="isFileTreeVisible" 
+      @toggle-variable-panel="toggleVariablePanel" @show-variable-manager="showVariableManager = true" 
+      @close-edit="closeEdit" @toggle-file-tree="toggleFileTree" />
 
     <!-- 变量插入面板 -->
     <VariablePanel :is-open="isVariablePanelOpen" :template-variables="templateVariables"
@@ -13,7 +14,7 @@
 
     <div class="edit-main">
       <!-- 左侧：模板资源管理器 -->
-      <TemplateExplorer v-model:treeData="treeData" :currentFile="currentFile" @select="onSelectFile"
+      <TemplateExplorer v-show="isFileTreeVisible" v-model:treeData="treeData" :currentFile="currentFile" @select="onSelectFile"
         @reload="onTreeReload" @rename="onRenameFile" @uploadZip="onUploadZip" @uploadCodeFile="onUploadCodeFile"
         @move="onMoveFile" @setCondition="onSetCondition" />
 
@@ -154,6 +155,9 @@ let showTimer = null
 const isVariablePanelOpen = ref(false)
 const variablePanelHeight = ref(300) // 默认高度300px
 
+// 文件树状态（从本地存储加载）
+const isFileTreeVisible = ref(localStorage.getItem('template-file-tree-visible') !== 'false')
+
 // Go模板语法数据
 const templateSyntaxCategories = ref(syntaxData)
 
@@ -188,6 +192,22 @@ const toggleVariablePanel = () => {
   isVariablePanelOpen.value = !isVariablePanelOpen.value
 }
 
+// 切换文件树显示状态
+const toggleFileTree = () => {
+  isFileTreeVisible.value = !isFileTreeVisible.value
+  // 保存状态到本地存储
+  localStorage.setItem('template-file-tree-visible', isFileTreeVisible.value.toString())
+}
+
+// 键盘快捷键处理
+const handleKeyDown = (event) => {
+  // Ctrl+B 或 Cmd+B 切换文件树
+  if ((event.ctrlKey || event.metaKey) && event.key === 'b') {
+    event.preventDefault()
+    toggleFileTree()
+  }
+}
+
 
 onMounted(async () => {
   await loadTree()
@@ -195,10 +215,16 @@ onMounted(async () => {
   await loadBuiltinFunctions()
   await loadSprigFunctions()
   loadTestData()
+  
+  // 添加键盘事件监听
+  document.addEventListener('keydown', handleKeyDown)
 })
 
 // 组件卸载时清理事件监听器
 onUnmounted(() => {
+  // 清理键盘事件监听
+  document.removeEventListener('keydown', handleKeyDown)
+  
   // 清理变量面板拖拽事件监听器
   document.removeEventListener('mousemove', onVariablePanelResize)
   document.removeEventListener('mouseup', stopVariablePanelResize)
@@ -965,6 +991,7 @@ function onAIApplySuggestion(suggestion) {
   flex: 1;
   display: flex;
   min-height: 0;
+  transition: all 0.3s ease;
 }
 
 .editor-container {
@@ -973,6 +1000,12 @@ function onAIApplySuggestion(suggestion) {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+/* 文件树隐藏时的样式优化 */
+.template-explorer {
+  transition: all 0.3s ease;
 }
 
 

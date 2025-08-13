@@ -150,7 +150,7 @@ const loadPanelWidth = () => {
   const savedWidth = localStorage.getItem('template-preview-width')
   if (savedWidth) {
     const width = parseInt(savedWidth)
-    if (width >= 300 && width <= 1200) {
+    if (width >= 120 && width <= 2000) {
       panelWidth.value = width
     }
   }
@@ -282,8 +282,13 @@ function handleResize(e) {
   const deltaX = startX.value - e.clientX
   const newWidth = startWidth.value + deltaX
   
+  // 动态计算最大宽度（基于可用空间）
+  const container = document.querySelector('.edit-main')
+  const maxAvailableWidth = container ? container.clientWidth - 200 : 1200 // 为编辑器保留至少200px
+  const maxWidth = Math.min(Math.max(maxAvailableWidth, 400), 2000) // 最大不超过2000px，最少400px
+  
   // 限制最小和最大宽度
-  if (newWidth >= 300 && newWidth <= 1200) {
+  if (newWidth >= 120 && newWidth <= maxWidth) {
     panelWidth.value = newWidth
   }
 }
@@ -482,25 +487,47 @@ onMounted(() => {
 
 .resize-handle {
   position: absolute;
-  left: 0;
+  left: -8px;
   top: 0;
-  width: 4px;
+  width: 16px;
   height: 100%;
   cursor: col-resize;
   background: transparent;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
   z-index: 10;
   pointer-events: auto;
   user-select: none;
   touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.resize-handle:before {
+  content: '';
+  width: 2px;
+  height: 40px;
+  background: transparent;
+  border-radius: 1px;
+  transition: all 0.2s;
 }
 
 .resize-handle:hover {
-  background-color: #e0e0e0;
+  background-color: rgba(24, 144, 255, 0.1);
+}
+
+.resize-handle:hover:before {
+  background-color: #1890ff;
+  height: 60px;
 }
 
 .resize-handle.resizing {
+  background-color: rgba(24, 144, 255, 0.2);
+}
+
+.resize-handle.resizing:before {
   background-color: #1890ff;
+  height: 80px;
 }
 
 .template-preview.collapsed .resize-handle {
