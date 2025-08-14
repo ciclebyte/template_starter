@@ -75,7 +75,8 @@ import {
   SettingsOutline,
   StatsChartOutline,
   ServerOutline,
-  PricetagOutline
+  PricetagOutline,
+  OptionsOutline
 } from '@vicons/ionicons5'
 
 const props = defineProps({
@@ -121,6 +122,11 @@ const menuOptions = [
         label: '标签管理',
         key: 'admin-tags',
         icon: renderIcon(PricetagOutline)
+      },
+      {
+        label: '变量预设',
+        key: 'admin-var-presets',
+        icon: renderIcon(OptionsOutline)
       }
     ]
   },

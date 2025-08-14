@@ -34,7 +34,6 @@ type VarPresetColumns struct {
 	CreatedBy       string // 创建者ID（系统预置为空）
 	CreatedAt       string // 创建时间
 	UpdatedAt       string // 更新时间
-	DeletedAt       string // 删除时间
 }
 
 // varPresetColumns holds the columns for table var_preset.
@@ -53,7 +52,6 @@ var varPresetColumns = VarPresetColumns{
 	CreatedBy:       "created_by",
 	CreatedAt:       "created_at",
 	UpdatedAt:       "updated_at",
-	DeletedAt:       "deleted_at",
 }
 
 // NewVarPresetDao creates and returns a new DAO object for table data access.

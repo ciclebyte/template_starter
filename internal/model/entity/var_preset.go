@@ -24,5 +24,4 @@ type VarPreset struct {
 	CreatedBy       *uint64     `json:"createdBy"       description:"创建者ID（系统预置为空）"`
 	CreatedAt       *gtime.Time `json:"createdAt"       description:"创建时间"`
 	UpdatedAt       *gtime.Time `json:"updatedAt"       description:"更新时间"`
-	DeletedAt       *gtime.Time `json:"deletedAt"       description:"删除时间"`
 }

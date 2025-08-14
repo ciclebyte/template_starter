@@ -68,6 +68,11 @@ const routes = [
         component: () => import('@/views/admin/tag/index.vue')
       },
       {
+        path: 'var-presets',
+        name: 'admin-var-presets',
+        component: () => import('@/views/admin/var-preset/index.vue')
+      },
+      {
         path: 'analytics',
         name: 'admin-analytics',
         component: () => import('@/views/admin/Analytics/index.vue')

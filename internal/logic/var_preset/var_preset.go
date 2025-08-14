@@ -7,7 +7,6 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"github.com/ciclebyte/template_starter/api/v1/var_preset"
@@ -78,9 +77,8 @@ func (s *sVarPreset) BatchDel(ctx context.Context, req *var_preset.VarPresetBatc
 			liberr.ErrIsNil(ctx, gerror.New("系统预设不能删除"), "系统预设不能删除")
 		}
 
-		// 软删除
-		_, err = dao.VarPreset.Ctx(ctx).Where(dao.VarPreset.Columns().Id+" IN(?)", req.Ids).
-			Update(do.VarPreset{DeletedAt: gtime.Now()})
+		// 物理删除
+		_, err = dao.VarPreset.Ctx(ctx).Where(dao.VarPreset.Columns().Id+" IN(?)", req.Ids).Delete()
 		liberr.ErrIsNil(ctx, err, "批量删除变量预设失败")
 	})
 	return
@@ -101,8 +99,8 @@ func (s *sVarPreset) Del(ctx context.Context, req *var_preset.VarPresetDelReq) (
 			liberr.ErrIsNil(ctx, gerror.New("系统预设不能删除"), "系统预设不能删除")
 		}
 
-		// 软删除
-		_, err = dao.VarPreset.Ctx(ctx).WherePri(req.Id).Update(do.VarPreset{DeletedAt: gtime.Now()})
+		// 物理删除
+		_, err = dao.VarPreset.Ctx(ctx).WherePri(req.Id).Delete()
 		liberr.ErrIsNil(ctx, err, "删除变量预设失败")
 	})
 	return
@@ -112,7 +110,7 @@ func (s *sVarPreset) Del(ctx context.Context, req *var_preset.VarPresetDelReq) (
 func (s *sVarPreset) Detail(ctx context.Context, req *var_preset.VarPresetDetailReq) (info *var_preset.VarPresetDetailInfo, err error) {
 	err = g.Try(ctx, func(ctx context.Context) {
 		var preset *entity.VarPreset
-		err = dao.VarPreset.Ctx(ctx).WherePri(req.Id).WhereNull(dao.VarPreset.Columns().DeletedAt).Scan(&preset)
+		err = dao.VarPreset.Ctx(ctx).WherePri(req.Id).Scan(&preset)
 		liberr.ErrIsNil(ctx, err, "查询变量预设失败")
 		if preset == nil {
 			liberr.ErrIsNil(ctx, gerror.New("变量预设不存在"), "变量预设不存在")
@@ -142,7 +140,7 @@ func (s *sVarPreset) Detail(ctx context.Context, req *var_preset.VarPresetDetail
 func (s *sVarPreset) Edit(ctx context.Context, req *var_preset.VarPresetEditReq) (err error) {
 	err = g.Try(ctx, func(ctx context.Context) {
 		// 查询变量预设信息
-		preset, err := dao.VarPreset.Ctx(ctx).WherePri(req.Id).WhereNull(dao.VarPreset.Columns().DeletedAt).One()
+		preset, err := dao.VarPreset.Ctx(ctx).WherePri(req.Id).One()
 		liberr.ErrIsNil(ctx, err, "查询变量预设失败")
 		if preset.IsEmpty() {
 			liberr.ErrIsNil(ctx, gerror.New("变量预设不存在"), "变量预设不存在")
@@ -150,7 +148,7 @@ func (s *sVarPreset) Edit(ctx context.Context, req *var_preset.VarPresetEditReq)
 
 		// 检查名称是否被其他记录使用
 		count, err := dao.VarPreset.Ctx(ctx).Where(dao.VarPreset.Columns().Name, req.Name).
-			WhereNot(dao.VarPreset.Columns().Id, req.Id).WhereNull(dao.VarPreset.Columns().DeletedAt).Count()
+			WhereNot(dao.VarPreset.Columns().Id, req.Id).Count()
 		liberr.ErrIsNil(ctx, err, "查询变量预设失败")
 		if count > 0 {
 			liberr.ErrIsNil(ctx, gerror.New("变量预设名称已存在"), "变量预设名称已存在")
@@ -188,7 +186,7 @@ func (s *sVarPreset) Edit(ctx context.Context, req *var_preset.VarPresetEditReq)
 // List 获取变量预设列表（分页）
 func (s *sVarPreset) List(ctx context.Context, req *var_preset.VarPresetListReq) (total int64, list []*var_preset.VarPresetListInfo, err error) {
 	err = g.Try(ctx, func(ctx context.Context) {
-		m := dao.VarPreset.Ctx(ctx).WhereNull(dao.VarPreset.Columns().DeletedAt)
+		m := dao.VarPreset.Ctx(ctx)
 
 		// 搜索条件
 		if req.Name != "" {
@@ -240,7 +238,7 @@ func (s *sVarPreset) List(ctx context.Context, req *var_preset.VarPresetListReq)
 // All 获取所有变量预设（不分页）
 func (s *sVarPreset) All(ctx context.Context, req *var_preset.VarPresetAllReq) (list []*var_preset.VarPresetListInfo, err error) {
 	err = g.Try(ctx, func(ctx context.Context) {
-		m := dao.VarPreset.Ctx(ctx).WhereNull(dao.VarPreset.Columns().DeletedAt)
+		m := dao.VarPreset.Ctx(ctx)
 
 		// 过滤条件
 		if req.Category != "" {
@@ -291,7 +289,7 @@ func (s *sVarPreset) Toggle(ctx context.Context, req *var_preset.VarPresetToggle
 
 // GetById 根据ID获取变量预设
 func (s *sVarPreset) GetById(ctx context.Context, id int64) (preset *entity.VarPreset, err error) {
-	err = dao.VarPreset.Ctx(ctx).WherePri(id).WhereNull(dao.VarPreset.Columns().DeletedAt).Scan(&preset)
+	err = dao.VarPreset.Ctx(ctx).WherePri(id).Scan(&preset)
 	if err != nil {
 		return nil, err
 	}
@@ -308,7 +306,6 @@ func (s *sVarPreset) GetTemplateVarPresets(ctx context.Context, req *var_preset.
 		err = dao.VarPreset.Ctx(ctx).
 			LeftJoin("template_var_presets tvp", "tvp.preset_id = var_preset.id").
 			Where("tvp.template_id", req.TemplateId).
-			WhereNull(dao.VarPreset.Columns().DeletedAt).
 			Order(dao.VarPreset.Columns().Sort + " DESC," + dao.VarPreset.Columns().Id + " DESC").
 			Scan(&presets)
 		liberr.ErrIsNil(ctx, err, "查询模板变量预设失败")

@@ -11,8 +11,10 @@ import (
 	_ "github.com/ciclebyte/template_starter/internal/logic/statistics"
 	_ "github.com/ciclebyte/template_starter/internal/logic/system_config"
 	_ "github.com/ciclebyte/template_starter/internal/logic/tags"
+	_ "github.com/ciclebyte/template_starter/internal/logic/template_expose"
 	_ "github.com/ciclebyte/template_starter/internal/logic/template_files"
 	_ "github.com/ciclebyte/template_starter/internal/logic/template_languages"
 	_ "github.com/ciclebyte/template_starter/internal/logic/template_variables"
 	_ "github.com/ciclebyte/template_starter/internal/logic/templates"
+	_ "github.com/ciclebyte/template_starter/internal/logic/var_preset"
 )
