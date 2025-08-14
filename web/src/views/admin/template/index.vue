@@ -112,6 +112,11 @@
                         <n-input v-model:value="formData.icon" placeholder="请输入图标名称（可选）" />
                     </n-form-item>
 
+                    <n-form-item label="模板标签" path="tags">
+                        <n-select v-model:value="formData.tags" placeholder="请选择标签"
+                            :options="tagSelectOptions" multiple style="width: 100%" />
+                    </n-form-item>
+
                     <n-form-item label="推荐模板" path="isFeatured">
                         <n-switch v-model:value="formData.isFeatured" :checked-value="1" :unchecked-value="0">
                             <template #checked>是</template>
@@ -175,6 +180,7 @@ import {
     TrashOutline, CreateOutline, EyeOutline, Star, CodeOutline
 } from '@vicons/ionicons5'
 import { listTemplates, addTemplate, editTemplate, deleteTemplate } from '@/api/templates'
+import { getAllTags, getTemplateTags, setTemplateTags } from '@/api/tags'
 import { useCategoryStore } from '@/stores/categoryStore'
 import { useLanguageStore } from '@/stores/languageStore'
 import { storeToRefs } from 'pinia'
@@ -197,6 +203,7 @@ const templates = ref([])
 const searchKeyword = ref('')
 const selectedCategory = ref(null)
 const selectedLanguage = ref(null)
+const allTags = ref([])
 
 // 弹窗状态
 const showAddModal = ref(false)
@@ -214,7 +221,8 @@ const formData = reactive({
     languages: [],
     primaryLanguage: null,
     icon: '',
-    isFeatured: 0
+    isFeatured: 0,
+    tags: []
 })
 
 // 表单验证规则
@@ -288,6 +296,10 @@ const primaryLanguageOptions = computed(() =>
         }))
 )
 
+const tagSelectOptions = computed(() =>
+    allTags.value.map(tag => ({ label: tag.name, value: Number(tag.id) }))
+)
+
 // 表格列配置
 const columns = [
     {
@@ -356,6 +368,27 @@ const columns = [
                     }
                 }).concat(
                     row.languages.length > 3 ? [h('span', { style: 'color: #999; font-size: 12px' }, `+${row.languages.length - 3}`)] : []
+                )
+            )
+        }
+    },
+    {
+        title: '标签',
+        key: 'tags',
+        width: 200,
+        render: (row) => {
+            if (!row.tags || row.tags.length === 0) return '-'
+            return h('div', { style: 'display: flex; flex-wrap: wrap; gap: 4px' },
+                row.tags.slice(0, 3).map(tag => {
+                    return h(NTag, {
+                        size: 'small',
+                        type: 'default',
+                        style: { cursor: 'pointer' }
+                    }, {
+                        default: () => tag.name
+                    })
+                }).concat(
+                    row.tags.length > 3 ? [h('span', { style: 'color: #999; font-size: 12px' }, `+${row.tags.length - 3}`)] : []
                 )
             )
         }
@@ -461,6 +494,16 @@ const loadTemplates = async (searchParams = {}) => {
         const response = await listTemplates(params)
         templates.value = response.data.data.templatesList || []
         pagination.itemCount = response.data.data.total || 0
+        
+        // 加载每个模板的标签信息
+        for (const template of templates.value) {
+            try {
+                const tagsResponse = await getTemplateTags(template.id)
+                template.tags = tagsResponse.data.data.tagsList || []
+            } catch (error) {
+                template.tags = []
+            }
+        }
     } catch (error) {
         console.error('获取模板列表失败:', error)
         message.error('获取模板列表失败')
@@ -544,6 +587,13 @@ const handleEdit = (template) => {
         formData.primaryLanguage = null
     }
 
+    // 标签回显
+    if (template.tags && template.tags.length > 0) {
+        formData.tags = template.tags.map(tag => Number(tag.id))
+    } else {
+        formData.tags = []
+    }
+
     showAddModal.value = true
 }
 
@@ -567,6 +617,7 @@ const resetForm = () => {
     formData.primaryLanguage = null
     formData.icon = ''
     formData.isFeatured = 0
+    formData.tags = []
     formRef.value?.restoreValidation()
 }
 
@@ -596,12 +647,32 @@ const handleSubmit = async () => {
             languages: languagesArr
         }
 
+        let templateId
         if (editingTemplate.value) {
             await editTemplate({ ...data, id: editingTemplate.value.id })
+            templateId = editingTemplate.value.id
             message.success('模板更新成功')
         } else {
-            await addTemplate(data)
+            const response = await addTemplate(data)
+            templateId = response.data.data.id || response.data.id
             message.success('模板添加成功')
+        }
+
+        // 保存标签关联
+        if (formData.tags && formData.tags.length > 0) {
+            try {
+                await setTemplateTags(templateId, { tagIds: formData.tags })
+            } catch (error) {
+                console.error('保存标签失败:', error)
+                message.warning('模板保存成功，但标签关联失败')
+            }
+        } else {
+            // 清空所有标签
+            try {
+                await setTemplateTags(templateId, { tagIds: [] })
+            } catch (error) {
+                console.error('清空标签失败:', error)
+            }
         }
 
         closeModal()
@@ -696,13 +767,25 @@ watch(
     }
 )
 
+// 加载标签数据
+const loadTags = async () => {
+    try {
+        const response = await getAllTags()
+        allTags.value = response.data.data.tagsList || []
+    } catch (error) {
+        console.error('加载标签失败:', error)
+        allTags.value = []
+    }
+}
+
 // 生命周期
 onMounted(async () => {
     try {
-        // 确保分类和语言数据先加载完成
+        // 确保分类、语言和标签数据先加载完成
         await Promise.all([
             categoryStore.getCategories(),
-            languageStore.getLanguages()
+            languageStore.getLanguages(),
+            loadTags()
         ])
         // 然后加载模板数据
         await loadTemplates()

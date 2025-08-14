@@ -10,6 +10,7 @@ import (
 	_ "github.com/ciclebyte/template_starter/internal/logic/sprig_functions"
 	_ "github.com/ciclebyte/template_starter/internal/logic/statistics"
 	_ "github.com/ciclebyte/template_starter/internal/logic/system_config"
+	_ "github.com/ciclebyte/template_starter/internal/logic/tags"
 	_ "github.com/ciclebyte/template_starter/internal/logic/template_files"
 	_ "github.com/ciclebyte/template_starter/internal/logic/template_languages"
 	_ "github.com/ciclebyte/template_starter/internal/logic/template_variables"

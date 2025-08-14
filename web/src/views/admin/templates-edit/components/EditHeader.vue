@@ -34,6 +34,14 @@
         </template>
         变量管理
       </n-button>
+      <n-button size="small" @click="$emit('show-tag-manager')" title="标签管理">
+        <template #icon>
+          <n-icon>
+            <Pricetag />
+          </n-icon>
+        </template>
+        标签管理
+      </n-button>
       <n-button size="small" @click="$emit('show-settings')" title="编辑器设置">
         <template #icon>
           <n-icon>
@@ -59,7 +67,7 @@
 
 <script setup>
 import { NButton, NIcon } from 'naive-ui'
-import { ChevronDown, Settings } from '@vicons/ionicons5'
+import { ChevronDown, Settings, Pricetag } from '@vicons/ionicons5'
 
 defineProps({
   isVariablePanelOpen: {
@@ -80,7 +88,7 @@ defineProps({
   }
 })
 
-defineEmits(['toggle-variable-panel', 'show-variable-manager', 'close-edit', 'toggle-file-tree', 'show-settings'])
+defineEmits(['toggle-variable-panel', 'show-variable-manager', 'close-edit', 'toggle-file-tree', 'show-settings', 'show-tag-manager'])
 </script>
 
 <style scoped>

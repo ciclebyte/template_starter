@@ -63,6 +63,11 @@ const routes = [
         component: () => import('@/views/admin/language/index.vue')
       },
       {
+        path: 'tags',
+        name: 'admin-tags',
+        component: () => import('@/views/admin/tag/index.vue')
+      },
+      {
         path: 'analytics',
         name: 'admin-analytics',
         component: () => import('@/views/admin/Analytics/index.vue')

@@ -10,6 +10,7 @@
       @close-edit="closeEdit" 
       @toggle-file-tree="toggleFileTree" 
       @show-settings="showSettings = true" 
+      @show-tag-manager="showTagManager = true"
     />
       
     <!-- 自动保存指示器 -->
@@ -90,6 +91,54 @@
       :settings="editorSettings"
       @save-settings="saveSettings" 
     />
+    
+    <!-- 标签管理弹框 -->
+    <n-modal v-model:show="showTagManager" preset="card" style="width: 600px;" :mask-closable="false">
+      <template #header>
+        <div class="tag-manager-header">
+          <n-icon style="margin-right: 8px;"><Pricetag /></n-icon>
+          <span class="modal-title">模板标签管理</span>
+        </div>
+      </template>
+      
+      <div class="tag-manager-content">
+        <div class="current-tags-section">
+          <h4>当前模板标签</h4>
+          <div class="current-tags">
+            <n-tag v-for="tag in templateTags" :key="tag.id" type="info" closable @close="removeTemplateTag(tag.id)">
+              <template #icon>
+                <n-icon><Pricetag /></n-icon>
+              </template>
+              {{ tag.name }}
+            </n-tag>
+            <span v-if="templateTags.length === 0" class="empty-text">暂无标签</span>
+          </div>
+        </div>
+        
+        <div class="available-tags-section">
+          <h4>可用标签</h4>
+          <div class="tag-selector">
+            <n-select 
+              v-model:value="selectedTagIds"
+              placeholder="选择要添加的标签"
+              :options="availableTagOptions"
+              multiple
+              style="width: 100%"
+              :loading="loadingTags"
+            />
+          </div>
+        </div>
+      </div>
+      
+      <template #footer>
+        <div class="modal-footer">
+          <n-button @click="showTagManager = false">取消</n-button>
+          <n-button type="primary" @click="saveTemplateTags" :loading="savingTags">
+            保存标签
+          </n-button>
+        </div>
+      </template>
+    </n-modal>
   </div>
 </template>
 
@@ -100,6 +149,7 @@ import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileD
 import { listTemplateVariables, addTemplateVariable, editTemplateVariable, deleteTemplateVariable } from '@/api/templateVariables'
 import { getBuiltinFunctions } from '@/api/builtinFunctions'
 import { getSprigFunctions } from '@/api/sprigFunctions'
+import { getAllTags, getTemplateTags, setTemplateTags } from '@/api/tags'
 import TemplateExplorer from './components/TemplateFileTree.vue'
 import TemplateEditor from './components/TemplateEditor.vue'
 import VariableManager from './components/VariableManager.vue'
@@ -112,8 +162,8 @@ import VariablePanel from './components/VariablePanel.vue'
 import EditorSettings from './components/EditorSettings.vue'
 import { templateSyntaxCategories as syntaxData } from './data/templateSyntax.js'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
-import { useMessage, NIcon, NTag, NButton, NSpin, NForm, NFormItem, NSwitch, NSelect, NRadioGroup, NRadio, NInput } from 'naive-ui'
-import { ChevronDown, ChevronUp, Add, Settings, Pricetag } from '@vicons/ionicons5'
+import { useMessage, NIcon, NTag, NButton, NSpin, NForm, NFormItem, NSwitch, NSelect, NRadioGroup, NRadio, NInput, NModal, NCard } from 'naive-ui'
+import { ChevronDown, ChevronUp, Add, Settings, Pricetag, CloseOutline } from '@vicons/ionicons5'
 
 const router = useRouter()
 const route = useRoute()
@@ -183,11 +233,21 @@ let showTimer = null
 const isVariablePanelOpen = ref(false)
 const variablePanelHeight = ref(300) // 默认高度300px
 
-// 文件树状态（从本地存储加载）
-const isFileTreeVisible = ref(localStorage.getItem('template-file-tree-visible') !== 'false')
+// 文件树状态（默认显示，从本地存储加载）
+const isFileTreeVisible = ref(
+  localStorage.getItem('template-file-tree-visible') === null ? true : localStorage.getItem('template-file-tree-visible') !== 'false'
+)
 
 // 设置面板状态
 const showSettings = ref(false)
+
+// 标签管理状态
+const showTagManager = ref(false)
+const templateTags = ref([])
+const allTags = ref([])
+const selectedTagIds = ref([])
+const loadingTags = ref(false)
+const savingTags = ref(false)
 const editorSettings = ref({
   autoSave: {
     enabled: true,
@@ -354,11 +414,77 @@ const handleKeyDown = (event) => {
 }
 
 
+// 标签相关计算属性
+const availableTagOptions = computed(() => 
+  allTags.value.map(tag => ({ 
+    label: tag.name, 
+    value: Number(tag.id),
+    disabled: templateTags.value.some(t => Number(t.id) === Number(tag.id))
+  }))
+)
+
+// 标签管理方法
+const loadAllTags = async () => {
+  try {
+    loadingTags.value = true
+    const response = await getAllTags()
+    allTags.value = response.data.data.tagsList || []
+  } catch (error) {
+    console.error('加载标签失败:', error)
+    message.error('加载标签失败')
+    allTags.value = []
+  } finally {
+    loadingTags.value = false
+  }
+}
+
+const loadTemplateTags = async () => {
+  try {
+    const response = await getTemplateTags(route.params.id)
+    templateTags.value = response.data.data.tagsList || []
+  } catch (error) {
+    console.error('加载模板标签失败:', error)
+    templateTags.value = []
+  }
+}
+
+const removeTemplateTag = (tagId) => {
+  templateTags.value = templateTags.value.filter(tag => Number(tag.id) !== Number(tagId))
+}
+
+const saveTemplateTags = async () => {
+  try {
+    savingTags.value = true
+    
+    // 合并当前标签和选中的新标签
+    const currentTagIds = templateTags.value.map(tag => Number(tag.id))
+    const allTagIds = [...new Set([...currentTagIds, ...selectedTagIds.value])]
+    
+    await setTemplateTags(route.params.id, { tagIds: allTagIds })
+    
+    // 重新加载模板标签
+    await loadTemplateTags()
+    
+    // 清空选择
+    selectedTagIds.value = []
+    
+    message.success('标签保存成功')
+    showTagManager.value = false
+  } catch (error) {
+    console.error('保存标签失败:', error)
+    message.error('保存标签失败')
+  } finally {
+    savingTags.value = false
+  }
+}
+
 onMounted(async () => {
   await loadTree()
   await loadVariables()
   await loadBuiltinFunctions()
   await loadSprigFunctions()
+  await loadAllTags()
+  await loadTemplateTags()
   loadTestData()
   
   // 加载设置并应用
@@ -1494,5 +1620,58 @@ function onAIApplySuggestion(suggestion) {
 .variable-manager-content .variable-manager {
   height: 100%;
   overflow: hidden;
+}
+
+/* 标签管理弹框样式 */
+.tag-manager-header {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.tag-manager-content {
+  padding: 20px 0;
+}
+
+.current-tags-section,
+.available-tags-section {
+  margin-bottom: 24px;
+}
+
+.current-tags-section:last-child,
+.available-tags-section:last-child {
+  margin-bottom: 0;
+}
+
+.current-tags-section h4,
+.available-tags-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.current-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 32px;
+  align-items: center;
+}
+
+.tag-selector {
+  width: 100%;
+}
+
+.empty-text {
+  color: #999;
+  font-style: italic;
+  font-size: 14px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 </style>

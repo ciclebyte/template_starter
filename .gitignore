@@ -51,8 +51,9 @@ docs/
 .env.development
 
 # 前端构建文件（如果存在）
-web
 web/dist/
 web/node_modules/
 
 .claude
+.claude/
+

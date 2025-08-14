@@ -74,7 +74,8 @@ import {
   LanguageOutline,
   SettingsOutline,
   StatsChartOutline,
-  ServerOutline
+  ServerOutline,
+  PricetagOutline
 } from '@vicons/ionicons5'
 
 const props = defineProps({
@@ -115,6 +116,11 @@ const menuOptions = [
         label: '语言管理',
         key: 'admin-languages',
         icon: renderIcon(LanguageOutline)
+      },
+      {
+        label: '标签管理',
+        key: 'admin-tags',
+        icon: renderIcon(PricetagOutline)
       }
     ]
   },
