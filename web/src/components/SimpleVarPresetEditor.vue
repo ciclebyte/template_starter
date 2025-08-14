@@ -5,18 +5,10 @@
             <div class="tree-panel" :style="{ width: treePanelWidth + 'px' }" @contextmenu="onTreeAreaContextMenu">
                 <div class="tree-header">
                     <h4>数据结构</h4>
-                    <div class="tree-actions">
-                        <n-button size="small" type="primary" @click="addRootNode">
-                            <template #icon>
-                                <n-icon><AddOutline /></n-icon>
-                            </template>
-                            添加根节点
-                        </n-button>
-                    </div>
                 </div>
                 <div class="tree-content" ref="treeContainer">
                     <div v-if="treeData.length === 0" class="empty-tree" @contextmenu="onTreeAreaContextMenu">
-                        <p>暂无数据，右键或点击"添加根节点"开始创建</p>
+                        <p>暂无数据，右键添加根字段开始创建</p>
                     </div>
                     <n-tree
                         v-if="treeData.length > 0"
@@ -116,6 +108,24 @@
                 <div class="editor-header">
                     <h4>JSON 预览</h4>
                     <div class="editor-actions">
+                        <n-button size="small" @click="importJson" quaternary>
+                            <template #icon>
+                                <n-icon><CloudUploadOutline /></n-icon>
+                            </template>
+                            导入文件
+                        </n-button>
+                        <n-button size="small" @click="exportJson" quaternary>
+                            <template #icon>
+                                <n-icon><CloudDownloadOutline /></n-icon>
+                            </template>
+                            导出文件
+                        </n-button>
+                        <n-button size="small" @click="copyJson" quaternary>
+                            <template #icon>
+                                <n-icon><CopyOutline /></n-icon>
+                            </template>
+                            复制
+                        </n-button>
                         <n-button size="small" @click="formatJson" quaternary>
                             <template #icon>
                                 <n-icon><CodeOutline /></n-icon>
@@ -157,28 +167,15 @@
                         <n-input v-model:value="nodeForm.key" placeholder="请输入字段名" />
                     </n-form-item>
 
-                    <n-form-item label="数据类型" path="type">
-                        <n-select v-model:value="nodeForm.type" placeholder="选择数据类型" :options="typeOptions" @update:value="handleTypeChange" />
-                    </n-form-item>
-
                     <n-form-item label="描述" path="description">
-                        <n-input v-model:value="nodeForm.description" type="textarea" placeholder="字段描述" :rows="2" />
+                        <n-input v-model:value="nodeForm.description" type="textarea" placeholder="字段描述（可选）" :rows="2" />
                     </n-form-item>
 
-                    <n-form-item v-if="nodeForm.type === 'string'" label="默认值" path="defaultValue">
-                        <n-input v-model:value="nodeForm.defaultValue" placeholder="默认字符串值" />
-                    </n-form-item>
-
-                    <n-form-item v-if="nodeForm.type === 'number'" label="默认值" path="defaultValue">
-                        <n-input-number v-model:value="nodeForm.defaultValue" placeholder="默认数值" style="width: 100%" />
-                    </n-form-item>
-
-                    <n-form-item v-if="nodeForm.type === 'boolean'" label="默认值" path="defaultValue">
-                        <n-switch v-model:value="nodeForm.defaultValue" />
-                    </n-form-item>
-
-                    <n-form-item label="是否必填" path="required">
-                        <n-switch v-model:value="nodeForm.required" />
+                    <n-form-item label="包含子字段" path="hasChildren">
+                        <n-switch v-model:value="nodeForm.hasChildren" />
+                        <span style="margin-left: 8px; color: #666; font-size: 12px;">
+                            {{ nodeForm.hasChildren ? '该字段可以包含子字段' : '该字段为普通字段' }}
+                        </span>
                     </n-form-item>
                 </n-form>
 
@@ -192,6 +189,7 @@
                 </template>
             </n-card>
         </n-modal>
+
     </div>
 </template>
 
@@ -204,7 +202,7 @@ import {
 import {
     AddOutline, CloseOutline, CreateOutline, TrashOutline, CodeOutline,
     SyncOutline, SaveOutline, DocumentTextOutline, ChevronForwardOutline,
-    CopyOutline, CutOutline, ClipboardOutline
+    CopyOutline, CutOutline, ClipboardOutline, CloudUploadOutline, CloudDownloadOutline
 } from '@vicons/ionicons5'
 import { EditorView, basicSetup } from 'codemirror'
 import { EditorState } from '@codemirror/state'
@@ -250,6 +248,10 @@ const nodeFormRef = ref(null)
 const editingNode = ref(null)
 const editingNodePath = ref([])
 const nodeSaving = ref(false)
+const originalNodeData = ref(null) // 保存原始节点数据
+const isModalCanceling = ref(false) // 标识是否正在取消编辑
+
+// 导入导出相关 (现在使用文件选择器)
 
 // 右键菜单相关
 const showDropdown = ref(false)
@@ -265,37 +267,18 @@ const draggedNode = ref(null)
 const dragOverNode = ref(null)
 const isDragging = ref(false)
 
-// 编辑状态相关
-const isEditing = ref(false)
-const editingKey = ref('')
-const editingValue = ref('')
 
 const nodeForm = reactive({
     key: '',
-    type: 'string',
     description: '',
-    defaultValue: '',
-    required: false
+    hasChildren: false // 是否包含子字段
 })
-
-const typeOptions = [
-    { label: '字符串', value: 'string' },
-    { label: '数字', value: 'number' },
-    { label: '布尔值', value: 'boolean' },
-    { label: '对象', value: 'object' },
-    { label: '数组', value: 'array' }
-]
 
 const nodeFormRules = {
     key: {
         required: true,
         message: '请输入字段名',
         trigger: ['input', 'blur']
-    },
-    type: {
-        required: true,
-        message: '请选择数据类型',
-        trigger: ['change']
     }
 }
 
@@ -320,13 +303,10 @@ const convertToNTreeFormat = (nodes) => {
             label: node.label,
             key: nodeKey,
             isLeaf: !node.children || node.children.length === 0,
-            nodeType: node.nodeType,
-            value: node.value,
+            hasChildren: !!(node.children && node.children.length > 0),
             description: node.description,
-            required: node.required,
             path: node.path,
-            isEditing: node.isEditing || false,
-            prefix: () => getTypeIcon(node.nodeType),
+            prefix: () => getFieldIcon(node),
             suffix: () => getNodeSuffix(node),
             children: node.children ? convertToNTreeFormat(node.children) : [],
             class: getDragClass(nodeKey)
@@ -334,22 +314,27 @@ const convertToNTreeFormat = (nodes) => {
     })
 }
 
-// 获取类型图标
-const getTypeIcon = (type) => {
-    const iconMap = {
-        object: () => h(NIcon, { size: 16, color: '#1890ff' }, { default: () => h(DocumentTextOutline) }),
-        array: () => h(NIcon, { size: 16, color: '#52c41a' }, { default: () => h(ClipboardOutline) }),
-        string: () => h(NIcon, { size: 16, color: '#722ed1' }, { default: () => h(CreateOutline) }),
-        number: () => h(NIcon, { size: 16, color: '#eb2f96' }, { default: () => h(CreateOutline) }),
-        boolean: () => h(NIcon, { size: 16, color: '#fa8c16' }, { default: () => h(CreateOutline) })
+// 获取字段图标
+const getFieldIcon = (node) => {
+    if (node.children !== undefined) {
+        if (node.children && node.children.length > 0) {
+            // 有子字段的容器节点显示文件夹图标
+            return h(NIcon, { size: 16, color: '#1890ff' }, { default: () => h(DocumentTextOutline) })
+        } else {
+            // 空的容器节点显示空文件夹图标
+            return h(NIcon, { size: 16, color: '#52c41a' }, { default: () => h(ClipboardOutline) })
+        }
+    } else {
+        // 不允许子字段的普通字段显示字段图标
+        return h(NIcon, { size: 16, color: '#722ed1' }, { default: () => h(CreateOutline) })
     }
-    return iconMap[type] || iconMap.string
 }
 
 // 获取节点后缀
 const getNodeSuffix = (node) => {
-    if (node.required) {
-        return h(NTag, { size: 'tiny', type: 'error' }, { default: () => '*' })
+    if (node.children !== undefined && (!node.children || node.children.length === 0)) {
+        // 空容器节点显示可扩展标识
+        return h(NTag, { size: 'tiny', type: 'info', style: { fontSize: '10px' } }, { default: () => '可扩展' })
     }
     return null
 }
@@ -462,31 +447,14 @@ const convertTreeToObject = (nodes) => {
     const result = {}
     
     nodes.forEach(node => {
-        const { label, nodeType, value, children } = node
+        const { label, children } = node
         
-        if (nodeType === 'object' && children && children.length > 0) {
+        if (children && children.length > 0) {
+            // 有子字段的节点转换为对象
             result[label] = convertTreeToObject(children)
-        } else if (nodeType === 'array') {
-            if (children && children.length > 0) {
-                result[label] = [convertTreeToObject(children)]
-            } else {
-                result[label] = []
-            }
         } else {
-            // 根据类型设置默认值
-            switch (nodeType) {
-                case 'string':
-                    result[label] = value || ''
-                    break
-                case 'number':
-                    result[label] = typeof value === 'number' ? value : 0
-                    break
-                case 'boolean':
-                    result[label] = typeof value === 'boolean' ? value : false
-                    break
-                default:
-                    result[label] = value
-            }
+            // 普通字段设置为占位符
+            result[label] = "{{." + label + "}}"
         }
     })
     
@@ -552,32 +520,6 @@ const updateExpanded = (keys) => {
 }
 
 const renderLabel = ({ option }) => {
-    if (option.isEditing) {
-        return h('input', {
-            class: 'tree-input',
-            value: editingValue.value,
-            autofocus: true,
-            placeholder: '输入字段名',
-            onInput: e => (editingValue.value = e.target.value),
-            onKeydown: e => {
-                if (e.key === 'Enter') {
-                    e.preventDefault()
-                    confirmEdit()
-                }
-                if (e.key === 'Escape') {
-                    e.preventDefault()
-                    cancelEdit()
-                }
-            },
-            onBlur: () => {
-                setTimeout(() => {
-                    if (isEditing.value) {
-                        confirmEdit()
-                    }
-                }, 100)
-            }
-        })
-    }
     return option.label
 }
 
@@ -595,6 +537,15 @@ const nodeProps = ({ option }) => {
             showDropdown.value = true
             dropdownX.value = e.clientX
             dropdownY.value = e.clientY
+        },
+        onDblclick(e) {
+            e.preventDefault()
+            e.stopPropagation()
+            // 双击打开编辑弹窗
+            const node = findNodeByKey(treeData.value, option.key)
+            if (node) {
+                openNodeModal(node)
+            }
         }
     }
 }
@@ -617,25 +568,28 @@ const findNodeByKey = (nodes, key) => {
 
 // 设置右键菜单
 const setupContextMenu = (node) => {
-    const canHaveChildren = node.nodeType === 'object' || node.nodeType === 'array'
+    const canAddChildren = !node.children || node.children.length === 0 || (node.children && node.children.length > 0)
     
-    if (canHaveChildren) {
-        dropdownOptions.value = [
-            { label: '添加子字段', key: 'addChild', icon: () => h(NIcon, null, { default: () => h(AddOutline) }) },
-            { type: 'divider', key: 'divider1' },
-            { label: '重命名', key: 'rename', icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
-            { label: '复制', key: 'copy', icon: () => h(NIcon, null, { default: () => h(CopyOutline) }) },
-            { type: 'divider', key: 'divider2' },
-            { label: '删除', key: 'delete', icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) }
-        ]
-    } else {
-        dropdownOptions.value = [
-            { label: '重命名', key: 'rename', icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
-            { label: '复制', key: 'copy', icon: () => h(NIcon, null, { default: () => h(CopyOutline) }) },
-            { type: 'divider', key: 'divider1' },
-            { label: '删除', key: 'delete', icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) }
-        ]
+    // 检查节点是否允许子字段
+    const nodeData = findNodeByKey(treeData.value, node.key)
+    const allowChildren = !nodeData || nodeData.children !== undefined
+    
+    const menuOptions = []
+    
+    // 只有允许子字段的节点才显示"添加子字段"选项
+    if (allowChildren) {
+        menuOptions.push({ label: '添加子字段', key: 'addChild', icon: () => h(NIcon, null, { default: () => h(AddOutline) }) })
+        menuOptions.push({ type: 'divider', key: 'divider1' })
     }
+    
+    menuOptions.push(
+        { label: '编辑', key: 'edit', icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
+        { label: '复制', key: 'copy', icon: () => h(NIcon, null, { default: () => h(CopyOutline) }) },
+        { type: 'divider', key: 'divider2' },
+        { label: '删除', key: 'delete', icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) }
+    )
+    
+    dropdownOptions.value = menuOptions
 }
 
 // 空白区域右键菜单
@@ -644,11 +598,7 @@ const onTreeAreaContextMenu = (e) => {
     e.stopPropagation()
     dropdownNode.value = null
     dropdownOptions.value = [
-        { label: '添加根字段 (对象)', key: 'addRootObject', icon: () => h(NIcon, null, { default: () => h(DocumentTextOutline) }) },
-        { label: '添加根字段 (数组)', key: 'addRootArray', icon: () => h(NIcon, null, { default: () => h(ClipboardOutline) }) },
-        { label: '添加根字段 (字符串)', key: 'addRootString', icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
-        { label: '添加根字段 (数字)', key: 'addRootNumber', icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
-        { label: '添加根字段 (布尔)', key: 'addRootBoolean', icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) }
+        { label: '添加根字段', key: 'addRoot', icon: () => h(NIcon, null, { default: () => h(AddOutline) }) }
     ]
     showDropdown.value = true
     dropdownX.value = e.clientX
@@ -662,27 +612,20 @@ const handleDropdownSelect = (key) => {
     switch (key) {
         case 'addChild':
             if (dropdownNode.value) {
-                addChildNode(dropdownNode.value)
+                const nodeData = findNodeByKey(treeData.value, dropdownNode.value.key)
+                if (nodeData && nodeData.children !== undefined) {
+                    openNodeModal(null, dropdownNode.value.path)
+                } else {
+                    message.warning('该节点不允许包含子字段')
+                }
             }
             break
-        case 'addRootObject':
-            addRootNodeWithType('object')
+        case 'addRoot':
+            openNodeModal(null, [])
             break
-        case 'addRootArray':
-            addRootNodeWithType('array')
-            break
-        case 'addRootString':
-            addRootNodeWithType('string')
-            break
-        case 'addRootNumber':
-            addRootNodeWithType('number')
-            break
-        case 'addRootBoolean':
-            addRootNodeWithType('boolean')
-            break
-        case 'rename':
+        case 'edit':
             if (dropdownNode.value) {
-                startRename(dropdownNode.value)
+                openNodeModal(dropdownNode.value)
             }
             break
         case 'copy':
@@ -760,136 +703,34 @@ const saveCurrentNode = async () => {
 }
 
 // 节点操作
-const addRootNode = () => {
+
+// 打开节点编辑弹窗
+const openNodeModal = (node = null, parentPath = []) => {
     resetNodeForm()
-    editingNode.value = null
-    editingNodePath.value = []
+    isModalCanceling.value = false
+    
+    if (node) {
+        // 编辑模式 - 保存原始数据
+        const nodeData = findNodeByKey(treeData.value, node.key)
+        if (nodeData) {
+            originalNodeData.value = JSON.parse(JSON.stringify(nodeData))
+            editingNode.value = nodeData
+            editingNodePath.value = nodeData.path
+            nodeForm.key = nodeData.label
+            nodeForm.description = nodeData.description || ''
+            nodeForm.hasChildren = nodeData.children !== undefined
+        }
+    } else {
+        // 新增模式
+        originalNodeData.value = null
+        editingNode.value = null
+        editingNodePath.value = parentPath
+        nodeForm.hasChildren = false
+    }
+    
     showNodeModal.value = true
 }
 
-const addRootNodeWithType = (type) => {
-    const newKey = `field_${Date.now()}`
-    const newNode = {
-        key: newKey,
-        label: newKey,
-        nodeType: type,
-        value: getDefaultValue(type),
-        path: [newKey],
-        description: '',
-        required: false,
-        children: (type === 'object' || type === 'array') ? [] : undefined,
-        isEditing: true
-    }
-    
-    treeData.value.push(newNode)
-    selectedNode.value = newNode
-    startEdit(newNode, newKey)
-    syncTreeToJson()
-}
-
-const startEdit = (node, initialValue) => {
-    isEditing.value = true
-    editingKey.value = node.key
-    editingValue.value = initialValue || node.label
-    
-    // 将节点设置为编辑状态
-    const updateNodeEditState = (nodes) => {
-        for (const n of nodes) {
-            if (n.key === node.key) {
-                n.isEditing = true
-                break
-            }
-            if (n.children) {
-                updateNodeEditState(n.children)
-            }
-        }
-    }
-    updateNodeEditState(treeData.value)
-}
-
-const confirmEdit = () => {
-    if (!isEditing.value || !editingValue.value.trim()) return
-    
-    const newLabel = editingValue.value.trim()
-    
-    // 更新节点
-    const updateNode = (nodes) => {
-        for (const node of nodes) {
-            if (node.key === editingKey.value) {
-                // 更新标签和路径
-                const oldLabel = node.label
-                node.label = newLabel
-                node.isEditing = false
-                
-                // 更新路径
-                if (node.path && node.path.length > 0) {
-                    node.path[node.path.length - 1] = newLabel
-                    node.key = node.path.join('.')
-                }
-                
-                // 如果这是当前选中的节点，更新表单
-                if (selectedNode.value && selectedNode.value.key === editingKey.value) {
-                    selectedNode.value = node
-                    nodeForm.key = newLabel
-                }
-                
-                break
-            }
-            if (node.children) {
-                updateNode(node.children)
-            }
-        }
-    }
-    
-    updateNode(treeData.value)
-    
-    isEditing.value = false
-    editingKey.value = ''
-    editingValue.value = ''
-    
-    syncTreeToJson()
-    message.success('节点重命名成功')
-}
-
-const cancelEdit = () => {
-    // 如果是新节点，删除它
-    if (editingKey.value.includes('field_' + Date.now())) {
-        const removeNewNode = (nodes) => {
-            for (let i = nodes.length - 1; i >= 0; i--) {
-                if (nodes[i].key === editingKey.value) {
-                    nodes.splice(i, 1)
-                    break
-                }
-                if (nodes[i].children) {
-                    removeNewNode(nodes[i].children)
-                }
-            }
-        }
-        removeNewNode(treeData.value)
-    } else {
-        // 取消编辑状态
-        const cancelNodeEdit = (nodes) => {
-            for (const node of nodes) {
-                if (node.key === editingKey.value) {
-                    node.isEditing = false
-                    break
-                }
-                if (node.children) {
-                    cancelNodeEdit(node.children)
-                }
-            }
-        }
-        cancelNodeEdit(treeData.value)
-    }
-    
-    isEditing.value = false
-    editingKey.value = ''
-    editingValue.value = ''
-}
-
-const startRename = (node) => {
-    startEdit(node, node.label)
-}
 
 const copyNode = (node) => {
     const copiedNode = JSON.parse(JSON.stringify(node))
@@ -939,42 +780,13 @@ const findNodeByPath = (nodes, path) => {
     return null
 }
 
-const getDefaultValue = (type) => {
-    switch (type) {
-        case 'string': return ''
-        case 'number': return 0
-        case 'boolean': return false
-        case 'object': return {}
-        case 'array': return []
-        default: return ''
-    }
-}
 
 const addChildNode = (parentNode) => {
-    resetNodeForm()
-    editingNode.value = null
-    editingNodePath.value = parentNode.path
-    showNodeModal.value = true
+    openNodeModal(null, parentNode.path)
 }
 
 const editNode = (node) => {
-    editingNode.value = node
-    editingNodePath.value = node.path
-    nodeForm.key = node.label
-    nodeForm.type = node.nodeType
-    nodeForm.description = node.description || ''
-    nodeForm.required = node.required || false
-    
-    // 设置默认值
-    if (node.nodeType === 'string') {
-        nodeForm.defaultValue = node.value || ''
-    } else if (node.nodeType === 'number') {
-        nodeForm.defaultValue = node.value || 0
-    } else if (node.nodeType === 'boolean') {
-        nodeForm.defaultValue = node.value || false
-    }
-    
-    showNodeModal.value = true
+    openNodeModal(node)
 }
 
 const deleteNode = (node) => {
@@ -1001,49 +813,40 @@ const deleteNode = (node) => {
 
 const resetNodeForm = () => {
     nodeForm.key = ''
-    nodeForm.type = 'string'
     nodeForm.description = ''
-    nodeForm.defaultValue = ''
-    nodeForm.required = false
+    nodeForm.hasChildren = false
 }
 
-const handleTypeChange = (type) => {
-    // 根据类型重置默认值
-    switch (type) {
-        case 'string':
-            nodeForm.defaultValue = ''
-            break
-        case 'number':
-            nodeForm.defaultValue = 0
-            break
-        case 'boolean':
-            nodeForm.defaultValue = false
-            break
-        case 'object':
-        case 'array':
-            nodeForm.defaultValue = ''
-            break
-    }
-}
 
 const saveNode = async () => {
     try {
         await nodeFormRef.value?.validate()
+        
+        // 如果是编辑模式，检查是否要移除子字段支持
+        if (editingNode.value && !nodeForm.hasChildren) {
+            const currentNode = findNodeByKey(treeData.value, editingNode.value.key)
+            if (currentNode && currentNode.children && currentNode.children.length > 0) {
+                message.warning('该节点已包含子字段，无法设置为不包含子字段。请先删除所有子字段。')
+                return
+            }
+        }
+        
         nodeSaving.value = true
         
         const newNode = {
             key: nodeForm.key,
             label: nodeForm.key,
-            nodeType: nodeForm.type,
-            value: nodeForm.defaultValue,
             path: [...editingNodePath.value, nodeForm.key],
             description: nodeForm.description,
-            required: nodeForm.required,
-            children: nodeForm.type === 'object' || nodeForm.type === 'array' ? [] : undefined
+            children: nodeForm.hasChildren ? [] : undefined
         }
         
         if (editingNode.value) {
-            // 编辑现有节点
+            // 编辑现有节点，保留现有的子字段
+            const currentNode = findNodeByKey(treeData.value, editingNode.value.key)
+            if (currentNode && nodeForm.hasChildren && currentNode.children) {
+                newNode.children = currentNode.children
+            }
             updateNodeInTree(newNode)
         } else {
             // 添加新节点
@@ -1051,8 +854,17 @@ const saveNode = async () => {
         }
         
         syncTreeToJson()
-        closeNodeModal()
-        message.success(editingNode.value ? '节点更新成功' : '节点添加成功')
+        
+        // 保存成功消息
+        const isEdit = !!editingNode.value
+        
+        // 清空状态
+        originalNodeData.value = null
+        showNodeModal.value = false
+        editingNode.value = null
+        resetNodeForm()
+        
+        message.success(isEdit ? '节点更新成功' : '节点添加成功')
     } catch (error) {
         console.error('保存节点失败:', error)
     } finally {
@@ -1112,8 +924,34 @@ const updateNodeInTree = (updatedNode, originalPath = null) => {
 }
 
 const closeNodeModal = () => {
+    // 如果是编辑模式且有原始数据，需要恢复
+    if (editingNode.value && originalNodeData.value) {
+        isModalCanceling.value = true
+        
+        // 恢复原始节点数据
+        const restoreNode = (nodes) => {
+            for (let i = 0; i < nodes.length; i++) {
+                if (nodes[i].key === editingNode.value.key) {
+                    nodes[i] = JSON.parse(JSON.stringify(originalNodeData.value))
+                    return true
+                }
+                if (nodes[i].children) {
+                    if (restoreNode(nodes[i].children)) {
+                        return true
+                    }
+                }
+            }
+            return false
+        }
+        
+        restoreNode(treeData.value)
+        syncTreeToJson()
+    }
+    
     showNodeModal.value = false
     editingNode.value = null
+    originalNodeData.value = null
+    isModalCanceling.value = false
     resetNodeForm()
 }
 
@@ -1186,27 +1024,30 @@ watch(() => props.modelValue, (newValue) => {
 })
 
 // 监听nodeForm变化，实时更新JSON
-watch(() => [nodeForm.key, nodeForm.type, nodeForm.defaultValue, nodeForm.description, nodeForm.required], () => {
-    if (selectedNode.value) {
-        // 实时更新选中节点的信息
+watch(() => [nodeForm.key, nodeForm.description, nodeForm.hasChildren], () => {
+    // 在取消编辑时不触发更新
+    if (isModalCanceling.value) return
+    
+    if (selectedNode.value && showNodeModal.value && editingNode.value) {
+        // 实时更新编辑中的节点信息（仅在弹窗打开时）
         const updatedNode = {
-            ...selectedNode.value,
+            ...editingNode.value,
             label: nodeForm.key,
-            nodeType: nodeForm.type,
-            value: nodeForm.defaultValue,
             description: nodeForm.description,
-            required: nodeForm.required
+            children: nodeForm.hasChildren ? (editingNode.value.children || []) : undefined
         }
         
         // 更新节点路径中的key
-        const newPath = [...selectedNode.value.path]
-        newPath[newPath.length - 1] = nodeForm.key
-        updatedNode.path = newPath
-        updatedNode.key = newPath.join('.')
+        const newPath = [...editingNode.value.path]
+        if (newPath.length > 0) {
+            newPath[newPath.length - 1] = nodeForm.key
+            updatedNode.path = newPath
+            updatedNode.key = newPath.join('.')
+        }
         
         // 更新树中的节点
-        updateNodeInTree(updatedNode, selectedNode.value.path)
-        selectedNode.value = updatedNode
+        updateNodeInTree(updatedNode, editingNode.value.path)
+        editingNode.value = updatedNode
         
         syncTreeToJson()
     }
@@ -1221,8 +1062,12 @@ const onDragStart = (info) => {
 }
 
 const onDragEnter = (info) => {
-    if (info.node && info.node.nodeType === 'object') {
-        dragOverNode.value = info.node
+    if (info.node) {
+        const nodeData = findNodeByKey(treeData.value, info.node.key)
+        // 只有允许子字段的节点才能接受拖拽
+        if (nodeData && nodeData.children !== undefined) {
+            dragOverNode.value = info.node
+        }
     }
 }
 
@@ -1233,10 +1078,16 @@ const onDragLeave = () => {
 const onDragOver = (info) => {
     const { event, node } = info
     
-    if (node && node.nodeType === 'object') {
-        event.preventDefault()
-        event.dataTransfer.dropEffect = 'move'
-        dragOverNode.value = node
+    if (node) {
+        const nodeData = findNodeByKey(treeData.value, node.key)
+        // 检查目标节点是否允许子字段
+        if (nodeData && nodeData.children !== undefined) {
+            event.preventDefault()
+            event.dataTransfer.dropEffect = 'move'
+            dragOverNode.value = node
+        } else {
+            event.dataTransfer.dropEffect = 'none'
+        }
     }
 }
 
@@ -1248,8 +1099,10 @@ const onDrop = (info) => {
         return
     }
     
-    // 只能拖拽到对象类型的节点
-    if (node.nodeType !== 'object') {
+    // 检查目标节点是否允许子字段
+    const targetNodeData = findNodeByKey(treeData.value, node.key)
+    if (!targetNodeData || targetNodeData.children === undefined) {
+        message.warning('该节点不允许包含子字段')
         clearDragState()
         return
     }
@@ -1318,6 +1171,202 @@ const moveNode = (sourceNode, targetNode) => {
     
     syncTreeToJson()
     message.success('节点移动成功')
+}
+
+// JSON文件导入导出功能
+
+const importJson = () => {
+    // 创建隐藏的文件输入元素
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json'
+    input.style.display = 'none'
+    
+    input.onchange = (event) => {
+        const file = event.target.files[0]
+        if (file) {
+            handleJsonFileImport(file)
+        }
+        document.body.removeChild(input)
+    }
+    
+    document.body.appendChild(input)
+    input.click()
+}
+
+const exportJson = () => {
+    if (!editorView) return
+    
+    try {
+        const content = editorView.state.doc.toString()
+        
+        // 验证JSON格式
+        try {
+            JSON.parse(content)
+        } catch (error) {
+            message.error('当前JSON格式无效，无法导出')
+            return
+        }
+        
+        // 创建并下载文件
+        const blob = new Blob([content], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        
+        const link = document.createElement('a')
+        link.href = url
+        link.download = 'var-preset-schema.json'
+        link.style.display = 'none'
+        
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        
+        // 清理URL对象
+        URL.revokeObjectURL(url)
+        
+        message.success('JSON文件导出成功')
+    } catch (error) {
+        console.error('导出失败:', error)
+        message.error('导出失败')
+    }
+}
+
+const handleJsonFileImport = (file) => {
+    if (!file.name.toLowerCase().endsWith('.json')) {
+        message.error('请选择.json格式的文件')
+        return
+    }
+    
+    const reader = new FileReader()
+    
+    reader.onload = (event) => {
+        try {
+            const content = event.target.result
+            
+            // 解析JSON内容
+            let jsonObject
+            try {
+                jsonObject = JSON.parse(content)
+            } catch (error) {
+                message.error('文件内容不是有效的JSON格式: ' + error.message)
+                return
+            }
+            
+            // 转换为树结构
+            const newTreeData = convertJsonToTree(jsonObject)
+            
+            // 更新树数据
+            treeData.value = newTreeData
+            
+            // 同步到编辑器
+            syncTreeToJson()
+            
+            message.success(`JSON文件 "${file.name}" 导入成功`)
+        } catch (error) {
+            console.error('导入失败:', error)
+            message.error('导入文件失败: ' + error.message)
+        }
+    }
+    
+    reader.onerror = () => {
+        message.error('读取文件失败')
+    }
+    
+    reader.readAsText(file, 'UTF-8')
+}
+
+const copyJson = () => {
+    if (!editorView) return
+    
+    try {
+        const content = editorView.state.doc.toString()
+        
+        // 验证JSON格式
+        try {
+            JSON.parse(content)
+        } catch (error) {
+            message.error('当前JSON格式无效，无法复制')
+            return
+        }
+        
+        // 复制到剪贴板
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(content).then(() => {
+                message.success('JSON内容已复制到剪贴板')
+            }).catch(() => {
+                // 备用方法
+                fallbackCopyToClipboard(content)
+            })
+        } else {
+            // 备用方法
+            fallbackCopyToClipboard(content)
+        }
+    } catch (error) {
+        console.error('复制失败:', error)
+        message.error('复制失败')
+    }
+}
+
+const fallbackCopyToClipboard = (text) => {
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    textArea.style.position = 'fixed'
+    textArea.style.left = '-999999px'
+    textArea.style.top = '-999999px'
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+    
+    try {
+        const successful = document.execCommand('copy')
+        if (successful) {
+            message.success('JSON内容已复制到剪贴板')
+        } else {
+            message.error('复制失败，请手动复制')
+        }
+    } catch (err) {
+        message.error('复制失败，请手动复制')
+        console.error('复制失败:', err)
+    }
+    
+    document.body.removeChild(textArea)
+}
+
+const convertJsonToTree = (obj, parentPath = []) => {
+    if (!obj || typeof obj !== 'object') {
+        return []
+    }
+
+    const result = []
+    
+    for (const [key, value] of Object.entries(obj)) {
+        const currentPath = [...parentPath, key]
+        const node = {
+            key: key,
+            label: key,
+            path: currentPath,
+            description: ''
+        }
+
+        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+            // 对象类型，递归处理子节点
+            node.children = convertJsonToTree(value, currentPath)
+        } else if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object') {
+            // 对象数组，转换为可扩展的容器节点
+            node.children = []
+            const sampleObject = value[0]
+            if (sampleObject && typeof sampleObject === 'object') {
+                node.children = convertJsonToTree(sampleObject, currentPath)
+            }
+        } else {
+            // 原始值，设为不包含子字段的节点
+            node.children = undefined
+        }
+
+        result.push(node)
+    }
+
+    return result
 }
 
 // 生命周期
@@ -1426,7 +1475,6 @@ onUnmounted(() => {
     color: #333;
 }
 
-.tree-actions,
 .detail-actions,
 .editor-actions {
     display: flex;
@@ -1524,27 +1572,6 @@ onUnmounted(() => {
     z-index: 2147483647 !important;
 }
 
-.tree-input {
-    width: 100%;
-    height: 22px;
-    padding: 1px 4px;
-    font-size: 13px;
-    font-family: 'Segoe UI', 'Consolas', 'Monaco', monospace;
-    background: #ffffff;
-    border: 1px solid #007acc;
-    border-radius: 2px;
-    outline: none;
-    color: #333333;
-    line-height: 18px;
-    box-shadow: 0 0 0 1px #007acc;
-    margin: 0;
-    display: block;
-}
-
-:deep(.tree-input:focus) {
-    border-color: #1890ff;
-    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
-}
 
 /* 拖拽样式 */
 :deep(.n-tree-node.dragging) {
