@@ -187,14 +187,16 @@ function getLanguageExtension(filename) {
   return languageMap[ext] || null
 }
 
-async function saveCurrentFile() {
+async function saveCurrentFile(silent = false) {
   if (!props.currentFileId) {
-    notification.warning({
-      title: '无法保存',
-      content: '请先选择一个文件',
-      duration: 2500
-    })
-    return
+    if (!silent) {
+      notification.warning({
+        title: '无法保存',
+        content: '请先选择一个文件',
+        duration: 2500
+      })
+    }
+    return false
   }
 
   try {
@@ -203,17 +205,23 @@ async function saveCurrentFile() {
       id: props.currentFileId,
       fileContent: content
     })
-    notification.success({
-      title: '保存成功',
-      content: '文件已成功保存',
-      duration: 2500
-    })
+    
+    if (!silent) {
+      notification.success({
+        title: '保存成功',
+        content: '文件已成功保存',
+        duration: 2500
+      })
+    }
+    return true
   } catch (e) {
+    // 错误始终显示通知，即使是静默模式
     notification.error({
       title: '保存失败',
       content: '请检查网络或稍后重试',
       duration: 2500
     })
+    return false
   }
 }
 
@@ -299,7 +307,8 @@ defineExpose({
   insertVariable,
   getSelectedText,
   getCursorPosition,
-  getSelectionInfo
+  getSelectionInfo,
+  saveCurrentFile
 })
 
 function runHtmlFile() {

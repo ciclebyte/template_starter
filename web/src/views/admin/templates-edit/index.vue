@@ -1,8 +1,28 @@
 <template>
   <div class="templates-edit-fullscreen">
-    <EditHeader :is-variable-panel-open="isVariablePanelOpen" :is-file-tree-visible="isFileTreeVisible" 
-      @toggle-variable-panel="toggleVariablePanel" @show-variable-manager="showVariableManager = true" 
-      @close-edit="closeEdit" @toggle-file-tree="toggleFileTree" />
+    <EditHeader 
+      :is-variable-panel-open="isVariablePanelOpen" 
+      :is-file-tree-visible="isFileTreeVisible"
+      :has-unsaved-changes="hasUnsavedChanges"
+      :current-file-name="currentFileName"
+      @toggle-variable-panel="toggleVariablePanel" 
+      @show-variable-manager="showVariableManager = true" 
+      @close-edit="closeEdit" 
+      @toggle-file-tree="toggleFileTree" 
+      @show-settings="showSettings = true" 
+    />
+      
+    <!-- 自动保存指示器 -->
+    <transition name="auto-save-fade">
+      <div v-if="autoSaveIndicator" class="auto-save-indicator">
+        <n-icon size="16" style="margin-right: 6px;">
+          <svg viewBox="0 0 24 24">
+            <path fill="currentColor" d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+          </svg>
+        </n-icon>
+        已自动保存
+      </div>
+    </transition>
 
     <!-- 变量插入面板 -->
     <VariablePanel :is-open="isVariablePanelOpen" :template-variables="templateVariables"
@@ -63,6 +83,13 @@
       :template-variables="templateVariables" :editor-selection="editorSelection" @insert-code="onAIInsertCode"
       @add-variable="onAIAddVariable" @create-file="onAICreateFile" @apply-suggestion="onAIApplySuggestion"
       style="display: none;" />
+      
+    <!-- 编辑器设置面板 -->
+    <EditorSettings 
+      v-model:show="showSettings" 
+      :settings="editorSettings"
+      @save-settings="saveSettings" 
+    />
   </div>
 </template>
 
@@ -82,6 +109,7 @@ import AISDKPanel from './components/AISDKPanel.vue'
 import EditHeader from './components/EditHeader.vue'
 import ConditionModal from './components/ConditionModal.vue'
 import VariablePanel from './components/VariablePanel.vue'
+import EditorSettings from './components/EditorSettings.vue'
 import { templateSyntaxCategories as syntaxData } from './data/templateSyntax.js'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
 import { useMessage, NIcon, NTag, NButton, NSpin, NForm, NFormItem, NSwitch, NSelect, NRadioGroup, NRadio, NInput } from 'naive-ui'
@@ -158,6 +186,28 @@ const variablePanelHeight = ref(300) // 默认高度300px
 // 文件树状态（从本地存储加载）
 const isFileTreeVisible = ref(localStorage.getItem('template-file-tree-visible') !== 'false')
 
+// 设置面板状态
+const showSettings = ref(false)
+const editorSettings = ref({
+  autoSave: {
+    enabled: true,
+    interval: 30
+  },
+  editor: {
+    fontSize: 14,
+    lineNumbers: true,
+    wordWrap: true
+  },
+  interface: {
+    theme: 'light',
+    restoreLayout: true
+  },
+  preview: {
+    realtime: true,
+    debounceDelay: 500
+  }
+})
+
 // Go模板语法数据
 const templateSyntaxCategories = ref(syntaxData)
 
@@ -199,12 +249,107 @@ const toggleFileTree = () => {
   localStorage.setItem('template-file-tree-visible', isFileTreeVisible.value.toString())
 }
 
+// 设置相关方法
+const loadSettings = () => {
+  const savedSettings = localStorage.getItem('template-editor-settings')
+  if (savedSettings) {
+    try {
+      const parsed = JSON.parse(savedSettings)
+      editorSettings.value = { ...editorSettings.value, ...parsed }
+    } catch (e) {
+      console.warn('Failed to load settings:', e)
+    }
+  }
+}
+
+const saveSettings = (newSettings) => {
+  editorSettings.value = { ...newSettings }
+  localStorage.setItem('template-editor-settings', JSON.stringify(newSettings))
+  
+  // 应用设置
+  applySettings()
+}
+
+const applySettings = () => {
+  // 应用自动保存设置
+  setupAutoSave()
+  
+  // 这里可以添加其他设置的应用逻辑
+  // 例如：主题切换、字体大小等
+}
+
+// 自动保存功能
+let autoSaveTimer = null
+
+const setupAutoSave = () => {
+  // 清除现有定时器
+  if (autoSaveTimer) {
+    clearInterval(autoSaveTimer)
+    autoSaveTimer = null
+  }
+  
+  // 如果启用自动保存，设置定时器
+  if (editorSettings.value.autoSave.enabled) {
+    const interval = editorSettings.value.autoSave.interval * 1000 // 转换为毫秒
+    autoSaveTimer = setInterval(() => {
+      autoSaveCurrentFile()
+    }, interval)
+  }
+}
+
+const saveCurrentFile = async (silent = false) => {
+  // 调用编辑器的保存方法
+  if (templateEditorRef.value && templateEditorRef.value.saveCurrentFile) {
+    const success = await templateEditorRef.value.saveCurrentFile(silent)
+    if (success) {
+      hasUnsavedChanges.value = false
+    }
+    return success
+  }
+  return false
+}
+
+const autoSaveCurrentFile = async () => {
+  // 检查是否有当前文件和未保存的更改
+  if (currentFileId.value && hasUnsavedChanges.value) {
+    try {
+      const success = await saveCurrentFile(true) // 静默保存
+      if (success) {
+        console.log('Auto-saved file:', currentFileName.value)
+        // 可以在这里添加轻量级的自动保存指示器
+        showAutoSaveIndicator()
+      }
+    } catch (error) {
+      console.error('Auto-save failed:', error)
+    }
+  }
+}
+
+// 检查是否有未保存的更改
+const hasUnsavedChanges = ref(false)
+
+// 自动保存指示器
+const autoSaveIndicator = ref(false)
+
+const showAutoSaveIndicator = () => {
+  autoSaveIndicator.value = true
+  setTimeout(() => {
+    autoSaveIndicator.value = false
+  }, 2000) // 2秒后隐藏
+}
+
 // 键盘快捷键处理
 const handleKeyDown = (event) => {
   // Ctrl+B 或 Cmd+B 切换文件树
   if ((event.ctrlKey || event.metaKey) && event.key === 'b') {
     event.preventDefault()
     toggleFileTree()
+  }
+  
+  // Ctrl+, 打开设置
+  if ((event.ctrlKey || event.metaKey) && event.key === ',') {
+    event.preventDefault()
+    showSettings.value = true
   }
 }
 
@@ -216,6 +361,10 @@ onMounted(async () => {
   await loadSprigFunctions()
   loadTestData()
   
+  // 加载设置并应用
+  loadSettings()
+  applySettings()
+  
   // 添加键盘事件监听
   document.addEventListener('keydown', handleKeyDown)
 })
@@ -224,6 +373,12 @@ onMounted(async () => {
 onUnmounted(() => {
   // 清理键盘事件监听
   document.removeEventListener('keydown', handleKeyDown)
+  
+  // 清理自动保存定时器
+  if (autoSaveTimer) {
+    clearInterval(autoSaveTimer)
+    autoSaveTimer = null
+  }
   
   // 清理变量面板拖拽事件监听器
   document.removeEventListener('mousemove', onVariablePanelResize)
@@ -360,6 +515,9 @@ async function onSelectFile(key) {
 
   // 重置编辑器选中状态
   resetEditorSelection()
+  
+  // 重置未保存状态
+  hasUnsavedChanges.value = false
 
   currentFile.value = key
   const node = findNodeByKey(treeData.value, key)
@@ -407,6 +565,7 @@ async function onSelectFile(key) {
 function onEditorContentChange({ content }) {
   currentFileContent.value = content
   templateFileStore.setCurrentFileContent(content)
+  hasUnsavedChanges.value = true
 }
 
 // 处理编辑器选中变化
@@ -1006,6 +1165,39 @@ function onAIApplySuggestion(suggestion) {
 /* 文件树隐藏时的样式优化 */
 .template-explorer {
   transition: all 0.3s ease;
+}
+
+/* 自动保存指示器样式 */
+.auto-save-indicator {
+  position: fixed;
+  top: 80px;
+  right: 24px;
+  background: #52c41a;
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(82, 196, 26, 0.3);
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+}
+
+/* 自动保存指示器动画 */
+.auto-save-fade-enter-active,
+.auto-save-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.auto-save-fade-enter-from {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.95);
+}
+
+.auto-save-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.95);
 }
 
 
