@@ -74,7 +74,8 @@ const loadPresetInfo = async () => {
         }
 
         const response = await getVarPresetDetail({ id: presetId })
-        presetInfo.value = response.data.data
+        console.log('API响应:', response.data) // 调试用
+        presetInfo.value = response.data.data.varPreset || response.data.data
         schemaJson.value = presetInfo.value.schemaJson || '{\n  "example_field": {\n    "type": "string",\n    "description": "示例字段",\n    "default": "示例值"\n  }\n}'
     } catch (error) {
         console.error('加载预设信息失败:', error)
@@ -86,11 +87,18 @@ const loadPresetInfo = async () => {
 // 保存数据结构
 const handleSave = async () => {
     try {
+        // 验证预设信息是否加载完成
+        if (!presetInfo.value || !presetInfo.value.id) {
+            message.error('预设信息未加载完成，请稍后重试')
+            return
+        }
+        
         // 验证 JSON 格式
         JSON.parse(schemaJson.value)
         
         saving.value = true
-        await editVarPreset({
+        
+        const saveData = {
             id: presetInfo.value.id,
             name: presetInfo.value.name,
             displayName: presetInfo.value.displayName,
@@ -102,7 +110,11 @@ const handleSave = async () => {
             sort: presetInfo.value.sort,
             version: presetInfo.value.version,
             isEnabled: presetInfo.value.isEnabled
-        })
+        }
+        
+        console.log('保存数据:', saveData) // 调试用
+        
+        await editVarPreset(saveData)
         
         hasChanges.value = false
         message.success('数据结构保存成功')
@@ -111,7 +123,8 @@ const handleSave = async () => {
             message.error('JSON 格式错误，请检查语法')
         } else {
             console.error('保存失败:', error)
-            message.error('保存失败')
+            const errorMsg = error.response?.data?.message || error.message || '保存失败'
+            message.error(errorMsg)
         }
     } finally {
         saving.value = false

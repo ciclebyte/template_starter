@@ -536,7 +536,7 @@ const handlePageSizeChange = async (pageSize) => {
 const handlePreview = async (preset) => {
     try {
         const response = await getVarPresetDetail({ id: preset.id })
-        previewData.value = response.data.data
+        previewData.value = response.data.data.varPreset || response.data.data
         showPreviewModal.value = true
     } catch (error) {
         console.error('获取预设详情失败:', error)
