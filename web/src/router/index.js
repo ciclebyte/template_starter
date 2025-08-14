@@ -27,6 +27,11 @@ const routes = [
     component: () => import('@/views/admin/templates-edit/index.vue')
   },
   {
+    path: '/admin/var-presets/:id/design',
+    name: 'var-preset-design',
+    component: () => import('@/views/admin/var-preset/design.vue')
+  },
+  {
     path: '/template-generator',
     name: 'generator',
     component: () => import('@/views/client/template-generator/index.vue')

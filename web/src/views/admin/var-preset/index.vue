@@ -62,8 +62,8 @@
         </div>
 
         <!-- 添加/编辑变量预设弹窗 -->
-        <n-modal v-model:show="showAddModal" :mask-closable="false" style="width: 80%; max-width: 1000px">
-            <n-card :title="editingPreset ? '编辑变量预设' : '添加变量预设'" :bordered="false" size="huge"
+        <n-modal v-model:show="showAddModal" :mask-closable="false">
+            <n-card style="width: 600px" :title="editingPreset ? '编辑变量预设' : '添加变量预设'" :bordered="false" size="huge"
                 role="dialog" aria-modal="true">
                 <template #header-extra>
                     <n-button quaternary circle @click="closeModal">
@@ -75,83 +75,64 @@
                     </n-button>
                 </template>
 
-                <div class="form-layout">
-                    <div class="form-left">
-                        <n-form ref="formRef" :model="formData" :rules="formRules" label-placement="top">
-                            <n-grid :cols="2" :x-gap="16">
-                                <n-grid-item>
-                                    <n-form-item label="预设名称" path="name">
-                                        <n-input v-model:value="formData.name" placeholder="请输入预设名称" :maxlength="50" show-count />
-                                    </n-form-item>
-                                </n-grid-item>
-                                <n-grid-item>
-                                    <n-form-item label="显示名称" path="displayName">
-                                        <n-input v-model:value="formData.displayName" placeholder="请输入显示名称" :maxlength="100" show-count />
-                                    </n-form-item>
-                                </n-grid-item>
-                            </n-grid>
-
-                            <n-form-item label="描述" path="description">
-                                <n-input v-model:value="formData.description" type="textarea" placeholder="请输入预设描述"
-                                    :maxlength="500" show-count :rows="3" />
+                <n-form ref="formRef" :model="formData" :rules="formRules" label-placement="top">
+                    <n-grid :cols="2" :x-gap="16">
+                        <n-grid-item>
+                            <n-form-item label="预设名称" path="name">
+                                <n-input v-model:value="formData.name" placeholder="请输入预设名称" :maxlength="50" show-count />
                             </n-form-item>
+                        </n-grid-item>
+                        <n-grid-item>
+                            <n-form-item label="显示名称" path="displayName">
+                                <n-input v-model:value="formData.displayName" placeholder="请输入显示名称" :maxlength="100" show-count />
+                            </n-form-item>
+                        </n-grid-item>
+                    </n-grid>
 
-                            <n-grid :cols="3" :x-gap="16">
-                                <n-grid-item>
-                                    <n-form-item label="分类" path="category">
-                                        <n-select v-model:value="formData.category" placeholder="选择分类"
-                                            :options="categoryOptions" />
-                                    </n-form-item>
-                                </n-grid-item>
-                                <n-grid-item>
-                                    <n-form-item label="图标" path="icon">
-                                        <n-input v-model:value="formData.icon" placeholder="图标名称或URL" />
-                                    </n-form-item>
-                                </n-grid-item>
-                                <n-grid-item>
-                                    <n-form-item label="排序权重" path="sort">
-                                        <n-input-number v-model:value="formData.sort" placeholder="数值越大越靠前" :min="0" :max="999"
-                                            style="width: 100%" />
-                                    </n-form-item>
-                                </n-grid-item>
-                            </n-grid>
+                    <n-form-item label="描述" path="description">
+                        <n-input v-model:value="formData.description" type="textarea" placeholder="请输入预设描述"
+                            :maxlength="500" show-count :rows="3" />
+                    </n-form-item>
 
-                            <n-grid :cols="2" :x-gap="16">
-                                <n-grid-item>
-                                    <n-form-item label="版本" path="version">
-                                        <n-input v-model:value="formData.version" placeholder="如: 1.0" />
-                                    </n-form-item>
-                                </n-grid-item>
-                                <n-grid-item>
-                                    <n-form-item label="状态" path="isEnabled">
-                                        <n-switch v-model:value="formData.isEnabled" />
-                                        <span style="margin-left: 8px; color: #666;">{{ formData.isEnabled ? '启用' : '禁用' }}</span>
-                                    </n-form-item>
-                                </n-grid-item>
-                            </n-grid>
-                        </n-form>
-                    </div>
+                    <n-grid :cols="3" :x-gap="16">
+                        <n-grid-item>
+                            <n-form-item label="分类" path="category">
+                                <n-select v-model:value="formData.category" placeholder="选择分类"
+                                    :options="categoryOptions" />
+                            </n-form-item>
+                        </n-grid-item>
+                        <n-grid-item>
+                            <n-form-item label="图标" path="icon">
+                                <n-input v-model:value="formData.icon" placeholder="图标名称或URL" />
+                            </n-form-item>
+                        </n-grid-item>
+                        <n-grid-item>
+                            <n-form-item label="排序权重" path="sort">
+                                <n-input-number v-model:value="formData.sort" placeholder="数值越大越靠前" :min="0" :max="999"
+                                    style="width: 100%" />
+                            </n-form-item>
+                        </n-grid-item>
+                    </n-grid>
 
-                    <div class="form-right">
-                        <div class="json-editor-section">
-                            <h3>数据结构模板</h3>
-                            <p class="editor-tip">定义变量的数据结构，支持嵌套对象和数组</p>
-                            <div class="json-editor">
-                                <n-input v-model:value="formData.schemaJson" type="textarea" placeholder='请输入JSON格式的数据结构模板...'
-                                    :rows="12" />
-                            </div>
-                        </div>
+                    <n-grid :cols="2" :x-gap="16">
+                        <n-grid-item>
+                            <n-form-item label="版本" path="version">
+                                <n-input v-model:value="formData.version" placeholder="如: 1.0" />
+                            </n-form-item>
+                        </n-grid-item>
+                        <n-grid-item>
+                            <n-form-item label="状态" path="isEnabled">
+                                <n-switch v-model:value="formData.isEnabled" />
+                                <span style="margin-left: 8px; color: #666;">{{ formData.isEnabled ? '启用' : '禁用' }}</span>
+                            </n-form-item>
+                        </n-grid-item>
+                    </n-grid>
 
-                        <div class="json-editor-section" style="margin-top: 16px;">
-                            <h3>默认数据</h3>
-                            <p class="editor-tip">可选，提供默认的数据值</p>
-                            <div class="json-editor">
-                                <n-input v-model:value="formData.defaultDataJson" type="textarea" placeholder='请输入JSON格式的默认数据...'
-                                    :rows="6" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                    <n-form-item label="默认数据" path="defaultDataJson">
+                        <n-input v-model:value="formData.defaultDataJson" type="textarea" placeholder='可选，提供默认数据值...'
+                            :rows="4" />
+                    </n-form-item>
+                </n-form>
 
                 <template #footer>
                     <div class="modal-footer">
@@ -244,6 +225,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, h } from 'vue'
+import { useRouter } from 'vue-router'
 import {
     NButton, NIcon, NInput, NDataTable, NModal, NCard, NForm, NFormItem,
     NInputNumber, NTag, useMessage, NSelect, NSwitch, NGrid, NGridItem,
@@ -258,8 +240,10 @@ import {
     listVarPresets, addVarPreset, editVarPreset, deleteVarPreset,
     batchDeleteVarPresets, getVarPresetDetail, toggleVarPreset
 } from '@/api/varPreset'
+import SimpleVarPresetEditor from '@/components/SimpleVarPresetEditor.vue'
 
 const message = useMessage()
+const router = useRouter()
 
 // 选项数据
 const categoryOptions = [
@@ -315,11 +299,6 @@ const formRules = {
         required: true,
         message: '请选择分类',
         trigger: ['change']
-    },
-    schemaJson: {
-        required: true,
-        message: '请输入数据结构模板',
-        trigger: ['input', 'blur']
     }
 }
 
@@ -412,7 +391,7 @@ const columns = computed(() => [
     {
         title: '操作',
         key: 'actions',
-        width: 260,
+        width: 320,
         render: (row) => {
             return h('div', { class: 'action-buttons' }, [
                 h(
@@ -440,6 +419,20 @@ const columns = computed(() => [
                     {
                         icon: () => h(NIcon, null, { default: () => h(CreateOutline) }),
                         default: () => '编辑'
+                    }
+                ),
+                h(
+                    NButton,
+                    {
+                        size: 'small',
+                        type: 'info',
+                        secondary: true,
+                        style: { marginLeft: '8px' },
+                        onClick: () => handleDesignSchema(row)
+                    },
+                    {
+                        icon: () => h(NIcon, null, { default: () => h(DocumentTextOutline) }),
+                        default: () => '设计结构'
                     }
                 ),
                 h(
@@ -487,7 +480,7 @@ const loadVarPresets = async (searchParams = {}) => {
         }
         
         const response = await listVarPresets(params)
-        varPresets.value = response.data.data.list || []
+        varPresets.value = response.data.data.varPresetsList || []
         pagination.itemCount = response.data.data.total || 0
     } catch (error) {
         console.error('获取变量预设列表失败:', error)
@@ -566,6 +559,15 @@ const handleEdit = (preset) => {
     showAddModal.value = true
 }
 
+const handleDesignSchema = (preset) => {
+    // 跳转到数据结构设计页面
+    const route = router.resolve({
+        name: 'var-preset-design',
+        params: { id: preset.id }
+    })
+    window.open(route.href, '_blank')
+}
+
 const handleDelete = (preset) => {
     if (preset.category === 'system') {
         message.warning('系统预设不能删除')
@@ -601,7 +603,7 @@ const resetForm = () => {
     formData.displayName = ''
     formData.description = ''
     formData.category = 'custom'
-    formData.schemaJson = ''
+    formData.schemaJson = '{}'
     formData.defaultDataJson = ''
     formData.icon = ''
     formData.sort = 0
@@ -614,16 +616,7 @@ const handleSubmit = async () => {
     try {
         await formRef.value?.validate()
         
-        // 验证JSON格式
-        if (formData.schemaJson) {
-            try {
-                JSON.parse(formData.schemaJson)
-            } catch (e) {
-                message.error('数据结构模板格式不正确')
-                return
-            }
-        }
-        
+        // 验证默认数据JSON格式
         if (formData.defaultDataJson) {
             try {
                 JSON.parse(formData.defaultDataJson)
@@ -640,7 +633,7 @@ const handleSubmit = async () => {
             displayName: formData.displayName,
             description: formData.description,
             category: formData.category,
-            schemaJson: formData.schemaJson,
+            schemaJson: formData.schemaJson || '{}', // 如果为空则设置为空对象
             defaultDataJson: formData.defaultDataJson,
             icon: formData.icon,
             sort: formData.sort,
@@ -776,39 +769,6 @@ onMounted(async () => {
     margin-top: 16px;
 }
 
-.form-layout {
-    display: flex;
-    gap: 24px;
-}
-
-.form-left {
-    flex: 1;
-    min-width: 400px;
-}
-
-.form-right {
-    flex: 1;
-    min-width: 400px;
-}
-
-.json-editor-section h3 {
-    margin: 0 0 8px 0;
-    font-size: 16px;
-    font-weight: 600;
-    color: #333;
-}
-
-.editor-tip {
-    margin: 0 0 12px 0;
-    font-size: 12px;
-    color: #666;
-}
-
-.json-editor {
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-    overflow: hidden;
-}
 
 .modal-footer {
     display: flex;
