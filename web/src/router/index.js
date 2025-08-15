@@ -32,11 +32,6 @@ const routes = [
     component: () => import('@/views/admin/var-preset/design.vue')
   },
   {
-    path: '/templates/:id/expose',
-    name: 'template-expose',
-    component: () => import('@/views/admin/template-expose/index.vue')
-  },
-  {
     path: '/template-generator',
     name: 'generator',
     component: () => import('@/views/client/template-generator/index.vue')
