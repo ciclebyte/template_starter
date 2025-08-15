@@ -25,16 +25,17 @@ type GetSubscribedPresetsReq struct {
 
 type GetSubscribedPresetsRes struct {
 	g.Meta `mime:"application/json"`
-	Data   []SubscribedPresetItem `json:"data" dc:"订阅的预设变量列表"`
+	List   []SubscribedPresetItem `json:"list" dc:"订阅的预设变量列表"`
 }
 
 // 订阅的预设变量项
 type SubscribedPresetItem struct {
 	Id          uint64 `json:"id" dc:"关联ID"`
-	TemplateId  uint64 `json:"template_id" dc:"模板ID"`
-	PresetId    uint64 `json:"preset_id" dc:"预设ID"`
-	PresetName  string `json:"preset_name" dc:"预设变量名称"`
+	TemplateId  uint64 `json:"templateId" dc:"模板ID"`
+	PresetId    uint64 `json:"presetId" dc:"预设ID"`
+	PresetName  string `json:"presetName" dc:"预设变量包名称"`
 	Description string `json:"description" dc:"预设描述"`
+	Schema      string `json:"schema" dc:"预设变量Schema JSON"`
 }
 
 // 取消订阅预设变量请求

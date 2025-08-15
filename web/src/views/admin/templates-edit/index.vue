@@ -32,7 +32,7 @@
       :template-id="route.params.id"
       @insert-syntax="insertSyntax"
       @insert-function="insertFunction" @insert-sprig-function="insertSprigFunction" @insert-variable="insertVariable"
-      @show-variable-manager="showVariableManager = true" @show-preset-manager="showPresetManager = true" @update:height="variablePanelHeight = $event" />
+      @show-variable-manager="showVariableManager = true" @update:height="variablePanelHeight = $event" />
 
     <div class="edit-main">
       <!-- 左侧：模板资源管理器 -->
@@ -70,23 +70,6 @@
       </div>
     </n-modal>
 
-    <!-- 预设变量管理弹框 -->
-    <n-modal v-model:show="showPresetManager" preset="card" style="width: 90vw; height: 85vh; max-width: 1400px;"
-      :mask-closable="false">
-      <template #header>
-        <div class="preset-manager-header">
-          <span class="modal-title">预设变量管理</span>
-        </div>
-      </template>
-
-      <div class="preset-manager-content">
-        <PresetVariableManager 
-          ref="presetManagerRef" 
-          :template-id="route.params.id"
-          @refresh="onPresetRefresh"
-        />
-      </div>
-    </n-modal>
 
     <!-- 条件设置弹框 -->
     <ConditionModal ref="conditionModalRef" v-model:show="showConditionModal"
@@ -131,7 +114,6 @@ import EditHeader from './components/EditHeader.vue'
 import ConditionModal from './components/ConditionModal.vue'
 import VariablePanel from './components/VariablePanel.vue'
 import EditorSettings from './components/EditorSettings.vue'
-import PresetVariableManager from './components/PresetVariableManager.vue'
 import { templateSyntaxCategories as syntaxData } from './data/templateSyntax.js'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
 import { useMessage, NIcon, NButton, NSpin, NForm, NFormItem, NSwitch, NSelect, NRadioGroup, NRadio, NInput, NModal, NCard } from 'naive-ui'
@@ -159,8 +141,6 @@ const templateEditorRef = ref(null)
 const variableManagerRef = ref(null)
 const conditionModalRef = ref(null)
 const showVariableManager = ref(false)
-const presetManagerRef = ref(null)
-const showPresetManager = ref(false)
 
 const variableValues = ref({})
 const currentFileNode = ref(null)
@@ -1533,21 +1513,5 @@ function onAIApplySuggestion(suggestion) {
   overflow: hidden;
 }
 
-/* 预设变量管理弹框样式 */
-.preset-manager-header {
-  display: flex;
-  align-items: center;
-  width: 100%;
-}
-
-.preset-manager-content {
-  height: calc(85vh - 120px);
-  overflow: hidden;
-}
-
-.preset-manager-content .preset-variable-manager {
-  height: 100%;
-  overflow: hidden;
-}
 
 </style>

@@ -256,12 +256,12 @@
             <n-button 
               type="primary" 
               size="small" 
-              @click="$emit('show-preset-manager')"
+              @click="showSubscribeModal = true"
             >
               <template #icon>
                 <n-icon><AddOutline /></n-icon>
               </template>
-              管理预设变量
+              订阅
             </n-button>
           </div>
           
@@ -277,25 +277,109 @@
                 v-for="preset in subscribedPresets" 
                 :key="preset.id"
                 class="preset-item"
-                @click="insertPresetVariable(preset)"
-                :title="`点击插入：${preset.mapped_name}`"
               >
                 <div class="preset-info">
-                  <span class="preset-name">{{ preset.mapped_name }}</span>
-                  <span class="preset-path">{{ preset.preset_path }}</span>
+                  <div class="preset-name">{{ preset.presetName }}</div>
+                  <div class="preset-description" v-if="preset.description">{{ preset.description }}</div>
                 </div>
-                <n-switch 
-                  v-model:value="preset.is_active" 
-                  size="small"
-                  @click.stop
-                  @update:value="updatePresetStatus(preset)"
-                />
+                <div class="preset-actions">
+                  <n-button 
+                    size="tiny" 
+                    quaternary 
+                    type="error"
+                    @click="unsubscribePreset(preset)"
+                    :loading="preset.unsubscribing"
+                  >
+                    取消订阅
+                  </n-button>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- 订阅预设变量弹窗 -->
+    <n-modal v-model:show="showSubscribeModal" :mask-closable="false">
+      <n-card style="width: 800px" title="订阅预设变量" :bordered="false" size="huge">
+        <template #header-extra>
+          <n-button quaternary circle @click="showSubscribeModal = false">
+            <template #icon>
+              <n-icon><CloseOutline /></n-icon>
+            </template>
+          </n-button>
+        </template>
+
+        <!-- 搜索栏 -->
+        <div class="search-bar">
+          <n-input 
+            v-model:value="searchKeyword" 
+            placeholder="搜索预设变量..." 
+            clearable
+            @update:value="searchPresets"
+          >
+            <template #prefix>
+              <n-icon><SearchOutline /></n-icon>
+            </template>
+          </n-input>
+        </div>
+
+        <!-- 可用预设变量列表 -->
+        <div class="available-presets" v-loading="presetsLoading">
+          <n-empty v-if="availablePresets.length === 0" description="暂无可用的预设变量" />
+          
+          <div v-else class="presets-list">
+            <div 
+              class="preset-item-modal" 
+              v-for="preset in availablePresets" 
+              :key="preset.id"
+            >
+              <div class="preset-content">
+                <n-checkbox 
+                  :checked="isPresetSelected(preset.id)"
+                  @update:checked="togglePreset(preset, $event)"
+                >
+                  <div class="preset-info-modal">
+                    <div class="preset-name">{{ preset.name }}</div>
+                    <div class="preset-description" v-if="preset.description">
+                      {{ preset.description }}
+                    </div>
+                  </div>
+                </n-checkbox>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination" v-if="totalPresets > pageSize">
+          <n-pagination 
+            v-model:page="currentPage"
+            :page-size="pageSize"
+            :item-count="totalPresets"
+            @update:page="loadAvailablePresets"
+            show-size-picker
+            :page-sizes="[10, 20, 30]"
+            @update:page-size="handlePageSizeChange"
+          />
+        </div>
+
+        <template #footer>
+          <div class="modal-footer">
+            <n-button @click="showSubscribeModal = false">取消</n-button>
+            <n-button 
+              type="primary" 
+              @click="confirmSubscribe" 
+              :loading="subscribing"
+              :disabled="selectedPresets.length === 0"
+            >
+              订阅选中的预设 ({{ selectedPresets.length }})
+            </n-button>
+          </div>
+        </template>
+      </n-card>
+    </n-modal>
     
     <!-- 变量面板拖拽调整手柄 -->
     <div 
@@ -314,8 +398,8 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { NSpin, NButton, NTag, NEmpty, NSwitch, NIcon, useMessage } from 'naive-ui'
-import { AddOutline } from '@vicons/ionicons5'
+import { NSpin, NButton, NTag, NEmpty, NSwitch, NIcon, NModal, NCard, NInput, NCheckbox, NPagination, useMessage } from 'naive-ui'
+import { AddOutline, CloseOutline, SearchOutline } from '@vicons/ionicons5'
 import request from '@/utils/request'
 
 const props = defineProps({
@@ -386,6 +470,17 @@ const isResizing = ref(false)
 const message = useMessage()
 const subscribedPresets = ref([])
 const loadingPresets = ref(false)
+
+// 订阅弹窗相关状态
+const showSubscribeModal = ref(false)
+const availablePresets = ref([])
+const presetsLoading = ref(false)
+const selectedPresets = ref([])
+const subscribing = ref(false)
+const currentPage = ref(1)
+const pageSize = ref(20)
+const totalPresets = ref(0)
+const searchKeyword = ref('')
 
 // 函数详情面板
 const functionDetailVisible = ref(false)
@@ -593,7 +688,7 @@ const loadSubscribedPresets = async () => {
   loadingPresets.value = true
   try {
     const response = await getSubscribedPresets(props.templateId)
-    subscribedPresets.value = response.data || []
+    subscribedPresets.value = response.data.data?.list || []
   } catch (error) {
     console.error('加载预设变量失败:', error)
     subscribedPresets.value = []
@@ -602,13 +697,114 @@ const loadSubscribedPresets = async () => {
   }
 }
 
-// 插入预设变量
-const insertPresetVariable = (preset) => {
-  if (!preset.is_active) {
-    message.warning('该预设变量已被禁用')
+// 取消订阅预设变量
+const unsubscribePreset = async (preset) => {
+  preset.unsubscribing = true
+  try {
+    const response = await request({
+      url: `/api/v1/templates/${props.templateId}/preset-variables/${preset.id}`,
+      method: 'DELETE'
+    })
+    message.success('取消订阅成功')
+    await loadSubscribedPresets()
+  } catch (error) {
+    console.error('取消订阅失败:', error)
+    message.error('取消订阅失败')
+  } finally {
+    preset.unsubscribing = false
+  }
+}
+
+// 加载可用预设变量
+const loadAvailablePresets = async (page = 1) => {
+  presetsLoading.value = true
+  try {
+    const response = await request({
+      url: '/api/v1/templates/preset-variables/available',
+      method: 'GET',
+      params: {
+        pageNum: page,
+        pageSize: pageSize.value,
+        keyword: searchKeyword.value
+      }
+    })
+    
+    const data = response.data.data || {}
+    availablePresets.value = data.list || []
+    totalPresets.value = data.total || 0
+    currentPage.value = data.pageNum || 1
+  } catch (error) {
+    console.error('加载可用预设变量失败:', error)
+    message.error('加载可用预设变量失败')
+  } finally {
+    presetsLoading.value = false
+  }
+}
+
+// 搜索预设变量
+let searchTimeout = null
+const searchPresets = () => {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout)
+  }
+  searchTimeout = setTimeout(() => {
+    currentPage.value = 1
+    loadAvailablePresets()
+  }, 300)
+}
+
+// 分页处理
+const handlePageSizeChange = (newSize) => {
+  pageSize.value = newSize
+  currentPage.value = 1
+  loadAvailablePresets()
+}
+
+// 变量选择相关
+const isPresetSelected = (presetId) => {
+  return selectedPresets.value.includes(presetId)
+}
+
+const togglePreset = (preset, checked) => {
+  if (checked) {
+    if (!selectedPresets.value.includes(preset.id)) {
+      selectedPresets.value.push(preset.id)
+    }
+  } else {
+    const index = selectedPresets.value.indexOf(preset.id)
+    if (index > -1) {
+      selectedPresets.value.splice(index, 1)
+    }
+  }
+}
+
+// 确认订阅
+const confirmSubscribe = async () => {
+  if (selectedPresets.value.length === 0) {
+    message.warning('请选择要订阅的预设变量')
     return
   }
-  emit('insert-variable', preset.mapped_name)
+
+  subscribing.value = true
+  try {
+    await request({
+      url: `/api/v1/templates/${props.templateId}/preset-variables/subscribe`,
+      method: 'POST',
+      data: {
+        template_id: props.templateId,
+        preset_ids: selectedPresets.value
+      }
+    })
+    message.success('订阅成功')
+    showSubscribeModal.value = false
+    selectedPresets.value = []
+    await loadSubscribedPresets()
+  } catch (error) {
+    console.error('订阅失败:', error)
+    message.error('订阅失败')
+  } finally {
+    subscribing.value = false
+  }
 }
 
 // 更新预设变量状态
@@ -639,6 +835,16 @@ watch(() => props.templateId, () => {
 watch(() => activeTab.value, (newTab) => {
   if (newTab === 'presets' && props.templateId) {
     loadSubscribedPresets()
+  }
+})
+
+// 监听弹窗打开，加载可用预设变量
+watch(() => showSubscribeModal.value, (show) => {
+  if (show) {
+    selectedPresets.value = []
+    currentPage.value = 1
+    searchKeyword.value = ''
+    loadAvailablePresets()
   }
 })
 
@@ -1095,9 +1301,105 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
+.preset-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.preset-item {
+  display: flex;
+  flex-direction: column;
+  width: calc(20% - 6.4px);
+  min-width: 120px;
+  padding: 8px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fff;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.preset-item:hover {
+  border-color: #d9d9d9;
+  background: #fafafa;
+}
+
+.preset-info {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 8px;
+}
+
+.preset-name {
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 4px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preset-description {
+  color: #666;
+  font-size: 11px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preset-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .summary-header {
   display: flex;
   justify-content: space-between;
+}
+
+/* 订阅弹窗样式 */
+.search-bar {
+  margin-bottom: 16px;
+}
+
+.available-presets {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.preset-item-modal {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.preset-info-modal .preset-name {
+  margin: 0 0 8px 0;
+  color: #333;
+  font-weight: 500;
+}
+
+.preset-info-modal .preset-description {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.pagination {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
   align-items: center;
   margin-bottom: 16px;
   padding-bottom: 8px;

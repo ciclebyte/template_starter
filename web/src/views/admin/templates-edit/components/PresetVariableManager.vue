@@ -31,60 +31,59 @@
             </n-empty>
             
             <div v-else>
-                <div class="list-item" v-for="item in subscribedList" :key="item.id">
-                    <div class="item-header">
-                        <div class="item-title">
-                            <span class="preset-name">{{ item.preset_name }}</span>
-                            <n-tag size="tiny" type="info">{{ item.preset_path }}</n-tag>
+                <div class="preset-group" v-for="preset in subscribedList" :key="preset.id">
+                    <!-- 预设变量包头部 -->
+                    <div class="preset-header">
+                        <div class="preset-title">
+                            <span class="preset-name">{{ preset.presetName }}</span>
+                            <span class="variable-count">({{ preset.variables?.length || 0 }} 个变量)</span>
                         </div>
-                        <div class="item-actions">
-                            <n-switch 
-                                v-model:value="item.is_active" 
-                                :loading="item.updating"
-                                @update:value="updateActiveStatus(item)"
-                                size="small"
-                            />
-                            <n-button 
-                                size="tiny" 
-                                quaternary 
-                                @click="editMapping(item)"
-                                :loading="item.editing"
-                            >
-                                编辑
-                            </n-button>
-                            <n-popconfirm @positive-click="unsubscribe(item)">
+                        <div class="preset-actions">
+                            <n-popconfirm @positive-click="unsubscribe(preset)">
                                 <template #trigger>
                                     <n-button 
                                         size="tiny" 
                                         quaternary 
                                         type="error"
-                                        :loading="item.unsubscribing"
+                                        :loading="preset.unsubscribing"
                                     >
-                                        删除
+                                        取消订阅
                                     </n-button>
                                 </template>
-                                确定要取消订阅这个预设变量吗？
+                                确定要取消订阅这个预设变量包吗？
                             </n-popconfirm>
                         </div>
                     </div>
                     
-                    <div class="item-content">
-                        <div class="mapping-info">
-                            <span class="label">映射为:</span>
-                            <span class="value">{{ item.mapped_name }}</span>
-                        </div>
-                        <div class="variable-info" v-if="item.display_name || item.description">
-                            <div class="info-row" v-if="item.display_name">
-                                <span class="label">显示名:</span>
-                                <span class="value">{{ item.display_name }}</span>
+                    <!-- 预设变量包中的具体变量 -->
+                    <div class="variables-list" v-if="preset.variables && preset.variables.length > 0">
+                        <div class="variable-item" v-for="variable in preset.variables" :key="variable.path">
+                            <div class="variable-header">
+                                <div class="variable-info">
+                                    <span class="variable-path">{{ variable.path }}</span>
+                                    <span class="variable-type">{{ variable.type }}</span>
+                                </div>
+                                <div class="variable-copy">
+                                    <n-button 
+                                        size="tiny" 
+                                        quaternary 
+                                        @click="copyVariablePath(variable.path)"
+                                    >
+                                        复制
+                                    </n-button>
+                                </div>
                             </div>
-                            <div class="info-row" v-if="item.description">
-                                <span class="label">描述:</span>
-                                <span class="value">{{ item.description }}</span>
-                            </div>
-                            <div class="info-row" v-if="item.example">
-                                <span class="label">示例:</span>
-                                <span class="value">{{ item.example }}</span>
+                            <div class="variable-content">
+                                <div class="variable-display-name" v-if="variable.displayName">
+                                    {{ variable.displayName }}
+                                </div>
+                                <div class="variable-description" v-if="variable.description">
+                                    {{ variable.description }}
+                                </div>
+                                <div class="variable-default" v-if="variable.default">
+                                    <span class="label">默认值:</span>
+                                    <span class="value">{{ variable.default }}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -127,47 +126,18 @@
                             v-for="preset in availablePresets" 
                             :key="preset.id"
                         >
-                            <div class="preset-header">
-                                <h4>{{ preset.name }}</h4>
-                                <p class="preset-description">{{ preset.description }}</p>
-                            </div>
-                            
-                            <div class="variables-list">
-                                <div 
-                                    class="variable-item"
-                                    v-for="variable in preset.variables"
-                                    :key="variable.path"
+                            <div class="preset-content">
+                                <n-checkbox 
+                                    :checked="isPresetSelected(preset.id)"
+                                    @update:checked="togglePreset(preset, $event)"
                                 >
-                                    <n-checkbox 
-                                        :checked="isVariableSelected(preset.id, variable.path)"
-                                        @update:checked="toggleVariable(preset.id, variable, $event)"
-                                    >
-                                        <div class="variable-info">
-                                            <div class="variable-name">
-                                                <span class="path">{{ variable.path }}</span>
-                                                <span class="display-name" v-if="variable.display_name">
-                                                    ({{ variable.display_name }})
-                                                </span>
-                                            </div>
-                                            <div class="variable-desc" v-if="variable.description">
-                                                {{ variable.description }}
-                                            </div>
+                                    <div class="preset-info">
+                                        <div class="preset-name">{{ preset.name }}</div>
+                                        <div class="preset-description" v-if="preset.description">
+                                            {{ preset.description }}
                                         </div>
-                                    </n-checkbox>
-                                    
-                                    <!-- 映射设置 -->
-                                    <div 
-                                        class="mapping-config" 
-                                        v-if="isVariableSelected(preset.id, variable.path)"
-                                    >
-                                        <n-input 
-                                            :value="getVariableMapping(preset.id, variable.path)"
-                                            @update:value="updateVariableMapping(preset.id, variable.path, $event)"
-                                            placeholder="映射到的模板变量名"
-                                            size="small"
-                                        />
                                     </div>
-                                </div>
+                                </n-checkbox>
                             </div>
                         </div>
                     </div>
@@ -193,58 +163,23 @@
                             type="primary" 
                             @click="confirmSubscribe" 
                             :loading="subscribing"
-                            :disabled="selectedVariables.length === 0"
+                            :disabled="selectedPresets.length === 0"
                         >
-                            订阅选中的变量 ({{ selectedVariables.length }})
+                            订阅选中的预设 ({{ selectedPresets.length }})
                         </n-button>
                     </div>
                 </template>
             </n-card>
         </n-modal>
 
-        <!-- 编辑映射弹窗 -->
-        <n-modal v-model:show="showEditModal" :mask-closable="false">
-            <n-card style="width: 500px" title="编辑变量映射" :bordered="false" size="huge">
-                <template #header-extra>
-                    <n-button quaternary circle @click="showEditModal = false">
-                        <template #icon>
-                            <n-icon><CloseOutline /></n-icon>
-                        </template>
-                    </n-button>
-                </template>
-
-                <n-form ref="editFormRef" :model="editForm" :rules="editRules" label-placement="top">
-                    <n-form-item label="预设变量路径" path="preset_path">
-                        <n-input v-model:value="editForm.preset_path" readonly />
-                    </n-form-item>
-                    
-                    <n-form-item label="映射到的模板变量名" path="mapped_name">
-                        <n-input v-model:value="editForm.mapped_name" placeholder="请输入映射的变量名" />
-                    </n-form-item>
-                    
-                    <n-form-item label="是否启用" path="is_active">
-                        <n-switch v-model:value="editForm.is_active" />
-                    </n-form-item>
-                </n-form>
-
-                <template #footer>
-                    <div class="modal-footer">
-                        <n-button @click="showEditModal = false">取消</n-button>
-                        <n-button type="primary" @click="confirmEdit" :loading="editSubmitting">
-                            保存
-                        </n-button>
-                    </div>
-                </template>
-            </n-card>
-        </n-modal>
     </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { 
-    NButton, NIcon, NModal, NCard, NForm, NFormItem, NInput, NSwitch, 
-    NTag, NEmpty, NCheckbox, NPagination, NPopconfirm, useMessage
+    NButton, NIcon, NModal, NCard, NInput,
+    NEmpty, NCheckbox, NPagination, NPopconfirm, useMessage
 } from 'naive-ui'
 import { 
     AddOutline, CloseOutline, SearchOutline 
@@ -252,11 +187,11 @@ import {
 import request from '@/utils/request'
 
 // API函数
-const subscribePreset = (templateId, presets) => {
+const subscribePreset = (templateId, presetIds) => {
   return request({
     url: `/api/v1/templates/${templateId}/preset-variables/subscribe`,
     method: 'POST',
-    data: { template_id: templateId, presets: presets }
+    data: { template_id: templateId, preset_ids: presetIds }
   })
 }
 
@@ -274,13 +209,6 @@ const unsubscribePreset = (templateId, id) => {
   })
 }
 
-const updatePresetMapping = (templateId, id, data) => {
-  return request({
-    url: `/api/v1/templates/${templateId}/preset-variables/${id}`,
-    method: 'PUT',
-    data: { template_id: templateId, id: id, ...data }
-  })
-}
 
 const getAvailablePresets = (params = {}) => {
   return request({
@@ -307,7 +235,6 @@ const message = useMessage()
 const loading = ref(false)
 const subscribedList = ref([])
 const showSubscribeModal = ref(false)
-const showEditModal = ref(false)
 
 // 可用预设变量相关
 const presetsLoading = ref(false)
@@ -317,37 +244,18 @@ const currentPage = ref(1)
 const pageSize = ref(20)
 const searchKeyword = ref('')
 
-// 选中的变量
-const selectedVariables = ref([])
+// 选中的预设变量
+const selectedPresets = ref([])
 
 // 订阅状态
 const subscribing = ref(false)
-
-// 编辑表单
-const editFormRef = ref(null)
-const editForm = reactive({
-    id: null,
-    preset_path: '',
-    mapped_name: '',
-    is_active: true
-})
-
-const editRules = {
-    mapped_name: {
-        required: true,
-        message: '请输入映射的变量名',
-        trigger: ['input', 'blur']
-    }
-}
-
-const editSubmitting = ref(false)
 
 // 加载已订阅的预设变量
 const loadSubscribedPresets = async () => {
     loading.value = true
     try {
         const response = await getSubscribedPresets(props.templateId)
-        subscribedList.value = response.data || []
+        subscribedList.value = response.data.data.list || []
     } catch (error) {
         console.error('加载订阅列表失败:', error)
         message.error('加载订阅列表失败')
@@ -367,13 +275,9 @@ const loadAvailablePresets = async (page = 1) => {
         })
         
         const data = response.data.data || {}
-        console.log('API返回数据:', response.data)
-        console.log('解析后数据:', data)
-        console.log('预设列表:', data.list)
         availablePresets.value = data.list || []
         totalPresets.value = data.total || 0
         currentPage.value = data.pageNum || 1
-        console.log('设置后的availablePresets:', availablePresets.value)
     } catch (error) {
         console.error('加载可用预设变量失败:', error)
         message.error('加载可用预设变量失败')
@@ -402,62 +306,38 @@ const handlePageSizeChange = (newSize) => {
 }
 
 // 变量选择相关
-const isVariableSelected = (presetId, variablePath) => {
-    return selectedVariables.value.some(v => 
-        v.var_preset_id === presetId && v.preset_path === variablePath
-    )
+const isPresetSelected = (presetId) => {
+    return selectedPresets.value.includes(presetId)
 }
 
-const toggleVariable = (presetId, variable, checked) => {
+const togglePreset = (preset, checked) => {
     if (checked) {
-        // 添加选中的变量
-        selectedVariables.value.push({
-            var_preset_id: presetId,
-            preset_path: variable.path,
-            mapped_name: variable.path.split('.').pop(), // 默认使用路径的最后一部分作为映射名
-            is_active: 1,
-            sort: selectedVariables.value.length
-        })
-    } else {
-        // 移除选中的变量
-        const index = selectedVariables.value.findIndex(v => 
-            v.var_preset_id === presetId && v.preset_path === variable.path
-        )
-        if (index > -1) {
-            selectedVariables.value.splice(index, 1)
+        // 添加选中的预设变量
+        if (!selectedPresets.value.includes(preset.id)) {
+            selectedPresets.value.push(preset.id)
         }
-    }
-}
-
-const getVariableMapping = (presetId, variablePath) => {
-    const variable = selectedVariables.value.find(v => 
-        v.var_preset_id === presetId && v.preset_path === variablePath
-    )
-    return variable?.mapped_name || ''
-}
-
-const updateVariableMapping = (presetId, variablePath, mappedName) => {
-    const variable = selectedVariables.value.find(v => 
-        v.var_preset_id === presetId && v.preset_path === variablePath
-    )
-    if (variable) {
-        variable.mapped_name = mappedName
+    } else {
+        // 移除选中的预设变量
+        const index = selectedPresets.value.indexOf(preset.id)
+        if (index > -1) {
+            selectedPresets.value.splice(index, 1)
+        }
     }
 }
 
 // 确认订阅
 const confirmSubscribe = async () => {
-    if (selectedVariables.value.length === 0) {
-        message.warning('请选择要订阅的变量')
+    if (selectedPresets.value.length === 0) {
+        message.warning('请选择要订阅的预设变量')
         return
     }
 
     subscribing.value = true
     try {
-        await subscribePreset(props.templateId, selectedVariables.value)
+        await subscribePreset(props.templateId, selectedPresets.value)
         message.success('订阅成功')
         showSubscribeModal.value = false
-        selectedVariables.value = []
+        selectedPresets.value = []
         await loadSubscribedPresets()
     } catch (error) {
         console.error('订阅失败:', error)
@@ -467,61 +347,6 @@ const confirmSubscribe = async () => {
     }
 }
 
-// 更新激活状态
-const updateActiveStatus = async (item) => {
-    item.updating = true
-    try {
-        await updatePresetMapping(props.templateId, item.id, {
-            mapped_name: item.mapped_name,
-            is_active: item.is_active ? 1 : 0,
-            sort: item.sort
-        })
-        message.success('更新成功')
-    } catch (error) {
-        console.error('更新失败:', error)
-        message.error('更新失败')
-        // 恢复原状态
-        item.is_active = !item.is_active
-    } finally {
-        item.updating = false
-    }
-}
-
-// 编辑映射
-const editMapping = (item) => {
-    editForm.id = item.id
-    editForm.preset_path = item.preset_path
-    editForm.mapped_name = item.mapped_name
-    editForm.is_active = item.is_active === 1
-    showEditModal.value = true
-}
-
-// 确认编辑
-const confirmEdit = async () => {
-    try {
-        await editFormRef.value?.validate()
-        editSubmitting.value = true
-        
-        await updatePresetMapping(props.templateId, editForm.id, {
-            mapped_name: editForm.mapped_name,
-            is_active: editForm.is_active ? 1 : 0,
-            sort: 0
-        })
-        
-        message.success('更新成功')
-        showEditModal.value = false
-        await loadSubscribedPresets()
-    } catch (error) {
-        console.error('更新失败:', error)
-        if (error.message) {
-            message.error(error.message)
-        } else {
-            message.error('更新失败')
-        }
-    } finally {
-        editSubmitting.value = false
-    }
-}
 
 // 取消订阅
 const unsubscribe = async (item) => {
@@ -538,6 +363,17 @@ const unsubscribe = async (item) => {
     }
 }
 
+// 复制变量路径
+const copyVariablePath = async (path) => {
+    try {
+        await navigator.clipboard.writeText(`{{${path}}}`)
+        message.success('变量路径已复制到剪贴板')
+    } catch (error) {
+        console.error('复制失败:', error)
+        message.error('复制失败')
+    }
+}
+
 // 初始化
 onMounted(() => {
     loadSubscribedPresets()
@@ -546,7 +382,7 @@ onMounted(() => {
 // 监听弹窗打开，加载可用预设变量
 const watchSubscribeModal = () => {
     if (showSubscribeModal.value) {
-        selectedVariables.value = []
+        selectedPresets.value = []
         currentPage.value = 1
         searchKeyword.value = ''
         loadAvailablePresets()
@@ -773,5 +609,123 @@ watch(() => showSubscribeModal.value, watchSubscribeModal)
     padding: 4px 8px;
     font-size: 12px;
     height: 28px;
+}
+
+/* 预设变量组样式 */
+.preset-group {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    background: #fff;
+}
+
+.preset-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    background: #fafafa;
+    border-radius: 8px 8px 0 0;
+}
+
+.preset-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.preset-name {
+    font-weight: 500;
+    color: #333;
+}
+
+.variable-count {
+    color: #666;
+    font-size: 12px;
+}
+
+.variables-list {
+    padding: 8px;
+}
+
+.variable-item {
+    padding: 8px 12px;
+    border: 1px solid #f0f0f0;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    background: #fafafa;
+}
+
+.variable-item:last-child {
+    margin-bottom: 0;
+}
+
+.variable-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.variable-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.variable-path {
+    font-family: monospace;
+    color: #1890ff;
+    background: #f0f8ff;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.variable-type {
+    color: #666;
+    font-size: 11px;
+    background: #f5f5f5;
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
+.variable-content {
+    margin-left: 4px;
+}
+
+.variable-display-name {
+    color: #333;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+.variable-description {
+    color: #666;
+    font-size: 12px;
+    line-height: 1.4;
+    margin-bottom: 4px;
+}
+
+.variable-default {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+}
+
+.variable-default .label {
+    color: #999;
+}
+
+.variable-default .value {
+    color: #666;
+    font-family: monospace;
+    background: #f5f5f5;
+    padding: 1px 4px;
+    border-radius: 3px;
 }
 </style>

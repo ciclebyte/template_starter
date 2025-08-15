@@ -71,18 +71,22 @@ func (s *sTemplateVariablePresets) GetSubscribedPresets(ctx context.Context, req
 	res = &v1.GetSubscribedPresetsRes{}
 
 	// 查询模板订阅的预设变量关联关系
+	g.Log().Info(ctx, "GetSubscribedPresets查询模板ID:", req.TemplateId)
 	subscriptions, err := dao.TemplateVariablePresets.GetByTemplateId(ctx, req.TemplateId)
 	if err != nil {
 		return nil, fmt.Errorf("查询订阅关系失败: %w", err)
 	}
+	g.Log().Info(ctx, "GetSubscribedPresets查询到的订阅关系数量:", len(subscriptions))
 
 	var resultList []v1.SubscribedPresetItem
 
 	for _, subscription := range subscriptions {
-		// 类型断言
-		id, _ := subscription.Id.(uint64)
-		templateId, _ := subscription.TemplateId.(uint64)
-		presetId, _ := subscription.PresetId.(uint64)
+		// 使用gvar转换值
+		id := g.NewVar(subscription.Id).Uint64()
+		templateId := g.NewVar(subscription.TemplateId).Uint64()
+		presetId := g.NewVar(subscription.PresetId).Uint64()
+
+		g.Log().Info(ctx, "处理订阅关系:", "id=", id, "templateId=", templateId, "presetId=", presetId)
 
 		// 查询预设变量详情
 		var varPreset *entity.VarPreset
@@ -93,8 +97,10 @@ func (s *sTemplateVariablePresets) GetSubscribedPresets(ctx context.Context, req
 		}
 
 		if varPreset == nil {
+			g.Log().Warning(ctx, "预设变量不存在:", presetId)
 			continue
 		}
+		g.Log().Info(ctx, "查询到预设变量:", varPreset.Name)
 
 		description := ""
 		if varPreset.Description != nil {
@@ -107,12 +113,14 @@ func (s *sTemplateVariablePresets) GetSubscribedPresets(ctx context.Context, req
 			PresetId:    presetId,
 			PresetName:  varPreset.Name,
 			Description: description,
+			Schema:      varPreset.SchemaJson,
 		}
 
 		resultList = append(resultList, item)
 	}
 
-	res.Data = resultList
+	res.List = resultList
+	g.Log().Info(ctx, "GetSubscribedPresets最终返回数量:", len(resultList))
 	return res, nil
 }
 
@@ -138,7 +146,7 @@ func (s *sTemplateVariablePresets) GetAvailablePresets(ctx context.Context, req 
 	res = &v1.GetAvailablePresetsRes{}
 
 	g.Log().Info(ctx, "GetAvailablePresets请求参数:", "pageNum=", req.PageNum, "pageSize=", req.PageSize, "keyword=", req.Keyword)
-	
+
 	// 设置默认值
 	if req.PageNum <= 0 {
 		req.PageNum = 1
