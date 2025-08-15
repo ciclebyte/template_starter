@@ -3,16 +3,16 @@ import request from '@/utils/request'
 /**
  * 订阅预设变量到模板
  * @param {number} templateId - 模板ID
- * @param {Array} presets - 预设变量订阅列表
+ * @param {Array} presetIds - 预设变量ID列表
  * @returns {Promise}
  */
-export function subscribePreset(templateId, presets) {
+export function subscribePreset(templateId, presetIds) {
   return request({
-    url: `/templates/${templateId}/preset-variables/subscribe`,
+    url: `/api/v1/templates/${templateId}/preset-variables/subscribe`,
     method: 'POST',
     data: {
       template_id: templateId,
-      presets: presets
+      preset_ids: presetIds
     }
   })
 }
@@ -24,7 +24,7 @@ export function subscribePreset(templateId, presets) {
  */
 export function getSubscribedPresets(templateId) {
   return request({
-    url: `/templates/${templateId}/preset-variables`,
+    url: `/api/v1/templates/${templateId}/preset-variables`,
     method: 'GET'
   })
 }
@@ -37,29 +37,11 @@ export function getSubscribedPresets(templateId) {
  */
 export function unsubscribePreset(templateId, id) {
   return request({
-    url: `/templates/${templateId}/preset-variables/${id}`,
+    url: `/api/v1/templates/${templateId}/preset-variables/${id}`,
     method: 'DELETE'
   })
 }
 
-/**
- * 更新预设变量映射
- * @param {number} templateId - 模板ID
- * @param {number} id - 关联ID
- * @param {Object} data - 更新数据
- * @returns {Promise}
- */
-export function updatePresetMapping(templateId, id, data) {
-  return request({
-    url: `/templates/${templateId}/preset-variables/${id}`,
-    method: 'PUT',
-    data: {
-      template_id: templateId,
-      id: id,
-      ...data
-    }
-  })
-}
 
 /**
  * 获取可用预设变量列表
@@ -68,11 +50,11 @@ export function updatePresetMapping(templateId, id, data) {
  */
 export function getAvailablePresets(params = {}) {
   return request({
-    url: '/templates/preset-variables/available',
+    url: '/api/v1/templates/preset-variables/available',
     method: 'GET',
     params: {
-      page: 1,
-      size: 20,
+      pageNum: 1,
+      pageSize: 20,
       ...params
     }
   })

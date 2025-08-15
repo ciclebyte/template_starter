@@ -15,9 +15,6 @@ type ITemplateVariablePresets interface {
 	// UnsubscribePreset 取消订阅预设变量
 	UnsubscribePreset(ctx context.Context, req *v1.UnsubscribePresetReq) (res *v1.UnsubscribePresetRes, err error)
 	
-	// UpdatePresetMapping 更新预设变量映射
-	UpdatePresetMapping(ctx context.Context, req *v1.UpdatePresetMappingReq) (res *v1.UpdatePresetMappingRes, err error)
-	
 	// GetAvailablePresets 获取可用的预设变量列表
 	GetAvailablePresets(ctx context.Context, req *v1.GetAvailablePresetsReq) (res *v1.GetAvailablePresetsRes, err error)
 }

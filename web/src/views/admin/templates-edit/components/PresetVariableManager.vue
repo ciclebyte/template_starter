@@ -1,17 +1,23 @@
 <template>
-    <div class="preset-variable-manager">
+    <div class="preset-variable-manager" :class="{ 'compact-mode': compact }">
         <!-- 头部操作栏 -->
         <div class="manager-header">
             <div class="header-left">
-                <h3>预设变量订阅</h3>
-                <p class="description">从预设变量库中订阅变量到当前模板</p>
+                <h3 v-if="!compact">预设变量订阅</h3>
+                <h4 v-else>预设变量</h4>
+                <p v-if="!compact" class="description">从预设变量库中订阅变量到当前模板</p>
             </div>
             <div class="header-right">
-                <n-button type="primary" @click="showSubscribeModal = true" :loading="loading">
+                <n-button 
+                    :type="compact ? 'default' : 'primary'" 
+                    :size="compact ? 'small' : 'medium'"
+                    @click="showSubscribeModal = true" 
+                    :loading="loading"
+                >
                     <template #icon>
                         <n-icon><AddOutline /></n-icon>
                     </template>
-                    订阅预设变量
+                    {{ compact ? '订阅' : '订阅预设变量' }}
                 </n-button>
             </div>
         </div>
@@ -248,7 +254,7 @@ import request from '@/utils/request'
 // API函数
 const subscribePreset = (templateId, presets) => {
   return request({
-    url: `/templates/${templateId}/preset-variables/subscribe`,
+    url: `/api/v1/templates/${templateId}/preset-variables/subscribe`,
     method: 'POST',
     data: { template_id: templateId, presets: presets }
   })
@@ -256,21 +262,21 @@ const subscribePreset = (templateId, presets) => {
 
 const getSubscribedPresets = (templateId) => {
   return request({
-    url: `/templates/${templateId}/preset-variables`,
+    url: `/api/v1/templates/${templateId}/preset-variables`,
     method: 'GET'
   })
 }
 
 const unsubscribePreset = (templateId, id) => {
   return request({
-    url: `/templates/${templateId}/preset-variables/${id}`,
+    url: `/api/v1/templates/${templateId}/preset-variables/${id}`,
     method: 'DELETE'
   })
 }
 
 const updatePresetMapping = (templateId, id, data) => {
   return request({
-    url: `/templates/${templateId}/preset-variables/${id}`,
+    url: `/api/v1/templates/${templateId}/preset-variables/${id}`,
     method: 'PUT',
     data: { template_id: templateId, id: id, ...data }
   })
@@ -278,9 +284,9 @@ const updatePresetMapping = (templateId, id, data) => {
 
 const getAvailablePresets = (params = {}) => {
   return request({
-    url: '/templates/preset-variables/available',
+    url: '/api/v1/templates/preset-variables/available',
     method: 'GET',
-    params: { page: 1, size: 20, ...params }
+    params: { pageNum: 1, pageSize: 20, ...params }
   })
 }
 
@@ -288,6 +294,10 @@ const props = defineProps({
     templateId: {
         type: [Number, String],
         required: true
+    },
+    compact: {
+        type: Boolean,
+        default: false
     }
 })
 
@@ -351,15 +361,19 @@ const loadAvailablePresets = async (page = 1) => {
     presetsLoading.value = true
     try {
         const response = await getAvailablePresets({
-            page: page,
-            size: pageSize.value,
+            pageNum: page,
+            pageSize: pageSize.value,
             keyword: searchKeyword.value
         })
         
-        const data = response.data || {}
+        const data = response.data.data || {}
+        console.log('API返回数据:', response.data)
+        console.log('解析后数据:', data)
+        console.log('预设列表:', data.list)
         availablePresets.value = data.list || []
         totalPresets.value = data.total || 0
-        currentPage.value = data.page || 1
+        currentPage.value = data.pageNum || 1
+        console.log('设置后的availablePresets:', availablePresets.value)
     } catch (error) {
         console.error('加载可用预设变量失败:', error)
         message.error('加载可用预设变量失败')
@@ -699,5 +713,65 @@ watch(() => showSubscribeModal.value, watchSubscribeModal)
     display: flex;
     justify-content: flex-end;
     gap: 12px;
+}
+
+/* 紧凑模式样式 - 针对在变量面板中的使用 */
+.compact-mode .preset-variable-manager {
+    padding: 8px;
+}
+
+.compact-mode .manager-header {
+    margin-bottom: 12px;
+}
+
+.compact-mode .manager-header h4 {
+    font-size: 14px;
+    margin-bottom: 2px;
+}
+
+.compact-mode .subscribed-list .list-item {
+    padding: 8px;
+    margin-bottom: 8px;
+    border-radius: 6px;
+}
+
+.compact-mode .item-header {
+    margin-bottom: 6px;
+}
+
+.compact-mode .preset-name {
+    font-size: 13px;
+}
+
+.compact-mode .item-actions .n-button {
+    padding: 2px 6px;
+    font-size: 11px;
+    height: 24px;
+}
+
+.compact-mode .item-actions .n-switch {
+    transform: scale(0.85);
+}
+
+.compact-mode .mapping-info .label,
+.compact-mode .info-row .label {
+    width: 50px;
+    font-size: 11px;
+}
+
+.compact-mode .mapping-info .value,
+.compact-mode .info-row .value {
+    font-size: 11px;
+}
+
+.compact-mode .n-tag {
+    font-size: 10px;
+    padding: 2px 6px;
+}
+
+.compact-mode .header-right .n-button {
+    padding: 4px 8px;
+    font-size: 12px;
+    height: 28px;
 }
 </style>

@@ -247,6 +247,54 @@
           </n-button>
         </div>
       </div>
+
+      <!-- 预设变量 Tab - 显示已订阅的预设变量 -->
+      <div v-show="activeTab === 'presets'" class="tab-content preset-tab">
+        <div class="preset-variables-summary">
+          <div class="summary-header">
+            <h4>已订阅的预设变量</h4>
+            <n-button 
+              type="primary" 
+              size="small" 
+              @click="$emit('show-preset-manager')"
+            >
+              <template #icon>
+                <n-icon><AddOutline /></n-icon>
+              </template>
+              管理预设变量
+            </n-button>
+          </div>
+          
+          <div class="subscribed-variables" v-loading="loadingPresets">
+            <n-empty v-if="subscribedPresets.length === 0" description="暂无订阅的预设变量" size="small">
+              <template #extra>
+                <n-button size="small" @click="$emit('show-preset-manager')">立即订阅</n-button>
+              </template>
+            </n-empty>
+            
+            <div v-else class="preset-list">
+              <div 
+                v-for="preset in subscribedPresets" 
+                :key="preset.id"
+                class="preset-item"
+                @click="insertPresetVariable(preset)"
+                :title="`点击插入：${preset.mapped_name}`"
+              >
+                <div class="preset-info">
+                  <span class="preset-name">{{ preset.mapped_name }}</span>
+                  <span class="preset-path">{{ preset.preset_path }}</span>
+                </div>
+                <n-switch 
+                  v-model:value="preset.is_active" 
+                  size="small"
+                  @click.stop
+                  @update:value="updatePresetStatus(preset)"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     
     <!-- 变量面板拖拽调整手柄 -->
@@ -265,8 +313,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { NSpin, NButton, NTag } from 'naive-ui'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { NSpin, NButton, NTag, NEmpty, NSwitch, NIcon, useMessage } from 'naive-ui'
+import { AddOutline } from '@vicons/ionicons5'
+import request from '@/utils/request'
 
 const props = defineProps({
   isOpen: {
@@ -300,6 +350,10 @@ const props = defineProps({
   quickVariables: {
     type: Array,
     default: () => []
+  },
+  templateId: {
+    type: [String, Number],
+    required: true
   }
 })
 
@@ -309,6 +363,7 @@ const emit = defineEmits([
   'insert-sprig-function',
   'insert-variable',
   'show-variable-manager',
+  'show-preset-manager',
   'update:height'
 ])
 
@@ -318,13 +373,19 @@ const variableTabs = [
   { key: 'functions', label: '内置函数' },
   { key: 'sprig', label: 'Sprig函数' },
   { key: 'builtin', label: '内置变量' },
-  { key: 'custom', label: '用户变量' }
+  { key: 'custom', label: '用户变量' },
+  { key: 'presets', label: '+ 预设变量' }
 ]
 
 // 状态
 const activeTab = ref('syntax')
 const panelHeight = ref(300)
 const isResizing = ref(false)
+
+// 预设变量相关状态
+const message = useMessage()
+const subscribedPresets = ref([])
+const loadingPresets = ref(false)
 
 // 函数详情面板
 const functionDetailVisible = ref(false)
@@ -508,6 +569,78 @@ const stopResize = () => {
   document.body.style.userSelect = ''
   document.body.style.cursor = ''
 }
+
+// 预设变量API调用
+const getSubscribedPresets = (templateId) => {
+  return request({
+    url: `/api/v1/templates/${templateId}/preset-variables`,
+    method: 'GET'
+  })
+}
+
+const updatePresetMapping = (templateId, id, data) => {
+  return request({
+    url: `/api/v1/templates/${templateId}/preset-variables/${id}`,
+    method: 'PUT',
+    data: { template_id: templateId, id: id, ...data }
+  })
+}
+
+// 加载已订阅的预设变量
+const loadSubscribedPresets = async () => {
+  if (!props.templateId) return
+  
+  loadingPresets.value = true
+  try {
+    const response = await getSubscribedPresets(props.templateId)
+    subscribedPresets.value = response.data || []
+  } catch (error) {
+    console.error('加载预设变量失败:', error)
+    subscribedPresets.value = []
+  } finally {
+    loadingPresets.value = false
+  }
+}
+
+// 插入预设变量
+const insertPresetVariable = (preset) => {
+  if (!preset.is_active) {
+    message.warning('该预设变量已被禁用')
+    return
+  }
+  emit('insert-variable', preset.mapped_name)
+}
+
+// 更新预设变量状态
+const updatePresetStatus = async (preset) => {
+  try {
+    await updatePresetMapping(props.templateId, preset.id, {
+      mapped_name: preset.mapped_name,
+      is_active: preset.is_active ? 1 : 0,
+      sort: preset.sort || 0
+    })
+    message.success('状态更新成功')
+  } catch (error) {
+    console.error('更新状态失败:', error)
+    message.error('更新状态失败')
+    // 恢复原状态
+    preset.is_active = !preset.is_active
+  }
+}
+
+// 监听模板ID变化
+watch(() => props.templateId, () => {
+  if (props.templateId) {
+    loadSubscribedPresets()
+  }
+}, { immediate: true })
+
+// 监听活动tab变化，如果切换到预设变量tab则刷新数据
+watch(() => activeTab.value, (newTab) => {
+  if (newTab === 'presets' && props.templateId) {
+    loadSubscribedPresets()
+  }
+})
 
 // 清理
 onUnmounted(() => {
@@ -934,4 +1067,96 @@ onUnmounted(() => {
   border-radius: 2px;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 }
+
+/* 预设变量Tab特殊样式 */
+.tab-item:has-text("+ 预设变量"), 
+.tab-item:last-child {
+  position: relative;
+}
+
+.tab-item:has-text("+ 预设变量"):before,
+.tab-item:last-child:before {
+  content: "+";
+  margin-right: 4px;
+  font-weight: bold;
+  color: #1890ff;
+}
+
+.preset-tab {
+  padding: 0;
+  height: 100%;
+}
+
+/* 预设变量概览样式 */
+.preset-variables-summary {
+  padding: 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.summary-header h4 {
+  margin: 0;
+  font-size: 14px;
+  color: #333;
+  font-weight: 600;
+}
+
+.subscribed-variables {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preset-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.preset-item:hover {
+  background: #e9ecef;
+  border-color: #18a058;
+}
+
+.preset-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.preset-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.preset-path {
+  font-size: 11px;
+  color: #666;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
 </style>

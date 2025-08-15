@@ -7,7 +7,6 @@
       :current-file-name="currentFileName"
       @toggle-variable-panel="toggleVariablePanel" 
       @show-variable-manager="showVariableManager = true" 
-      @show-preset-manager="showPresetManager = true"
       @close-edit="closeEdit" 
       @toggle-file-tree="toggleFileTree" 
       @show-settings="showSettings = true"
@@ -29,9 +28,11 @@
     <VariablePanel :is-open="isVariablePanelOpen" :template-variables="templateVariables"
       :template-syntax-categories="templateSyntaxCategories" :builtin-function-categories="builtinFunctionCategories"
       :sprig-function-categories="sprigFunctionCategories" :loading-functions="loadingFunctions"
-      :loading-sprig-functions="loadingSprigFunctions" :quick-variables="quickVariables" @insert-syntax="insertSyntax"
+      :loading-sprig-functions="loadingSprigFunctions" :quick-variables="quickVariables" 
+      :template-id="route.params.id"
+      @insert-syntax="insertSyntax"
       @insert-function="insertFunction" @insert-sprig-function="insertSprigFunction" @insert-variable="insertVariable"
-      @show-variable-manager="showVariableManager = true" @update:height="variablePanelHeight = $event" />
+      @show-variable-manager="showVariableManager = true" @show-preset-manager="showPresetManager = true" @update:height="variablePanelHeight = $event" />
 
     <div class="edit-main">
       <!-- 左侧：模板资源管理器 -->
@@ -79,7 +80,11 @@
       </template>
 
       <div class="preset-manager-content">
-        <PresetVariableManager :template-id="route.params.id" />
+        <PresetVariableManager 
+          ref="presetManagerRef" 
+          :template-id="route.params.id"
+          @refresh="onPresetRefresh"
+        />
       </div>
     </n-modal>
 
@@ -119,7 +124,6 @@ import { getSprigFunctions } from '@/api/sprigFunctions'
 import TemplateExplorer from './components/TemplateFileTree.vue'
 import TemplateEditor from './components/TemplateEditor.vue'
 import VariableManager from './components/VariableManager.vue'
-import PresetVariableManager from './components/PresetVariableManager.vue'
 import TemplatePreview from './components/TemplatePreview.vue'
 import AIAssistant from './components/AIAssistant.vue'
 import AISDKPanel from './components/AISDKPanel.vue'
@@ -127,6 +131,7 @@ import EditHeader from './components/EditHeader.vue'
 import ConditionModal from './components/ConditionModal.vue'
 import VariablePanel from './components/VariablePanel.vue'
 import EditorSettings from './components/EditorSettings.vue'
+import PresetVariableManager from './components/PresetVariableManager.vue'
 import { templateSyntaxCategories as syntaxData } from './data/templateSyntax.js'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
 import { useMessage, NIcon, NButton, NSpin, NForm, NFormItem, NSwitch, NSelect, NRadioGroup, NRadio, NInput, NModal, NCard } from 'naive-ui'
@@ -154,6 +159,7 @@ const templateEditorRef = ref(null)
 const variableManagerRef = ref(null)
 const conditionModalRef = ref(null)
 const showVariableManager = ref(false)
+const presetManagerRef = ref(null)
 const showPresetManager = ref(false)
 
 const variableValues = ref({})
@@ -825,6 +831,13 @@ function onInsertVariable(template) {
   if (templateEditorRef.value) {
     templateEditorRef.value.insertVariable(template)
   }
+}
+
+// 预设变量刷新事件处理
+function onPresetRefresh() {
+  // 当预设变量管理器有变化时，刷新变量面板中的预设变量列表
+  // 这里可以通过 ref 调用 VariablePanel 的刷新方法，或者触发相关事件
+  console.log('预设变量已刷新')
 }
 
 // 预览事件处理
@@ -1516,6 +1529,23 @@ function onAIApplySuggestion(suggestion) {
 }
 
 .variable-manager-content .variable-manager {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 预设变量管理弹框样式 */
+.preset-manager-header {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.preset-manager-content {
+  height: calc(85vh - 120px);
+  overflow: hidden;
+}
+
+.preset-manager-content .preset-variable-manager {
   height: 100%;
   overflow: hidden;
 }

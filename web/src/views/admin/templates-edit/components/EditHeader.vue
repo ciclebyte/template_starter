@@ -34,16 +34,6 @@
         </template>
         变量管理
       </n-button>
-      <n-button size="small" @click="$emit('show-preset-manager')" title="预设变量管理">
-        <template #icon>
-          <n-icon>
-            <svg viewBox="0 0 24 24" width="16" height="16">
-              <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-            </svg>
-          </n-icon>
-        </template>
-        预设变量
-      </n-button>
       <n-button size="small" @click="$emit('show-settings')" title="编辑器设置">
         <template #icon>
           <n-icon>
@@ -90,7 +80,7 @@ defineProps({
   }
 })
 
-defineEmits(['toggle-variable-panel', 'show-variable-manager', 'show-preset-manager', 'close-edit', 'toggle-file-tree', 'show-settings'])
+defineEmits(['toggle-variable-panel', 'show-variable-manager', 'close-edit', 'toggle-file-tree', 'show-settings'])
 </script>
 
 <style scoped>

@@ -25,10 +25,6 @@ func (c *cTemplateVariablePresets) UnsubscribePreset(ctx context.Context, req *v
 	return service.TemplateVariablePresets().UnsubscribePreset(ctx, req)
 }
 
-// UpdatePresetMapping 更新预设变量映射
-func (c *cTemplateVariablePresets) UpdatePresetMapping(ctx context.Context, req *v1.UpdatePresetMappingReq) (res *v1.UpdatePresetMappingRes, err error) {
-	return service.TemplateVariablePresets().UpdatePresetMapping(ctx, req)
-}
 
 // GetAvailablePresets 获取可用的预设变量列表
 func (c *cTemplateVariablePresets) GetAvailablePresets(ctx context.Context, req *v1.GetAvailablePresetsReq) (res *v1.GetAvailablePresetsRes, err error) {

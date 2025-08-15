@@ -36,7 +36,7 @@ func (dao *templateVariablePresetsDao) Get(ctx context.Context, id int64) (*do.T
 // GetByTemplateId 根据模板ID查询订阅的预设变量列表
 func (dao *templateVariablePresetsDao) GetByTemplateId(ctx context.Context, templateId uint64) ([]*do.TemplateVariablePresets, error) {
 	var result []*do.TemplateVariablePresets
-	err := dao.Ctx(ctx).Where("template_id = ?", templateId).OrderAsc("sort").Scan(&result)
+	err := dao.Ctx(ctx).Where("template_id = ?", templateId).OrderAsc("id").Scan(&result)
 	return result, err
 }
 
