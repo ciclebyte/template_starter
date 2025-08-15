@@ -27,13 +27,8 @@
         <div class="left-panel" :style="{ width: leftPanelWidth + 'px' }">
           <div class="panel-title">
             变量资源
-            <n-button size="small" @click="addRootVariable">
-              <template #icon>
-                <n-icon><AddOutline /></n-icon>
-              </template>
-            </n-button>
           </div>
-          <div class="variable-tree">
+          <div class="variable-tree" @contextmenu="onTreeAreaContextMenu">
             <n-tree
               :data="variableTreeData"
               :selected-keys="selectedKeys"
@@ -41,15 +36,11 @@
               key-field="key"
               label-field="title"
               children-field="children"
+              :node-props="nodeProps"
               block-line
               @update:selected-keys="onSelectVariable"
               @update:expanded-keys="onExpandKeys"
             >
-              <template #prefix="{ option }">
-                <n-icon class="var-icon" :class="`var-${option.type}`">
-                  <component :is="getVariableIcon(option.type)" />
-                </n-icon>
-              </template>
               
               <template #suffix="{ option }">
                 <div class="node-actions" @click.stop>
@@ -57,8 +48,9 @@
                     :options="getNodeMenuOptions(option)"
                     @select="(key) => handleNodeAction(key, option)"
                     trigger="click"
+                    placement="bottom-end"
                   >
-                    <n-button size="tiny" quaternary>
+                    <n-button size="tiny" quaternary circle>
                       <template #icon>
                         <n-icon><EllipsisHorizontalOutline /></n-icon>
                       </template>
@@ -67,6 +59,26 @@
                 </div>
               </template>
             </n-tree>
+            
+            <!-- 空状态提示 -->
+            <div v-if="!variableTreeData || variableTreeData.length === 0" 
+                 class="empty-tree-hint"
+                 @contextmenu="onTreeAreaContextMenu">
+              暂无变量（右键添加）
+            </div>
+            
+            <!-- 右键上下文菜单 -->
+            <n-dropdown
+              to="body"
+              trigger="manual"
+              :x="contextMenuX"
+              :y="contextMenuY"
+              :options="contextMenuOptions"
+              :show="showContextMenuFlag"
+              @select="handleContextMenuAction"
+              @clickoutside="hideContextMenu"
+              placement="bottom-start"
+            />
           </div>
         </div>
 
@@ -307,7 +319,8 @@ import {
   SaveOutline, CloseOutline, DocumentOutline, AddOutline, TrashOutline,
   EllipsisHorizontalOutline, SettingsOutline, CodeSlashOutline,
   TextOutline, Calculator, ToggleOutline, ListOutline, ArchiveOutline,
-  KeyOutline, LockClosedOutline
+  KeyOutline, LockClosedOutline, Folder, FolderOpenOutline, 
+  EllipsisVerticalOutline, CheckboxOutline, CodeOutline
 } from '@vicons/ionicons5'
 import request from '@/utils/request'
 import { EditorView, basicSetup } from 'codemirror'
@@ -351,6 +364,13 @@ const previewFormat = ref('json')
 const schemaEditorRef = ref(null)
 let schemaEditor = null
 
+// 右键菜单状态
+const showContextMenuFlag = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const contextMenuOptions = ref([])
+const contextMenuTarget = ref(null)
+
 // 拖拽相关状态
 const drawerHeight = ref(Math.floor(window.innerHeight * 0.67)) // 默认三分之二高度
 const isResizing = ref(false)
@@ -383,6 +403,75 @@ watch(computedCenterWidth, (newWidth) => {
 watch(computedRightWidth, (newWidth) => {
   rightPanelWidth.value = newWidth
 }, { immediate: true })
+
+// 节点属性配置（参考TemplateFileTree）
+const nodeProps = ({ option }) => {
+  return {
+    onContextmenu(e) {
+      e.preventDefault()
+      e.stopPropagation()
+      
+      // 设置下拉菜单选项
+      contextMenuOptions.value = getNodeMenuOptions(option)
+      contextMenuTarget.value = option
+      contextMenuX.value = e.clientX
+      contextMenuY.value = e.clientY
+      showContextMenuFlag.value = true
+    }
+  }
+}
+
+// 隐藏右键菜单
+const hideContextMenu = () => {
+  showContextMenuFlag.value = false
+  contextMenuTarget.value = null
+}
+
+// 处理右键菜单操作
+const handleContextMenuAction = (key) => {
+  if (contextMenuTarget.value) {
+    handleNodeAction(key, contextMenuTarget.value)
+  } else {
+    // 空白区域的右键菜单操作
+    handleEmptyAreaAction(key)
+  }
+  hideContextMenu()
+}
+
+// 空白区域右键菜单处理
+const handleEmptyAreaAction = (key) => {
+  switch (key) {
+    case 'add-string':
+      addRootVariable() // 直接使用现有的添加根变量函数
+      break
+  }
+}
+
+
+// 树区域右键菜单处理
+const onTreeAreaContextMenu = (event) => {
+  // 检查是否点击在树节点上
+  if (event.target.closest('.n-tree-node')) return
+  
+  event.preventDefault()
+  event.stopPropagation()
+  
+  // 设置空白区域的右键菜单选项
+  contextMenuOptions.value = [
+    {
+      label: '添加变量',
+      key: 'add-string',
+      icon: () => h(NIcon, null, { default: () => h(AddOutline) })
+    }
+  ]
+  
+  contextMenuTarget.value = null // 标记为空白区域
+  contextMenuX.value = event.clientX
+  contextMenuY.value = event.clientY
+  showContextMenuFlag.value = true
+  
+  console.log('Right-click on empty area at', event.clientX, event.clientY)
+}
 
 // 数据类型选项
 const typeOptions = [
@@ -418,7 +507,9 @@ const namingPolicyOptions = [
 
 // 转换为变量树数据
 const variableTreeData = computed(() => {
-  return convertToTreeData(varsSchema.value)
+  const treeData = convertToTreeData(varsSchema.value)
+  console.log('Generated tree data:', treeData) // 调试日志
+  return treeData
 })
 
 // 转换变量Schema为树形数据
@@ -431,17 +522,26 @@ const convertToTreeData = (schema, parentPath = '') => {
   
   Object.entries(schema).forEach(([key, value]) => {
     const currentPath = parentPath ? `${parentPath}.${key}` : key
+    const varType = value.type || 'string'
+    
+    // 检查对象类型是否有子变量
+    const hasChildren = varType === 'object' && value.properties && Object.keys(value.properties).length > 0
     
     const node = {
       key: currentPath,
       title: value.title || key,
-      type: value.type || 'string',
+      type: varType,
       path: currentPath,
-      data: value
+      data: value,
+      isLeaf: !hasChildren,
+      // 添加prefix函数，参考模板资源树的实现
+      prefix: () => h(NIcon, { class: `var-icon var-${varType}` }, {
+        default: () => h(getVariableIconComponent(varType, hasChildren))
+      })
     }
     
     // 如果是对象类型且有properties，递归生成子节点
-    if (value.type === 'object' && value.properties) {
+    if (hasChildren) {
       node.children = convertToTreeData(value.properties, currentPath)
     }
     
@@ -451,20 +551,26 @@ const convertToTreeData = (schema, parentPath = '') => {
   return treeData
 }
 
-// 获取变量图标
-const getVariableIcon = (type) => {
+// 获取变量图标组件（参考模板资源树的实现）
+const getVariableIconComponent = (type, hasChildren = false) => {
+  // 对象类型根据是否有子变量显示不同图标
+  if (type === 'object') {
+    return hasChildren ? FolderOpenOutline : Folder
+  }
+  
+  // 其他类型使用标准图标
   const iconMap = {
-    string: TextOutline,
-    integer: Calculator,
-    number: Calculator,
-    boolean: ToggleOutline,
-    array: ListOutline,
-    object: ArchiveOutline,
-    enum: KeyOutline,
-    secret: LockClosedOutline
+    string: TextOutline,        // 📝 文本图标
+    integer: Calculator,        // 🔢 计算器图标
+    number: Calculator,         // 🔢 计算器图标 
+    boolean: CheckboxOutline,   // ☑️ 复选框图标
+    array: ListOutline,         // 📋 列表图标
+    enum: EllipsisVerticalOutline, // ⋮ 选择图标
+    secret: LockClosedOutline   // 🔒 锁图标
   }
   return iconMap[type] || TextOutline
 }
+
 
 // 获取类型标签样式
 const getTypeTagType = (type) => {
@@ -616,30 +722,35 @@ const addRootVariable = () => {
   onSelectVariable([varName])
 }
 
+
 // 获取节点菜单选项
 const getNodeMenuOptions = (option) => {
-  const baseOptions = [
-    {
-      label: '重命名',
-      key: 'rename',
-      icon: () => h(NIcon, null, { default: () => h(TextOutline) })
-    },
-    {
-      label: '删除',
-      key: 'delete',
-      icon: () => h(NIcon, null, { default: () => h(TrashOutline) })
-    }
-  ]
+  const menuOptions = []
   
+  // 对象类型可以添加子属性
   if (option.type === 'object') {
-    baseOptions.unshift({
-      label: '添加子属性',
+    menuOptions.push({
+      label: '新增子变量',
       key: 'add-child',
       icon: () => h(NIcon, null, { default: () => h(AddOutline) })
     })
   }
   
-  return baseOptions
+  // 复制变量
+  menuOptions.push({
+    label: '复制变量',
+    key: 'copy',
+    icon: () => h(NIcon, null, { default: () => h(DocumentOutline) })
+  })
+  
+  // 删除变量
+  menuOptions.push({
+    label: '删除变量',
+    key: 'delete',
+    icon: () => h(NIcon, null, { default: () => h(TrashOutline) })
+  })
+  
+  return menuOptions
 }
 
 // 处理节点操作
@@ -648,8 +759,8 @@ const handleNodeAction = (key, option) => {
     case 'add-child':
       addChildVariable(option.path)
       break
-    case 'rename':
-      // TODO: 实现重命名功能
+    case 'copy':
+      copyVariable(option.path)
       break
     case 'delete':
       deleteVariable(option.path)
@@ -659,12 +770,24 @@ const handleNodeAction = (key, option) => {
 
 // 添加子变量
 const addChildVariable = (parentPath) => {
+  console.log('Adding child to:', parentPath) // 调试日志
+  
   const pathParts = parentPath.split('.')
   let current = varsSchema.value
   
-  // 导航到父级properties
+  // 导航到父级变量
   for (const part of pathParts) {
-    current = current[part]
+    if (current[part]) {
+      current = current[part]
+    } else {
+      console.error('Path not found:', part, 'in', current)
+      return
+    }
+  }
+  
+  // 确保父级是对象类型并有properties
+  if (current.type !== 'object') {
+    current.type = 'object'
   }
   
   if (!current.properties) {
@@ -674,30 +797,92 @@ const addChildVariable = (parentPath) => {
   const childName = `child_${Date.now()}`
   current.properties[childName] = createDefaultVariable(childName, 'string')
   
+  console.log('Added child:', childName, 'to', parentPath) // 调试日志
+  
   // 展开父级并选中新创建的子变量
   const childPath = `${parentPath}.${childName}`
-  expandedKeys.value = [...expandedKeys.value, parentPath]
+  if (!expandedKeys.value.includes(parentPath)) {
+    expandedKeys.value = [...expandedKeys.value, parentPath]
+  }
   selectedKeys.value = [childPath]
   onSelectVariable([childPath])
+  
+  // 强制更新树数据
+  varsSchema.value = { ...varsSchema.value }
 }
+
+
+// 复制变量
+const copyVariable = (path) => {
+  console.log('Copying variable:', path)
+  
+  const pathParts = path.split('.')
+  let current = varsSchema.value
+  
+  // 导航到目标变量
+  for (let i = 0; i < pathParts.length - 1; i++) {
+    if (current[pathParts[i]]) {
+      if (current[pathParts[i]].properties) {
+        current = current[pathParts[i]].properties
+      } else {
+        current = current[pathParts[i]]
+      }
+    }
+  }
+  
+  const originalVarName = pathParts[pathParts.length - 1]
+  if (current[originalVarName]) {
+    const originalVariable = current[originalVarName]
+    const copyVarName = `${originalVarName}_copy_${Date.now()}`
+    
+    // 深度复制变量定义
+    current[copyVarName] = JSON.parse(JSON.stringify(originalVariable))
+    current[copyVarName].title = (current[copyVarName].title || originalVarName) + ' 复制'
+    
+    console.log('Variable copied successfully:', copyVarName)
+    
+    // 强制更新树数据
+    varsSchema.value = { ...varsSchema.value }
+    
+    // 选中新复制的变量
+    const newPath = pathParts.slice(0, -1).concat([copyVarName]).join('.')
+    selectedKeys.value = [newPath]
+    onSelectVariable([newPath])
+    
+    message.success('变量复制成功')
+  }
+}
+
 
 // 删除变量
 const deleteVariable = (path) => {
+  console.log('Deleting variable:', path) // 调试日志
+  
   const pathParts = path.split('.')
   const varName = pathParts[pathParts.length - 1]
   
   if (pathParts.length === 1) {
     // 删除根级变量
     delete varsSchema.value[varName]
+    console.log('Deleted root variable:', varName)
   } else {
     // 删除嵌套变量
     let current = varsSchema.value
     for (let i = 0; i < pathParts.length - 2; i++) {
-      current = current[pathParts[i]]
+      if (current[pathParts[i]]) {
+        current = current[pathParts[i]]
+      } else {
+        console.error('Parent path not found:', pathParts[i])
+        return
+      }
     }
-    const parentProp = current[pathParts[pathParts.length - 2]]
-    if (parentProp.properties) {
-      delete parentProp.properties[varName]
+    
+    const parentVarName = pathParts[pathParts.length - 2]
+    if (current[parentVarName] && current[parentVarName].properties) {
+      delete current[parentVarName].properties[varName]
+      console.log('Deleted nested variable:', varName, 'from', parentVarName)
+    } else {
+      console.error('Parent variable properties not found:', parentVarName)
     }
   }
   
@@ -706,6 +891,9 @@ const deleteVariable = (path) => {
     selectedKeys.value = []
     selectedVariableData.value = null
   }
+  
+  // 强制更新树数据
+  varsSchema.value = { ...varsSchema.value }
 }
 
 // 类型改变处理
@@ -845,9 +1033,59 @@ const loadVariableDefinitions = async () => {
     })
     if (response.data.data && response.data.data.vars_schema) {
       varsSchema.value = response.data.data.vars_schema
+    } else {
+      // 如果没有数据，创建一些测试数据用于调试
+      varsSchema.value = {
+        'app_name': {
+          type: 'string',
+          title: '应用名称',
+          description: '应用的名称',
+          required: true,
+          default: 'my-app',
+          ui: { panel: true, order: 10, group: '基础信息', component: 'input' },
+          naming_policy: 'go_snake'
+        },
+        'database': {
+          type: 'object',
+          title: '数据库配置',
+          description: '数据库相关配置',
+          required: true,
+          properties: {
+            'host': {
+              type: 'string',
+              title: '主机地址',
+              description: '数据库主机地址',
+              required: true,
+              default: 'localhost',
+              ui: { panel: true, order: 20, group: '数据库', component: 'input' }
+            },
+            'port': {
+              type: 'integer',
+              title: '端口号',
+              description: '数据库端口号',
+              required: true,
+              default: 3306,
+              ui: { panel: true, order: 21, group: '数据库', component: 'input' }
+            }
+          },
+          ui: { panel: true, order: 30, group: '基础信息', component: 'input' }
+        }
+      }
+      console.log('Created test data:', varsSchema.value)
     }
   } catch (error) {
     console.error('加载变量定义失败:', error)
+    // 出错时也创建测试数据
+    varsSchema.value = {
+      'test_var': {
+        type: 'string',
+        title: '测试变量',
+        description: '用于测试的变量',
+        required: false,
+        default: 'test',
+        ui: { panel: true, order: 10, group: '测试', component: 'input' }
+      }
+    }
   }
 }
 
@@ -1336,32 +1574,32 @@ onMounted(() => {
 }
 
 .var-icon.var-string {
-  color: #1890ff;
+  color: #1890ff; /* 蓝色 - 文本 */
 }
 
 .var-icon.var-integer,
 .var-icon.var-number {
-  color: #52c41a;
+  color: #52c41a; /* 绿色 - 数字 */
 }
 
 .var-icon.var-boolean {
-  color: #fa8c16;
+  color: #fa8c16; /* 橙色 - 布尔值 */
 }
 
 .var-icon.var-array {
-  color: #f5222d;
+  color: #f5222d; /* 红色 - 数组 */
 }
 
 .var-icon.var-object {
-  color: #722ed1;
+  color: #722ed1; /* 紫色 - 对象 */
 }
 
 .var-icon.var-enum {
-  color: #13c2c2;
+  color: #13c2c2; /* 青色 - 枚举 */
 }
 
 .var-icon.var-secret {
-  color: #eb2f96;
+  color: #eb2f96; /* 粉色 - 密码 */
 }
 
 .node-actions {
@@ -1371,6 +1609,17 @@ onMounted(() => {
 
 .n-tree-node:hover .node-actions {
   opacity: 1;
+}
+
+.tree-node-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.node-title {
+  flex: 1;
 }
 
 /* 表单样式 */
@@ -1403,5 +1652,24 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
+}
+
+.empty-tree-hint {
+  padding: 32px;
+  color: #888;
+  text-align: center;
+  user-select: none;
+  cursor: context-menu;
+  font-size: 14px;
+  border: 2px dashed #e0e0e0;
+  border-radius: 6px;
+  margin: 16px;
+  transition: all 0.2s;
+}
+
+.empty-tree-hint:hover {
+  border-color: #1890ff;
+  color: #1890ff;
+  background: rgba(24, 144, 255, 0.05);
 }
 </style>
