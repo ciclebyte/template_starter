@@ -31,7 +31,7 @@
       :loading-sprig-functions="loadingSprigFunctions" :quick-variables="quickVariables" 
       :template-id="route.params.id"
       @insert-syntax="insertSyntax"
-      @insert-function="insertFunction" @insert-sprig-function="insertSprigFunction" @insert-variable="insertVariable"
+      @insert-function="insertFunction" @insert-sprig-function="insertSprigFunction" @insert-variable="insertVariable" @insert-preset-variable="insertPresetVariable"
       @show-variable-manager="showVariableManager = true" @update:height="variablePanelHeight = $event" />
 
     <div class="edit-main">
@@ -860,6 +860,13 @@ function insertVariable(variableName) {
   const goTemplateVar = `{{.${variableName}}}`
   if (templateEditorRef.value) {
     templateEditorRef.value.insertVariable(goTemplateVar)
+  }
+}
+
+function insertPresetVariable(insertText) {
+  // 预设变量直接使用insertText，不包装{{.}}
+  if (templateEditorRef.value) {
+    templateEditorRef.value.insertVariable(insertText)
   }
 }
 

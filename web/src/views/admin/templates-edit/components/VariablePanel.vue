@@ -117,15 +117,27 @@
       >
         <div class="detail-header">
           <div class="detail-title">
-            <span class="function-icon">⚡</span>
-            {{ selectedFunction.display_name || selectedFunction.name }}
+            <span class="function-icon">{{ selectedFunction.isParent ? '📁' : '🏷️' }}</span>
+            {{ selectedFunction.displayName || selectedFunction.display_name || selectedFunction.name }}
           </div>
-          <div class="detail-type">{{ selectedFunction.return_type || 'string' }}</div>
+          <div class="detail-type">{{ selectedFunction.type || selectedFunction.return_type || 'field' }}</div>
         </div>
         
         <div class="detail-body">
-          <div class="detail-description">
+          <!-- 描述信息 -->
+          <div v-if="selectedFunction.description" class="detail-description">
             {{ selectedFunction.description }}
+          </div>
+          
+          <!-- 变量路径 -->
+          <div v-if="selectedFunction.name" class="detail-section">
+            <div class="section-label">
+              <span class="section-icon">📍</span>
+              变量路径
+            </div>
+            <div class="section-content code-content">
+              {{ selectedFunction.name }}
+            </div>
           </div>
           
           <!-- 如果有usage字段，显示使用说明 -->
@@ -167,7 +179,8 @@
             </div>
           </div>
           
-          <div class="detail-section">
+          <!-- 使用示例 -->
+          <div v-if="selectedFunction.example" class="detail-section">
             <div class="section-label">
               <span class="section-icon">💡</span>
               使用示例
@@ -177,13 +190,14 @@
             </div>
           </div>
           
+          <!-- 插入文本 -->
           <div class="detail-section">
             <div class="section-label">
               <span class="section-icon">✨</span>
               点击插入
             </div>
             <div class="section-content code-content insert-preview">
-              {{ selectedFunction.insert_text }}
+              {{ selectedFunction.insertText || selectedFunction.insert_text }}
             </div>
           </div>
         </div>
@@ -268,8 +282,9 @@
                     variable.isParent ? 'parent-field' : 'child-field',
                     `depth-${variable.level}`
                   ]"
-                  @click="handleInsertVariable(variable.insertText)"
-                  :title="`${variable.displayName} - ${variable.description}${variable.isParent ? ' (对象)' : ''}`"
+                  @click="handleInsertPresetVariable(variable.insertText)"
+                  @mouseenter="handleShowVariableDetail(variable, $event)"
+                  @mouseleave="handleHideFunctionDetail"
                 >
                   <span v-if="variable.level > 0" class="level-indicator">{{ variable.level }}</span>
                   <span class="variable-name">{{ variable.displayName }}</span>
@@ -284,8 +299,9 @@
                       descendant.isParent ? 'parent-field' : 'child-field',
                       `depth-${descendant.level}`
                     ]"
-                    @click="handleInsertVariable(descendant.insertText)"
-                    :title="`${descendant.displayName} - ${descendant.description}${descendant.isParent ? ' (对象)' : ''}`"
+                    @click="handleInsertPresetVariable(descendant.insertText)"
+                    @mouseenter="handleShowVariableDetail(descendant, $event)"
+                    @mouseleave="handleHideFunctionDetail"
                   >
                     <span class="level-indicator">{{ descendant.level }}</span>
                     <span class="variable-name">{{ descendant.displayName }}</span>
@@ -500,6 +516,7 @@ const emit = defineEmits([
   'insert-function', 
   'insert-sprig-function',
   'insert-variable',
+  'insert-preset-variable',
   'show-variable-manager',
   'show-preset-manager',
   'update:height'
@@ -738,6 +755,11 @@ const handleInsertVariable = (variableName) => {
   emit('insert-variable', variableName)
 }
 
+const handleInsertPresetVariable = (insertText) => {
+  // 预设变量直接使用insertText，不再包装
+  emit('insert-preset-variable', insertText)
+}
+
 // 函数详情显示
 const handleShowSyntaxDetail = (syntax, event) => {
   showFunctionDetail(syntax, event)
@@ -749,6 +771,10 @@ const handleShowFunctionDetail = (func, event) => {
 
 const handleShowSprigFunctionDetail = (func, event) => {
   showFunctionDetail(func, event)
+}
+
+const handleShowVariableDetail = (variable, event) => {
+  showFunctionDetail(variable, event)
 }
 
 const showFunctionDetail = (func, event) => {
