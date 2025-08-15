@@ -248,6 +248,34 @@
         </div>
       </div>
 
+      <!-- 动态生成的预设变量包 Tab -->
+      <div 
+        v-for="tab in variableTabs" 
+        :key="tab.key"
+        v-show="activeTab === tab.key && tab.key.startsWith('preset_')"
+        class="tab-content"
+      >
+        <div v-if="presetVariables[tab.key] && presetVariables[tab.key].length > 0" class="variable-section">
+          <div class="section-title">{{ tab.preset.presetName }} 变量</div>
+          <div class="variable-tags">
+            <div
+              v-for="variable in presetVariables[tab.key]"
+              :key="variable.name"
+              class="variable-tag preset"
+              @click="handleInsertVariable(variable.insertText)"
+              :title="`${variable.displayName} - ${variable.description}`"
+            >
+              {{ variable.displayName }}
+              <span class="variable-type-badge">{{ variable.type }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div v-else class="empty-variables">
+          <div class="empty-text">该预设变量包暂无可用变量</div>
+        </div>
+      </div>
+
       <!-- 预设变量 Tab - 显示已订阅的预设变量 -->
       <div v-show="activeTab === 'presets'" class="tab-content preset-tab">
         <div class="preset-variables-summary">
@@ -451,8 +479,8 @@ const emit = defineEmits([
   'update:height'
 ])
 
-// 变量标签页配置
-const variableTabs = [
+// 基础tab配置
+const baseTabs = [
   { key: 'syntax', label: '模板语法' },
   { key: 'functions', label: '内置函数' },
   { key: 'sprig', label: 'Sprig函数' },
@@ -460,6 +488,73 @@ const variableTabs = [
   { key: 'custom', label: '用户变量' },
   { key: 'presets', label: '+ 预设变量' }
 ]
+
+// 动态计算所有tabs（基础tabs + 订阅的预设变量tabs）
+const variableTabs = computed(() => {
+  const tabs = [...baseTabs]
+  
+  // 为每个订阅的预设变量包添加一个tab
+  subscribedPresets.value.forEach(preset => {
+    tabs.splice(-1, 0, {
+      key: `preset_${preset.presetId}`,
+      label: preset.presetName,
+      preset: preset
+    })
+  })
+  
+  return tabs
+})
+
+// 解析schema JSON为变量列表
+const parseSchemaToVariables = (schemaJson, presetName) => {
+  const variables = []
+  
+  try {
+    const schema = JSON.parse(schemaJson)
+    
+    const parseObject = (obj, parentPath = '') => {
+      for (const [key, value] of Object.entries(obj)) {
+        if (value && typeof value === 'object') {
+          const currentPath = parentPath ? `${parentPath}.${key}` : key
+          
+          if (value.children && typeof value.children === 'object') {
+            // 递归解析children
+            parseObject(value.children, currentPath)
+          } else {
+            // 叶子节点，添加为变量
+            variables.push({
+              name: currentPath,
+              displayName: value.displayName || key,
+              description: value.description || '',
+              insertText: value.insertText || `{{.${currentPath}}}`,
+              type: value.type || 'field',
+              category: value.category || 'preset'
+            })
+          }
+        }
+      }
+    }
+    
+    parseObject(schema)
+  } catch (error) {
+    console.error('解析schema失败:', error)
+  }
+  
+  return variables
+}
+
+// 计算每个预设变量包的变量列表
+const presetVariables = computed(() => {
+  const presetVars = {}
+  
+  subscribedPresets.value.forEach(preset => {
+    if (preset.schema) {
+      presetVars[`preset_${preset.presetId}`] = parseSchemaToVariables(preset.schema, preset.presetName)
+    }
+  })
+  
+  return presetVars
+})
 
 // 状态
 const activeTab = ref('syntax')
@@ -1065,6 +1160,12 @@ onUnmounted(() => {
   background: #fff2e8;
   color: #fa541c;
   border-color: #ffd8bf;
+}
+
+.variable-tag.preset {
+  background: #f9f0ff;
+  color: #722ed1;
+  border-color: #d3adf7;
 }
 
 .variable-type-badge {
