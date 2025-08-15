@@ -95,6 +95,13 @@
       @save-settings="saveSettings" 
     />
     
+    <!-- 变量定义抽屉 -->
+    <VariableExposeDrawer
+      v-model:show="showVariableExposeDrawer"
+      :template-id="route.params.id"
+      :template-variables="templateVariables"
+    />
+    
   </div>
 </template>
 
@@ -115,6 +122,7 @@ import EditHeader from './components/EditHeader.vue'
 import ConditionModal from './components/ConditionModal.vue'
 import VariablePanel from './components/VariablePanel.vue'
 import EditorSettings from './components/EditorSettings.vue'
+import VariableExposeDrawer from './components/VariableExposeDrawer.vue'
 import { templateSyntaxCategories as syntaxData } from './data/templateSyntax.js'
 import { useTemplateFileStore } from '@/stores/templateFileStore'
 import { useMessage, NIcon, NButton, NSpin, NForm, NFormItem, NSwitch, NSelect, NRadioGroup, NRadio, NInput, NModal, NCard } from 'naive-ui'
@@ -127,9 +135,10 @@ const closeEdit = () => {
   router.push('/templates')
 }
 
+const showVariableExposeDrawer = ref(false)
+
 const goToVariableExpose = () => {
-  const url = router.resolve(`/templates/${route.params.id}/expose`).href
-  window.open(url, '_blank')
+  showVariableExposeDrawer.value = true
 }
 
 const treeData = ref([])
