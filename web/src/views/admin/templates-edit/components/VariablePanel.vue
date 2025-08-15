@@ -271,9 +271,9 @@
                   @click="handleInsertVariable(variable.insertText)"
                   :title="`${variable.displayName} - ${variable.description}${variable.isParent ? ' (对象)' : ''}`"
                 >
+                  <span v-if="variable.level > 0" class="level-indicator">{{ variable.level }}</span>
                   <span class="variable-name">{{ variable.displayName }}</span>
                   <span class="variable-type-badge">{{ variable.isParent ? 'obj' : variable.type }}</span>
-                  <span v-if="variable.isParent" class="parent-indicator">📁</span>
                 </div>
                 
                 <!-- 递归显示所有后代字段 -->
@@ -287,9 +287,9 @@
                     @click="handleInsertVariable(descendant.insertText)"
                     :title="`${descendant.displayName} - ${descendant.description}${descendant.isParent ? ' (对象)' : ''}`"
                   >
+                    <span class="level-indicator">{{ descendant.level }}</span>
                     <span class="variable-name">{{ descendant.displayName }}</span>
                     <span class="variable-type-badge">{{ descendant.isParent ? 'obj' : descendant.type }}</span>
-                    <span v-if="descendant.isParent" class="parent-indicator">📁</span>
                   </div>
                 </template>
               </div>
@@ -556,7 +556,7 @@ const parseSchemaToVariables = (schemaJson, presetName) => {
             type: value.type || 'field',
             category: value.category || 'preset',
             isParent: hasChildren,
-            level: (parentPath.match(/\./g) || []).length,
+            level: (currentPath.match(/\./g) || []).length,
             parentPath: parentPath
           })
           
@@ -1359,6 +1359,57 @@ onUnmounted(() => {
   margin-left: 4px;
   font-size: 10px;
   opacity: 0.7;
+}
+
+.level-indicator {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  background: #2080f0;
+  color: white;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  z-index: 2;
+}
+
+/* 不同层级的标签颜色 */
+.variable-tag.preset.depth-0 {
+  background: #f9f0ff;
+  border-color: #d3adf7;
+  color: #722ed1;
+}
+
+.variable-tag.preset.depth-1 {
+  background: #e6f7ff;
+  border-color: #91d5ff;
+  color: #1890ff;
+}
+
+.variable-tag.preset.depth-2 {
+  background: #fff1b8;
+  border-color: #ffd666;
+  color: #d48806;
+}
+
+.variable-tag.preset.depth-3 {
+  background: #fff2e8;
+  border-color: #ffd591;
+  color: #fa8c16;
+}
+
+.variable-tag.preset.depth-4,
+.variable-tag.preset.depth-5,
+.variable-tag.preset.depth-6 {
+  background: #fff1f0;
+  border-color: #ffa39e;
+  color: #f5222d;
 }
 
 /* 变量区域样式 */
