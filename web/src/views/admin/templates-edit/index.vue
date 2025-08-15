@@ -7,6 +7,7 @@
       :current-file-name="currentFileName"
       @toggle-variable-panel="toggleVariablePanel" 
       @show-variable-manager="showVariableManager = true" 
+      @show-variable-expose="goToVariableExpose"
       @close-edit="closeEdit" 
       @toggle-file-tree="toggleFileTree" 
       @show-settings="showSettings = true"
@@ -124,6 +125,11 @@ const route = useRoute()
 const message = useMessage()
 const closeEdit = () => {
   router.push('/templates')
+}
+
+const goToVariableExpose = () => {
+  const url = router.resolve(`/templates/${route.params.id}/expose`).href
+  window.open(url, '_blank')
 }
 
 const treeData = ref([])

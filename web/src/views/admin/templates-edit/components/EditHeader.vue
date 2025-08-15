@@ -26,6 +26,14 @@
       </div>
     </div>
     <div class="header-actions">
+      <n-button size="small" @click="$emit('show-variable-expose')">
+        <template #icon>
+          <n-icon>
+            <CodeSlash />
+          </n-icon>
+        </template>
+        变量定义
+      </n-button>
       <n-button size="small" @click="$emit('show-variable-manager')">
         <template #icon>
           <n-icon>
@@ -59,7 +67,7 @@
 
 <script setup>
 import { NButton, NIcon } from 'naive-ui'
-import { ChevronDown, Settings } from '@vicons/ionicons5'
+import { ChevronDown, Settings, CodeSlash } from '@vicons/ionicons5'
 
 defineProps({
   isVariablePanelOpen: {
