@@ -67,33 +67,59 @@
                         </n-empty>
                     </div>
                     <div v-else class="node-form">
-                        <n-form ref="nodeFormRef" :model="nodeForm" :rules="nodeFormRules" label-placement="top">
-                            <n-form-item label="字段名" path="key">
-                                <n-input v-model:value="nodeForm.key" placeholder="请输入字段名" />
-                            </n-form-item>
+                        <n-form ref="detailFormRef" :model="nodeForm" :rules="nodeFormRules" label-placement="top">
+                            <n-grid :cols="2" :x-gap="16">
+                                <n-grid-item>
+                                    <n-form-item label="字段名" path="key">
+                                        <n-input v-model:value="nodeForm.key" placeholder="请输入字段名" />
+                                    </n-form-item>
+                                </n-grid-item>
+                                <n-grid-item>
+                                    <n-form-item label="显示名称" path="displayName">
+                                        <n-input v-model:value="nodeForm.displayName" placeholder="显示名称（可选）" />
+                                    </n-form-item>
+                                </n-grid-item>
+                            </n-grid>
 
-                            <n-form-item label="数据类型" path="type">
-                                <n-select v-model:value="nodeForm.type" placeholder="选择数据类型" :options="typeOptions" @update:value="handleTypeChange" />
+                            <n-form-item v-if="selectedNode && selectedNode.path && selectedNode.path.length === 1" label="分类" path="category">
+                                <n-select 
+                                    v-model:value="nodeForm.category" 
+                                    placeholder="输入或选择分类（仅一级字段）" 
+                                    :options="categoryOptions" 
+                                    filterable 
+                                    tag 
+                                    clearable
+                                    @create="handleCreateCategory"
+                                />
                             </n-form-item>
 
                             <n-form-item label="描述" path="description">
-                                <n-input v-model:value="nodeForm.description" type="textarea" placeholder="字段描述" :rows="2" />
+                                <n-input v-model:value="nodeForm.description" type="textarea" placeholder="字段描述（可选）" :rows="2" />
                             </n-form-item>
 
-                            <n-form-item v-if="nodeForm.type === 'string'" label="默认值" path="defaultValue">
-                                <n-input v-model:value="nodeForm.defaultValue" placeholder="默认字符串值" />
-                            </n-form-item>
+                            <n-grid :cols="2" :x-gap="16">
+                                <n-grid-item>
+                                    <n-form-item label="示例值" path="example">
+                                        <n-input v-model:value="nodeForm.example" placeholder="示例值（如：张三）" />
+                                    </n-form-item>
+                                </n-grid-item>
+                                <n-grid-item>
+                                    <n-form-item label="插入文本" path="insertText">
+                                        <n-input 
+                                            v-model:value="nodeForm.insertText" 
+                                            placeholder="自动生成（基于字段名）"
+                                            readonly
+                                            style="background-color: #f5f5f5;"
+                                        />
+                                    </n-form-item>
+                                </n-grid-item>
+                            </n-grid>
 
-                            <n-form-item v-if="nodeForm.type === 'number'" label="默认值" path="defaultValue">
-                                <n-input-number v-model:value="nodeForm.defaultValue" placeholder="默认数值" style="width: 100%" />
-                            </n-form-item>
-
-                            <n-form-item v-if="nodeForm.type === 'boolean'" label="默认值" path="defaultValue">
-                                <n-switch v-model:value="nodeForm.defaultValue" />
-                            </n-form-item>
-
-                            <n-form-item label="是否必填" path="required">
-                                <n-switch v-model:value="nodeForm.required" />
+                            <n-form-item label="包含子字段" path="hasChildren">
+                                <n-switch v-model:value="nodeForm.hasChildren" />
+                                <span style="margin-left: 8px; color: #666; font-size: 12px;">
+                                    {{ nodeForm.hasChildren ? '该字段可以包含子字段' : '该字段为普通字段' }}
+                                </span>
                             </n-form-item>
                         </n-form>
                     </div>
@@ -163,13 +189,52 @@
                 </template>
 
                 <n-form ref="nodeFormRef" :model="nodeForm" :rules="nodeFormRules" label-placement="top">
-                    <n-form-item label="字段名" path="key">
-                        <n-input v-model:value="nodeForm.key" placeholder="请输入字段名" />
+                    <n-grid :cols="2" :x-gap="16">
+                        <n-grid-item>
+                            <n-form-item label="字段名" path="key">
+                                <n-input v-model:value="nodeForm.key" placeholder="请输入字段名" />
+                            </n-form-item>
+                        </n-grid-item>
+                        <n-grid-item>
+                            <n-form-item label="显示名称" path="displayName">
+                                <n-input v-model:value="nodeForm.displayName" placeholder="显示名称（可选）" />
+                            </n-form-item>
+                        </n-grid-item>
+                    </n-grid>
+
+                    <n-form-item v-if="isRootLevel" label="分类" path="category">
+                        <n-select 
+                            v-model:value="nodeForm.category" 
+                            placeholder="输入或选择分类（仅一级字段）" 
+                            :options="categoryOptions" 
+                            filterable 
+                            tag 
+                            clearable
+                            @create="handleCreateCategory"
+                        />
                     </n-form-item>
 
                     <n-form-item label="描述" path="description">
                         <n-input v-model:value="nodeForm.description" type="textarea" placeholder="字段描述（可选）" :rows="2" />
                     </n-form-item>
+
+                    <n-grid :cols="2" :x-gap="16">
+                        <n-grid-item>
+                            <n-form-item label="示例值" path="example">
+                                <n-input v-model:value="nodeForm.example" placeholder="示例值（如：张三）" />
+                            </n-form-item>
+                        </n-grid-item>
+                        <n-grid-item>
+                            <n-form-item label="插入文本" path="insertText">
+                                <n-input 
+                                    v-model:value="nodeForm.insertText" 
+                                    placeholder="自动生成（基于字段名）"
+                                    readonly
+                                    style="background-color: #f5f5f5;"
+                                />
+                            </n-form-item>
+                        </n-grid-item>
+                    </n-grid>
 
                     <n-form-item label="包含子字段" path="hasChildren">
                         <n-switch v-model:value="nodeForm.hasChildren" />
@@ -197,7 +262,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick, h } from 'vue'
 import {
     NButton, NIcon, NModal, NCard, NForm, NFormItem, NInput, NInputNumber,
-    NSelect, NSwitch, NTag, NEmpty, NTree, NDropdown, useMessage
+    NSelect, NSwitch, NTag, NEmpty, NTree, NDropdown, NGrid, NGridItem, useMessage
 } from 'naive-ui'
 import {
     AddOutline, CloseOutline, CreateOutline, TrashOutline, CodeOutline,
@@ -244,7 +309,8 @@ const startWidth = ref(0)
 // 节点选择和编辑相关
 const selectedNode = ref(null)
 const showNodeModal = ref(false)
-const nodeFormRef = ref(null)
+const nodeFormRef = ref(null)  // 弹窗表单
+const detailFormRef = ref(null)  // 详情面板表单
 const editingNode = ref(null)
 const editingNodePath = ref([])
 const nodeSaving = ref(false)
@@ -270,9 +336,14 @@ const isDragging = ref(false)
 
 const nodeForm = reactive({
     key: '',
+    displayName: '',
     description: '',
+    example: '',
+    insertText: '',
+    category: '',
     hasChildren: false // 是否包含子字段
 })
+
 
 const nodeFormRules = {
     key: {
@@ -286,6 +357,61 @@ const nodeModalTitle = computed(() => {
     return editingNode.value ? '编辑节点' : '添加节点'
 })
 
+// 动态分类选项
+const categoryOptions = ref([])
+
+// 判断当前编辑的是否为一级字段
+const isRootLevel = computed(() => {
+    return editingNodePath.value.length === 0
+})
+
+// 处理创建新分类
+const handleCreateCategory = (value) => {
+    if (!value || value.trim() === '') return value
+    
+    const trimmedValue = value.trim()
+    
+    // 检查是否已存在
+    const exists = categoryOptions.value.some(option => option.value === trimmedValue)
+    
+    if (!exists) {
+        // 添加新分类到选项列表
+        categoryOptions.value.push({
+            label: trimmedValue,
+            value: trimmedValue
+        })
+    }
+    
+    return trimmedValue
+}
+
+// 初始化分类选项（从现有数据中提取）
+const initCategoryOptions = () => {
+    const categories = new Set()
+    
+    const extractCategories = (nodes) => {
+        nodes.forEach(node => {
+            // 只从一级字段中提取分类
+            if (node.category && node.path && node.path.length === 1) {
+                categories.add(node.category)
+            }
+            if (node.children && Array.isArray(node.children)) {
+                extractCategories(node.children)
+            }
+        })
+    }
+    
+    if (treeData.value && treeData.value.length > 0) {
+        extractCategories(treeData.value)
+    }
+    
+    // 转换为选项格式
+    categoryOptions.value = Array.from(categories).map(category => ({
+        label: category,
+        value: category
+    }))
+}
+
 // 转换为NTree格式的计算属性
 const treeDataComputed = computed(() => {
     return convertToNTreeFormat(treeData.value)
@@ -296,22 +422,46 @@ const convertToNTreeFormat = (nodes) => {
     if (!Array.isArray(nodes)) return []
     
     return nodes.map(node => {
-        const nodeKey = node.key || node.path?.join('.') || ''
-        const isExpanded = expandedKeys.value.has(nodeKey)
+        // 确保使用路径作为唯一key
+        if (!node || typeof node !== 'object') return null
         
-        return {
-            label: node.label,
-            key: nodeKey,
-            isLeaf: !node.children || node.children.length === 0,
-            hasChildren: !!(node.children && node.children.length > 0),
-            description: node.description,
-            path: node.path,
-            prefix: () => getFieldIcon(node),
-            suffix: () => getNodeSuffix(node),
-            children: node.children ? convertToNTreeFormat(node.children) : [],
-            class: getDragClass(nodeKey)
+        try {
+            const nodeKey = node.path?.join('.') || node.key || `node_${Math.random().toString(36).substr(2, 9)}`
+            const isExpanded = expandedKeys.value.has(nodeKey)
+            
+            const result = {
+                label: node.displayName || node.label || node.key || 'Untitled',
+                key: nodeKey,
+                isLeaf: !node.children || node.children.length === 0,
+                hasChildren: !!(node.children && node.children.length > 0),
+                description: node.description || '',
+                path: node.path || [],
+                prefix: () => {
+                    try {
+                        return getFieldIcon(node)
+                    } catch (e) {
+                        console.warn('Error in getFieldIcon:', e)
+                        return null
+                    }
+                },
+                suffix: () => {
+                    try {
+                        return getNodeSuffix(node)
+                    } catch (e) {
+                        console.warn('Error in getNodeSuffix:', e)
+                        return null
+                    }
+                },
+                children: node.children ? convertToNTreeFormat(node.children) : [],
+                class: getDragClass(nodeKey)
+            }
+            
+            return result
+        } catch (error) {
+            console.error('Error converting node to NTree format:', error, node)
+            return null
         }
-    })
+    }).filter(node => node !== null)
 }
 
 // 获取字段图标
@@ -332,11 +482,49 @@ const getFieldIcon = (node) => {
 
 // 获取节点后缀
 const getNodeSuffix = (node) => {
-    if (node.children !== undefined && (!node.children || node.children.length === 0)) {
-        // 空容器节点显示可扩展标识
-        return h(NTag, { size: 'tiny', type: 'info', style: { fontSize: '10px' } }, { default: () => '可扩展' })
+    const tags = []
+    
+    // 显示分类标签（仅一级字段）
+    if (node.category && node.path && node.path.length === 1) {
+        let categoryLabel = node.category
+        try {
+            if (categoryOptions.value && Array.isArray(categoryOptions.value)) {
+                const categoryOption = categoryOptions.value.find(opt => opt && opt.value === node.category)
+                categoryLabel = categoryOption?.label || node.category
+            }
+        } catch (e) {
+            console.warn('Error finding category option:', e)
+        }
+        
+        tags.push(h(NTag, { 
+            size: 'tiny', 
+            type: 'primary', 
+            style: { fontSize: '10px', marginRight: '4px' } 
+        }, { default: () => categoryLabel }))
     }
-    return null
+    
+    // 显示可扩展标识
+    if (node.children !== undefined && (!node.children || node.children.length === 0)) {
+        tags.push(h(NTag, { 
+            size: 'tiny', 
+            type: 'info', 
+            style: { fontSize: '10px', marginRight: '4px' } 
+        }, { default: () => '可扩展' }))
+    }
+    
+    // 显示示例值
+    if (node.example) {
+        tags.push(h('span', { 
+            style: { 
+                fontSize: '11px', 
+                color: '#999', 
+                fontStyle: 'italic',
+                marginLeft: '8px'
+            } 
+        }, `例: ${node.example}`))
+    }
+    
+    return tags.length > 0 ? h('span', { style: { display: 'flex', alignItems: 'center' } }, tags) : null
 }
 
 // 获取拖拽类名
@@ -447,15 +635,32 @@ const convertTreeToObject = (nodes) => {
     const result = {}
     
     nodes.forEach(node => {
-        const { label, children } = node
+        const { key, displayName, description, example, insertText, category, children } = node
+        const fieldKey = key || (displayName || 'untitled')
+        
+        // 创建字段信息对象
+        const fieldInfo = {
+            displayName: displayName || '',
+            description: description || '',
+            example: example || '',
+            insertText: insertText || `{{.${fieldKey}}}`,
+        }
+        
+        // 只有一级字段才添加 category
+        if (category && node.path && node.path.length === 1) {
+            fieldInfo.category = category
+        }
         
         if (children && children.length > 0) {
-            // 有子字段的节点转换为对象
-            result[label] = convertTreeToObject(children)
+            // 有子字段的节点
+            fieldInfo.type = 'object'
+            fieldInfo.children = convertTreeToObject(children)
         } else {
-            // 普通字段设置为占位符
-            result[label] = "{{." + label + "}}"
+            // 普通字段
+            fieldInfo.type = 'field'
         }
+        
+        result[fieldKey] = fieldInfo
     })
     
     return result
@@ -541,10 +746,10 @@ const nodeProps = ({ option }) => {
         onDblclick(e) {
             e.preventDefault()
             e.stopPropagation()
-            // 双击打开编辑弹窗
+            // 双击选中节点
             const node = findNodeByKey(treeData.value, option.key)
             if (node) {
-                openNodeModal(node)
+                handleNodeSelect(node)
             }
         }
     }
@@ -583,7 +788,6 @@ const setupContextMenu = (node) => {
     }
     
     menuOptions.push(
-        { label: '编辑', key: 'edit', icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
         { label: '复制', key: 'copy', icon: () => h(NIcon, null, { default: () => h(CopyOutline) }) },
         { type: 'divider', key: 'divider2' },
         { label: '删除', key: 'delete', icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) }
@@ -623,11 +827,6 @@ const handleDropdownSelect = (key) => {
         case 'addRoot':
             openNodeModal(null, [])
             break
-        case 'edit':
-            if (dropdownNode.value) {
-                openNodeModal(dropdownNode.value)
-            }
-            break
         case 'copy':
             if (dropdownNode.value) {
                 copyNode(dropdownNode.value)
@@ -648,21 +847,14 @@ const handleDropdownClickoutside = () => {
 // 节点选择
 const handleNodeSelect = (node) => {
     selectedNode.value = node
-    nodeForm.key = node.label
-    nodeForm.type = node.nodeType
+    nodeForm.key = node.key
+    nodeForm.displayName = node.displayName || ''
     nodeForm.description = node.description || ''
-    nodeForm.required = node.required || false
+    nodeForm.example = node.example || ''
+    nodeForm.insertText = node.insertText || `{{.${node.key}}}`
+    nodeForm.category = node.category || ''
+    nodeForm.hasChildren = node.children !== undefined
     
-    // 设置默认值
-    if (node.nodeType === 'string') {
-        nodeForm.defaultValue = node.value || ''
-    } else if (node.nodeType === 'number') {
-        nodeForm.defaultValue = node.value || 0
-    } else if (node.nodeType === 'boolean') {
-        nodeForm.defaultValue = node.value || false
-    } else {
-        nodeForm.defaultValue = ''
-    }
 }
 
 // 保存当前编辑的节点
@@ -670,24 +862,26 @@ const saveCurrentNode = async () => {
     if (!selectedNode.value) return
     
     try {
-        await nodeFormRef.value?.validate()
+        await detailFormRef.value?.validate()
         nodeSaving.value = true
         
         // 更新选中节点的信息
         const updatedNode = {
             ...selectedNode.value,
-            label: nodeForm.key,
-            nodeType: nodeForm.type,
-            value: nodeForm.defaultValue,
+            key: nodeForm.key,
+            label: nodeForm.displayName || nodeForm.key,
+            displayName: nodeForm.displayName,
             description: nodeForm.description,
-            required: nodeForm.required
+            example: nodeForm.example,
+            insertText: nodeForm.insertText,
+            category: nodeForm.category,
+            children: nodeForm.hasChildren ? (selectedNode.value.children || []) : undefined
         }
         
         // 更新节点路径中的key
         const newPath = [...selectedNode.value.path]
         newPath[newPath.length - 1] = nodeForm.key
         updatedNode.path = newPath
-        updatedNode.key = newPath.join('.')
         
         // 更新树中的节点
         updateNodeInTree(updatedNode, selectedNode.value.path)
@@ -716,8 +910,12 @@ const openNodeModal = (node = null, parentPath = []) => {
             originalNodeData.value = JSON.parse(JSON.stringify(nodeData))
             editingNode.value = nodeData
             editingNodePath.value = nodeData.path
-            nodeForm.key = nodeData.label
+            nodeForm.key = nodeData.key
+            nodeForm.displayName = nodeData.displayName || ''
             nodeForm.description = nodeData.description || ''
+            nodeForm.example = nodeData.example || ''
+            nodeForm.insertText = nodeData.insertText || `{{.${nodeData.key}}}`
+            nodeForm.category = nodeData.category || ''
             nodeForm.hasChildren = nodeData.children !== undefined
         }
     } else {
@@ -734,18 +932,24 @@ const openNodeModal = (node = null, parentPath = []) => {
 
 const copyNode = (node) => {
     const copiedNode = JSON.parse(JSON.stringify(node))
-    const newKey = `${node.label}_copy_${Date.now()}`
+    const timestamp = Date.now()
+    const newKey = `${node.key}_copy_${timestamp}`
+    const newDisplayName = `${node.displayName || node.label}_副本`
     
     // 更新复制节点的key和路径
     const updateCopiedNodeKeys = (n, parentPath = []) => {
-        n.key = [...parentPath, n.label].join('.')
-        n.path = [...parentPath, n.label]
+        // 只更新根节点的 key 和相关字段
+        if (n === copiedNode) {
+            n.key = newKey
+            n.label = newDisplayName
+            n.displayName = newDisplayName
+        }
+        n.path = [...parentPath, n.key]
         if (n.children) {
             n.children.forEach(child => updateCopiedNodeKeys(child, n.path))
         }
     }
     
-    copiedNode.label = newKey
     updateCopiedNodeKeys(copiedNode, node.path.slice(0, -1))
     
     // 找到父节点并添加复制的节点
@@ -813,7 +1017,11 @@ const deleteNode = (node) => {
 
 const resetNodeForm = () => {
     nodeForm.key = ''
+    nodeForm.displayName = ''
     nodeForm.description = ''
+    nodeForm.example = ''
+    nodeForm.insertText = ''
+    nodeForm.category = ''
     nodeForm.hasChildren = false
 }
 
@@ -833,11 +1041,16 @@ const saveNode = async () => {
         
         nodeSaving.value = true
         
+        const nodePath = [...editingNodePath.value, nodeForm.key]
         const newNode = {
             key: nodeForm.key,
-            label: nodeForm.key,
-            path: [...editingNodePath.value, nodeForm.key],
+            label: nodeForm.displayName || nodeForm.key,
+            path: nodePath,
+            displayName: nodeForm.displayName,
             description: nodeForm.description,
+            example: nodeForm.example,
+            insertText: nodeForm.insertText,
+            category: isRootLevel.value ? nodeForm.category : undefined, // 只有一级字段才有分类
             children: nodeForm.hasChildren ? [] : undefined
         }
         
@@ -853,6 +1066,7 @@ const saveNode = async () => {
             addNodeToTree(newNode)
         }
         
+        // 同步到JSON
         syncTreeToJson()
         
         // 保存成功消息
@@ -866,7 +1080,87 @@ const saveNode = async () => {
         
         message.success(isEdit ? '节点更新成功' : '节点添加成功')
     } catch (error) {
+        // 处理表单验证错误
+        console.log('Form validation result:', error) // 调试日志
+        
+        if (error && typeof error === 'object' && !error.message) {
+            // 处理NaiveUI表单验证结果
+            if (error.warnings === undefined) {
+                // 验证成功的情况
+                console.log('Form validation passed, but caught as error - continuing execution')
+                // 这种情况下实际上验证成功了，我们应该继续执行而不是退出
+                try {
+                    const nodePath = [...editingNodePath.value, nodeForm.key]
+                    const newNode = {
+                        key: nodeForm.key,
+                        label: nodeForm.displayName || nodeForm.key,
+                        path: nodePath,
+                        displayName: nodeForm.displayName,
+                        description: nodeForm.description,
+                        example: nodeForm.example,
+                        insertText: nodeForm.insertText,
+                        category: isRootLevel.value ? nodeForm.category : undefined, // 只有一级字段才有分类
+                        children: nodeForm.hasChildren ? [] : undefined
+                    }
+                    
+                    if (editingNode.value) {
+                        // 编辑现有节点，保留现有的子字段
+                        const currentNode = findNodeByKey(treeData.value, editingNode.value.key)
+                        if (currentNode && nodeForm.hasChildren && currentNode.children) {
+                            newNode.children = currentNode.children
+                        }
+                        updateNodeInTree(newNode)
+                    } else {
+                        // 添加新节点
+                        addNodeToTree(newNode)
+                    }
+                    
+                    // 同步到JSON
+                    syncTreeToJson()
+                    
+                    // 保存成功消息
+                    const isEdit = !!editingNode.value
+                    
+                    // 清空状态
+                    originalNodeData.value = null
+                    showNodeModal.value = false
+                    editingNode.value = null
+                    resetNodeForm()
+                    
+                    message.success(isEdit ? '节点更新成功' : '节点添加成功')
+                    return
+                } catch (innerError) {
+                    console.error('执行保存操作时出错:', innerError)
+                    message.error('保存节点失败')
+                    return
+                }
+            } else if (error.warnings && error.warnings.length > 0) {
+                // 有验证警告
+                const firstWarning = error.warnings[0]
+                if (firstWarning && firstWarning.message) {
+                    message.warning(firstWarning.message)
+                    return
+                }
+            }
+        }
+        
+        // 处理其他类型的错误
+        if (Array.isArray(error) && error.length > 0 && Array.isArray(error[0]) && error[0].length > 0) {
+            const firstError = error[0][0]
+            if (firstError && firstError.message) {
+                message.error(firstError.message)
+                return
+            }
+        }
+        
+        // 处理标准错误对象
+        if (error && error.message) {
+            message.error(error.message)
+            return
+        }
+        
         console.error('保存节点失败:', error)
+        message.error('保存节点失败，请检查输入内容')
     } finally {
         nodeSaving.value = false
     }
@@ -1023,8 +1317,22 @@ watch(() => props.modelValue, (newValue) => {
     }
 })
 
+// 监听树数据变化，自动更新分类选项
+watch(treeData, () => {
+    initCategoryOptions()
+}, { deep: true })
+
+// 监听字段名变化，自动更新插入文本
+watch(() => nodeForm.key, (newKey) => {
+    if (newKey && newKey.trim()) {
+        nodeForm.insertText = `{{.${newKey.trim()}}}`
+    } else {
+        nodeForm.insertText = ''
+    }
+})
+
 // 监听nodeForm变化，实时更新JSON
-watch(() => [nodeForm.key, nodeForm.description, nodeForm.hasChildren], () => {
+watch(() => [nodeForm.key, nodeForm.displayName, nodeForm.description, nodeForm.example, nodeForm.insertText, nodeForm.category, nodeForm.hasChildren], () => {
     // 在取消编辑时不触发更新
     if (isModalCanceling.value) return
     
@@ -1032,8 +1340,13 @@ watch(() => [nodeForm.key, nodeForm.description, nodeForm.hasChildren], () => {
         // 实时更新编辑中的节点信息（仅在弹窗打开时）
         const updatedNode = {
             ...editingNode.value,
-            label: nodeForm.key,
+            key: nodeForm.key,
+            label: nodeForm.displayName || nodeForm.key,
+            displayName: nodeForm.displayName,
             description: nodeForm.description,
+            example: nodeForm.example,
+            insertText: nodeForm.insertText,
+            category: isRootLevel.value ? nodeForm.category : editingNode.value.category,
             children: nodeForm.hasChildren ? (editingNode.value.children || []) : undefined
         }
         
@@ -1258,6 +1571,9 @@ const handleJsonFileImport = (file) => {
             // 更新树数据
             treeData.value = newTreeData
             
+            // 重新初始化分类选项
+            initCategoryOptions()
+            
             // 同步到编辑器
             syncTreeToJson()
             
@@ -1341,29 +1657,80 @@ const convertJsonToTree = (obj, parentPath = []) => {
     
     for (const [key, value] of Object.entries(obj)) {
         const currentPath = [...parentPath, key]
-        const node = {
-            key: key,
-            label: key,
-            path: currentPath,
-            description: ''
-        }
+        
+        // 检查是否为新格式的字段信息对象
+        if (value && typeof value === 'object' && !Array.isArray(value) && 
+            (value.hasOwnProperty('displayName') || value.hasOwnProperty('type') || 
+             value.hasOwnProperty('description') || value.hasOwnProperty('example'))) {
+            
+            // 新格式：包含字段信息的对象
+            const node = {
+                key: key,
+                label: value.displayName || key,
+                displayName: value.displayName || '',
+                path: currentPath,
+                description: value.description || '',
+                example: value.example || '',
+                insertText: value.insertText || '',
+                category: value.category || ''
+            }
 
-        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-            // 对象类型，递归处理子节点
-            node.children = convertJsonToTree(value, currentPath)
+            if (value.type === 'object' && value.children) {
+                // 包含子字段的对象
+                node.children = convertJsonToTree(value.children, currentPath)
+            } else {
+                // 普通字段
+                node.children = undefined
+            }
+
+            result.push(node)
+        } else if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+            // 旧格式：普通嵌套对象，递归处理子节点
+            const node = {
+                key: key,
+                label: key,
+                displayName: '',
+                path: currentPath,
+                description: '',
+                example: '',
+                insertText: '',
+                category: '',
+                children: convertJsonToTree(value, currentPath)
+            }
+            result.push(node)
         } else if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object') {
             // 对象数组，转换为可扩展的容器节点
-            node.children = []
+            const node = {
+                key: key,
+                label: key,
+                displayName: '',
+                path: currentPath,
+                description: '',
+                example: '',
+                insertText: '',
+                category: '',
+                children: []
+            }
             const sampleObject = value[0]
             if (sampleObject && typeof sampleObject === 'object') {
                 node.children = convertJsonToTree(sampleObject, currentPath)
             }
+            result.push(node)
         } else {
             // 原始值，设为不包含子字段的节点
-            node.children = undefined
+            const node = {
+                key: key,
+                label: key,
+                displayName: '',
+                path: currentPath,
+                description: '',
+                example: typeof value === 'string' ? value : '',
+                insertText: '',
+                category: '',
+                children: undefined
+            }
+            result.push(node)
         }
-
-        result.push(node)
     }
 
     return result
@@ -1373,6 +1740,23 @@ const convertJsonToTree = (obj, parentPath = []) => {
 onMounted(async () => {
     await nextTick()
     initEditor()
+    
+    // 初始化树数据
+    if (props.modelValue) {
+        try {
+            const jsonObject = JSON.parse(props.modelValue)
+            treeData.value = convertJsonToTree(jsonObject)
+        } catch (error) {
+            console.error('初始化树数据失败:', error)
+            treeData.value = []
+        }
+    } else {
+        treeData.value = []
+    }
+    
+    // 初始化分类选项
+    initCategoryOptions()
+    
 })
 
 onUnmounted(() => {

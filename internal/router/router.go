@@ -30,6 +30,7 @@ func (router *Router) BindController(ctx context.Context, group *ghttp.RouterGro
 			controller.Tags,
 			controller.VarPreset,
 			controller.TemplateExpose,
+			controller.TemplateVariablePresets,
 		)
 
 		// 手动注册流式AI聊天端点
