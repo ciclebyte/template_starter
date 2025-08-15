@@ -257,17 +257,43 @@
       >
         <div v-if="presetVariables[tab.key] && presetVariables[tab.key].length > 0" class="variable-section">
           <div class="section-title">{{ tab.preset.presetName }} 变量</div>
-          <div class="variable-tags">
-            <div
-              v-for="variable in presetVariables[tab.key]"
-              :key="variable.name"
-              class="variable-tag preset"
-              @click="handleInsertVariable(variable.insertText)"
-              :title="`${variable.displayName} - ${variable.description}`"
-            >
-              {{ variable.displayName }}
-              <span class="variable-type-badge">{{ variable.type }}</span>
-            </div>
+          <div class="variable-groups">
+            <template v-for="variable in getRootLevelVariables(presetVariables[tab.key])" :key="variable.name">
+              <!-- 根级字段组：包含该字段及其所有后代 -->
+              <div class="variable-family">
+                <!-- 当前根级字段 -->
+                <div
+                  :class="[
+                    'variable-tag preset',
+                    variable.isParent ? 'parent-field' : 'child-field',
+                    `depth-${variable.level}`
+                  ]"
+                  @click="handleInsertVariable(variable.insertText)"
+                  :title="`${variable.displayName} - ${variable.description}${variable.isParent ? ' (对象)' : ''}`"
+                >
+                  <span class="variable-name">{{ variable.displayName }}</span>
+                  <span class="variable-type-badge">{{ variable.isParent ? 'obj' : variable.type }}</span>
+                  <span v-if="variable.isParent" class="parent-indicator">📁</span>
+                </div>
+                
+                <!-- 递归显示所有后代字段 -->
+                <template v-for="descendant in getDescendants(presetVariables[tab.key], variable.name)" :key="descendant.name">
+                  <div
+                    :class="[
+                      'variable-tag preset',
+                      descendant.isParent ? 'parent-field' : 'child-field',
+                      `depth-${descendant.level}`
+                    ]"
+                    @click="handleInsertVariable(descendant.insertText)"
+                    :title="`${descendant.displayName} - ${descendant.description}${descendant.isParent ? ' (对象)' : ''}`"
+                  >
+                    <span class="variable-name">{{ descendant.displayName }}</span>
+                    <span class="variable-type-badge">{{ descendant.isParent ? 'obj' : descendant.type }}</span>
+                    <span v-if="descendant.isParent" class="parent-indicator">📁</span>
+                  </div>
+                </template>
+              </div>
+            </template>
           </div>
         </div>
         
@@ -505,7 +531,7 @@ const variableTabs = computed(() => {
   return tabs
 })
 
-// 解析schema JSON为变量列表
+// 解析schema JSON为变量列表，按亲属关系分组
 const parseSchemaToVariables = (schemaJson, presetName) => {
   const variables = []
   
@@ -513,23 +539,30 @@ const parseSchemaToVariables = (schemaJson, presetName) => {
     const schema = JSON.parse(schemaJson)
     
     const parseObject = (obj, parentPath = '') => {
+      // 为了保证父子关系聚集，我们需要先处理每个字段，再处理其子字段
       for (const [key, value] of Object.entries(obj)) {
         if (value && typeof value === 'object') {
           const currentPath = parentPath ? `${parentPath}.${key}` : key
           
-          if (value.children && typeof value.children === 'object') {
-            // 递归解析children
+          // 检查是否有子字段
+          const hasChildren = value.children && typeof value.children === 'object'
+          
+          // 添加当前字段作为变量（不管是否有子字段）
+          variables.push({
+            name: currentPath,
+            displayName: value.displayName || key,
+            description: value.description || '',
+            insertText: value.insertText || `{{.${currentPath}}}`,
+            type: value.type || 'field',
+            category: value.category || 'preset',
+            isParent: hasChildren,
+            level: (parentPath.match(/\./g) || []).length,
+            parentPath: parentPath
+          })
+          
+          // 立即处理子字段，确保父子关系聚集
+          if (hasChildren) {
             parseObject(value.children, currentPath)
-          } else {
-            // 叶子节点，添加为变量
-            variables.push({
-              name: currentPath,
-              displayName: value.displayName || key,
-              description: value.description || '',
-              insertText: value.insertText || `{{.${currentPath}}}`,
-              type: value.type || 'field',
-              category: value.category || 'preset'
-            })
           }
         }
       }
@@ -555,6 +588,28 @@ const presetVariables = computed(() => {
   
   return presetVars
 })
+
+// 获取根级字段（没有父字段的顶级字段）
+const getRootLevelVariables = (allVariables) => {
+  return allVariables.filter(v => !v.parentPath || v.parentPath === '')
+}
+
+// 获取指定字段的所有后代字段（子、孙、曾孙等）
+const getDescendants = (allVariables, parentPath) => {
+  return allVariables.filter(v => {
+    if (!v.parentPath) return false
+    
+    // 检查是否是直接或间接后代
+    let currentPath = v.parentPath
+    while (currentPath) {
+      if (currentPath === parentPath) return true
+      // 向上查找父级
+      const parent = allVariables.find(p => p.name === currentPath)
+      currentPath = parent ? parent.parentPath : null
+    }
+    return false
+  }).sort((a, b) => a.level - b.level) // 按层级排序
+}
 
 // 状态
 const activeTab = ref('syntax')
@@ -1166,6 +1221,138 @@ onUnmounted(() => {
   background: #f9f0ff;
   color: #722ed1;
   border-color: #d3adf7;
+  position: relative;
+}
+
+/* 父字段样式 - 更深的紫色 */
+.variable-tag.preset.parent-field {
+  background: #f0e6ff;
+  border: 2px solid #9254de;
+  color: #531dab;
+  font-weight: 600;
+}
+
+.variable-tag.preset.parent-field:hover {
+  background: #e6d7ff;
+  border-color: #722ed1;
+}
+
+/* 子字段样式 - 浅紫色 */
+.variable-tag.preset.child-field {
+  background: #fafbff;
+  border: 1px solid #d9d9d9;
+  color: #666;
+}
+
+.variable-tag.preset.child-field:hover {
+  background: #f9f0ff;
+  border-color: #b37feb;
+  color: #722ed1;
+}
+
+/* 父字段角标 */
+.parent-indicator {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  font-size: 12px;
+  background: #fff;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.variable-name {
+  flex: 1;
+}
+
+/* 变量分组样式 */
+.variable-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.variable-family {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 6px;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+  background: #fafbff;
+}
+
+/* 多层级视觉区分 */
+.variable-family .depth-0 {
+  /* 根级字段 - 最突出 */
+  transform: scale(1);
+  opacity: 1;
+}
+
+.variable-family .depth-1 {
+  /* 第一级子字段 */
+  transform: scale(0.95);
+  opacity: 0.9;
+  margin-left: 2px;
+}
+
+.variable-family .depth-2 {
+  /* 第二级子字段 */
+  transform: scale(0.9);
+  opacity: 0.8;
+  margin-left: 4px;
+}
+
+.variable-family .depth-3 {
+  /* 第三级子字段 */
+  transform: scale(0.85);
+  opacity: 0.7;
+  margin-left: 6px;
+}
+
+.variable-family .depth-4 {
+  /* 第四级及以上子字段 */
+  transform: scale(0.8);
+  opacity: 0.6;
+  margin-left: 8px;
+}
+
+/* 悬停时恢复正常 */
+.variable-family .variable-tag:hover {
+  transform: scale(1) !important;
+  opacity: 1 !important;
+  z-index: 10;
+}
+
+/* 为不同层级添加微妙的颜色变化 */
+.variable-family .depth-1.child-field {
+  border-color: #e8e8e8;
+}
+
+.variable-family .depth-2.child-field {
+  border-color: #f0f0f0;
+  background: #fbfbfb;
+}
+
+.variable-family .depth-3.child-field {
+  border-color: #f5f5f5;
+  background: #fcfcfc;
+}
+
+.variable-family .depth-4.child-field {
+  border-color: #f8f8f8;
+  background: #fdfdfd;
+}
+
+/* 独立的顶级字段 */
+.variable-tag.standalone {
+  margin-bottom: 6px;
 }
 
 .variable-type-badge {
