@@ -11,6 +11,7 @@
           @click="activeTab = tab.key"
         >
           {{ tab.label }}
+          <span v-if="tab.preset" class="preset-badge">订阅</span>
         </div>
       </div>
       
@@ -324,6 +325,7 @@
           <div class="summary-header">
             <h4>已订阅的预设变量</h4>
             <n-button 
+              v-if="subscribedPresets.length > 0"
               type="primary" 
               size="small" 
               @click="showSubscribeModal = true"
@@ -338,7 +340,7 @@
           <div class="subscribed-variables" v-loading="loadingPresets">
             <n-empty v-if="subscribedPresets.length === 0" description="暂无订阅的预设变量" size="small">
               <template #extra>
-                <n-button size="small" @click="$emit('show-preset-manager')">立即订阅</n-button>
+                <n-button size="small" @click="showSubscribeModal = true">立即订阅</n-button>
               </template>
             </n-empty>
             
@@ -1115,6 +1117,24 @@ onUnmounted(() => {
   border-bottom-color: #18a058;
   background: rgba(24, 160, 88, 0.05);
   font-weight: 500;
+}
+
+.tab-item {
+  position: relative;
+}
+
+.preset-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background: #722ed1;
+  color: white;
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 8px;
+  line-height: 1.2;
+  font-weight: 500;
+  transform: scale(0.8);
 }
 
 .tab-content {
