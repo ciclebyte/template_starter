@@ -858,9 +858,9 @@ const handleInsertVariable = (variableName) => {
 }
 
 const handleInsertVariableDefinition = (variable) => {
-  // 使用变量定义中的insertText，如果没有则使用路径
+  // 严格按照insertText来插入，使用insert-preset-variable事件避免重复包装
   const insertText = variable.insertText || `{{.${variable.path || variable.name}}}`
-  emit('insert-variable', insertText)
+  emit('insert-preset-variable', insertText)
 }
 
 const handleInsertPresetVariable = (insertText) => {
