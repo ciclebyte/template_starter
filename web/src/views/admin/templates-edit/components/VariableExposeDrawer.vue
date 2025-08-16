@@ -288,8 +288,8 @@
         <!-- 右侧：预览 -->
         <div class="right-panel" :style="{ width: rightPanelWidth + 'px' }">
           <div class="panel-header">
-            <div class="panel-title">Schema预览</div>
-            <div class="panel-actions">
+            <div class="panel-title-row">
+              <div class="panel-title">Schema预览</div>
               <!-- 格式切换 -->
               <n-button-group size="small">
                 <n-button 
@@ -305,42 +305,46 @@
                   YAML
                 </n-button>
               </n-button-group>
-              
+            </div>
+            
+            <div class="panel-actions">
               <!-- 操作按钮 -->
-              <n-button size="small" @click="importFromFile" quaternary>
-                <template #icon>
-                  <n-icon><CloudUploadOutline /></n-icon>
-                </template>
-                导入
-              </n-button>
-              
-              <n-button size="small" @click="showExportDialog" quaternary>
-                <template #icon>
-                  <n-icon><DownloadOutline /></n-icon>
-                </template>
-                导出
-              </n-button>
-              
-              <n-button size="small" @click="copyToClipboard" quaternary>
-                <template #icon>
-                  <n-icon><CopyOutline /></n-icon>
-                </template>
-                复制
-              </n-button>
-              
-              <n-button size="small" @click="formatContent" quaternary>
-                <template #icon>
-                  <n-icon><RefreshOutline /></n-icon>
-                </template>
-                格式化
-              </n-button>
-              
-              <n-button size="small" @click="syncToTree" quaternary>
-                <template #icon>
-                  <n-icon><SyncOutline /></n-icon>
-                </template>
-                同步到树
-              </n-button>
+              <n-space size="small">
+                <n-button size="small" @click="importFromFile" quaternary>
+                  <template #icon>
+                    <n-icon><CloudUploadOutline /></n-icon>
+                  </template>
+                  导入
+                </n-button>
+                
+                <n-button size="small" @click="showExportDialog" quaternary>
+                  <template #icon>
+                    <n-icon><DownloadOutline /></n-icon>
+                  </template>
+                  导出
+                </n-button>
+                
+                <n-button size="small" @click="copyToClipboard" quaternary>
+                  <template #icon>
+                    <n-icon><CopyOutline /></n-icon>
+                  </template>
+                  复制
+                </n-button>
+                
+                <n-button size="small" @click="formatContent" quaternary>
+                  <template #icon>
+                    <n-icon><RefreshOutline /></n-icon>
+                  </template>
+                  格式化
+                </n-button>
+                
+                <n-button size="small" @click="syncToTree" quaternary>
+                  <template #icon>
+                    <n-icon><SyncOutline /></n-icon>
+                  </template>
+                  同步到树
+                </n-button>
+              </n-space>
             </div>
           </div>
           <div class="preview-content">
@@ -2253,29 +2257,33 @@ onUnmounted(() => {
 
 /* 预览面板头部样式 */
 .panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid #e0e0e0;
+}
+
+.panel-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
 }
 
 .panel-header .panel-title {
   font-weight: 600;
   color: #333;
   margin: 0;
+  font-size: 14px;
 }
 
 .panel-actions {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
   flex-wrap: wrap;
 }
 
-.panel-actions .n-button-group {
-  margin-right: 8px;
+.panel-actions .n-space {
+  flex-wrap: wrap;
 }
 
 .left-panel {
