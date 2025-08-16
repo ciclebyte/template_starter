@@ -265,9 +265,6 @@
           
           <div v-if="variableDefinitions.length === 0 && !loadingVariableDefinitions" class="empty-variables">
             <div class="empty-text">暂无变量定义</div>
-            <n-button text type="primary" size="small" @click="$emit('show-variable-manager')">
-              前往变量定义
-            </n-button>
           </div>
         </div>
       </div>
@@ -533,7 +530,6 @@ const emit = defineEmits([
   'insert-sprig-function',
   'insert-variable',
   'insert-preset-variable',
-  'show-variable-manager',
   'show-preset-manager',
   'update:height'
 ])

@@ -34,14 +34,6 @@
         </template>
         变量定义
       </n-button>
-      <n-button size="small" @click="$emit('show-variable-manager')">
-        <template #icon>
-          <n-icon>
-            <Settings />
-          </n-icon>
-        </template>
-        变量管理
-      </n-button>
       <n-button size="small" @click="$emit('show-settings')" title="编辑器设置">
         <template #icon>
           <n-icon>
@@ -88,7 +80,7 @@ defineProps({
   }
 })
 
-defineEmits(['toggle-variable-panel', 'show-variable-manager', 'show-variable-expose', 'close-edit', 'toggle-file-tree', 'show-settings'])
+defineEmits(['toggle-variable-panel', 'show-variable-expose', 'close-edit', 'toggle-file-tree', 'show-settings'])
 </script>
 
 <style scoped>

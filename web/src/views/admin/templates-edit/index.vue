@@ -6,7 +6,7 @@
       :has-unsaved-changes="hasUnsavedChanges"
       :current-file-name="currentFileName"
       @toggle-variable-panel="toggleVariablePanel" 
-      @show-variable-manager="showVariableManager = true" 
+ 
       @show-variable-expose="goToVariableExpose"
       @close-edit="closeEdit" 
       @toggle-file-tree="toggleFileTree" 
@@ -33,7 +33,7 @@
       :template-id="route.params.id"
       @insert-syntax="insertSyntax"
       @insert-function="insertFunction" @insert-sprig-function="insertSprigFunction" @insert-variable="insertVariable" @insert-preset-variable="insertPresetVariable"
-      @show-variable-manager="showVariableManager = true" @update:height="variablePanelHeight = $event" />
+ @update:height="variablePanelHeight = $event" />
 
     <div class="edit-main">
       <!-- 左侧：模板资源管理器 -->
@@ -55,21 +55,6 @@
 
 
 
-    <!-- 变量管理弹框 -->
-    <n-modal v-model:show="showVariableManager" preset="card" style="width: 80vw; height: 80vh; max-width: 1200px;"
-      :mask-closable="false">
-      <template #header>
-        <div class="variable-manager-header">
-          <span class="modal-title">变量管理</span>
-        </div>
-      </template>
-
-      <div class="variable-manager-content">
-        <VariableManager ref="variableManagerRef" :variables="userVariables" :template-id="route.params.id"
-          @add="onAddVariable" @edit="onEditVariable" @delete="onDeleteVariable" @insert="onInsertVariable"
-          @applyTestData="onApplyTestData" />
-      </div>
-    </n-modal>
 
 
     <!-- 条件设置弹框 -->
@@ -110,13 +95,12 @@
 import { useRouter, useRoute } from 'vue-router'
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileDetail, getTemplateFileContent, renameTemplateFile, uploadZipFile, uploadCodeFile, moveTemplateFile, setFileCondition, getFileCondition } from '@/api/templateFiles'
-import { listTemplateVariables, addTemplateVariable, editTemplateVariable, deleteTemplateVariable } from '@/api/templateVariables'
+import { listTemplateVariables } from '@/api/templateVariables'
 import { getTemplateExpose } from '@/api/templateExpose'
 import { getBuiltinFunctions } from '@/api/builtinFunctions'
 import { getSprigFunctions } from '@/api/sprigFunctions'
 import TemplateExplorer from './components/TemplateFileTree.vue'
 import TemplateEditor from './components/TemplateEditor.vue'
-import VariableManager from './components/VariableManager.vue'
 import TemplatePreview from './components/TemplatePreview.vue'
 import AIAssistant from './components/AIAssistant.vue'
 import AISDKPanel from './components/AISDKPanel.vue'
@@ -161,9 +145,7 @@ const templateFileStore = useTemplateFileStore()
 const templateVariables = ref([])
 const userVariables = ref([]) // 从变量定义转换的用户变量
 const templateEditorRef = ref(null)
-const variableManagerRef = ref(null)
 const conditionModalRef = ref(null)
-const showVariableManager = ref(false)
 
 const variableValues = ref({})
 const currentFileNode = ref(null)
@@ -850,51 +832,6 @@ watch(treeData, (val) => {
 }, { deep: true })
 
 // 变量相关事件处理
-async function onAddVariable(variable) {
-  try {
-    await addTemplateVariable({
-      templateId: parseInt(route.params.id),
-      name: variable.name,
-      variableType: variable.variableType || 'string',
-      description: variable.description,
-      defaultValue: variable.defaultValue || '',
-      isRequired: variable.isRequired ? 1 : 0,
-      sort: templateVariables.value.length + 1
-    })
-    await loadVariables()
-  } catch (error) {
-    message.error('变量添加失败: ' + (error.response?.data?.message || error.message || '未知错误'))
-  }
-}
-
-async function onEditVariable(variable) {
-  try {
-    await editTemplateVariable({
-      id: variable.id,
-      templateId: parseInt(route.params.id),
-      name: variable.name,
-      variableType: variable.variableType || 'string',
-      description: variable.description,
-      defaultValue: variable.defaultValue || '',
-      isRequired: variable.isRequired ? 1 : 0,
-      sort: variable.sort || 0
-    })
-    message.success('变量更新成功')
-    await loadVariables()
-  } catch (error) {
-    message.error('变量更新失败: ' + (error.response?.data?.message || error.message || '未知错误'))
-  }
-}
-
-async function onDeleteVariable(id) {
-  try {
-    await deleteTemplateVariable({ id })
-    message.success('变量删除成功')
-    await loadVariables()
-  } catch (error) {
-    message.error('变量删除失败: ' + (error.response?.data?.message || error.message || '未知错误'))
-  }
-}
 
 function onInsertVariable(template) {
   // 通过 ref 调用编辑器的插入变量方法
@@ -1086,12 +1023,6 @@ function insertSyntax(syntax) {
 }
 
 
-// 应用测试数据
-function onApplyTestData(testData) {
-  // 更新本地变量值
-  variableValues.value = testData
-  message.success('测试数据已应用并保存')
-}
 
 // 设置文件生成条件
 async function onSetCondition(fileNode) {
@@ -1167,23 +1098,9 @@ function onAIInsertCode(code) {
   }
 }
 
-// AI添加变量
-async function onAIAddVariable(variable) {
-  try {
-    await addTemplateVariable({
-      templateId: parseInt(route.params.id),
-      name: variable.name,
-      variableType: variable.type || 'string',
-      description: variable.description || '',
-      defaultValue: variable.defaultValue || '',
-      isRequired: variable.required ? 1 : 0,
-      sort: templateVariables.value.length + 1
-    })
-    await loadVariables()
-    message.success(`AI建议的变量 "${variable.name}" 已添加`)
-  } catch (error) {
-    message.error('AI变量添加失败: ' + (error.response?.data?.message || error.message || '未知错误'))
-  }
+// AI添加变量 - 已禁用，改为使用变量定义
+function onAIAddVariable(variable) {
+  message.info(`AI建议的变量 "${variable.name}" 请通过变量定义功能添加`)
 }
 
 // AI创建文件
@@ -1221,11 +1138,9 @@ function onAIApplySuggestion(suggestion) {
       }
       break
     case 'variable-suggestion':
-      // 变量建议
+      // 变量建议 - 已禁用，改为使用变量定义
       if (suggestion.variables) {
-        suggestion.variables.forEach(variable => {
-          onAIAddVariable(variable)
-        })
+        message.info(`AI建议了 ${suggestion.variables.length} 个变量，请通过变量定义功能添加`)
       }
       break
     case 'template-structure':
@@ -1587,28 +1502,7 @@ function onAIApplySuggestion(suggestion) {
   margin-bottom: 8px;
 }
 
-/* 变量管理弹框样式 */
-.variable-manager-header {
-  display: flex;
-  align-items: center;
-  width: 100%;
-}
 
-.modal-title {
-  font-size: 1.1rem;
-  font-weight: bold;
-  color: #333;
-}
-
-.variable-manager-content {
-  height: calc(80vh - 120px);
-  overflow: hidden;
-}
-
-.variable-manager-content .variable-manager {
-  height: 100%;
-  overflow: hidden;
-}
 
 
 </style>
