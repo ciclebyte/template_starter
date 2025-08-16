@@ -9,6 +9,12 @@
             </template>
             保存定义
           </n-button>
+          <n-button size="small" @click="emergencyCleanup" type="warning" quaternary>
+            <template #icon>
+              <n-icon><TrashOutline /></n-icon>
+            </template>
+            重置所有
+          </n-button>
           <n-button size="small" quaternary @click="visible = false">
             <template #icon>
               <n-icon><CloseOutline /></n-icon>
@@ -40,6 +46,7 @@
               :render-switcher-icon="renderSwitcherIcon"
               :render-label="renderLabel"
               block-line
+              selectable
               @update:selected-keys="onSelectVariable"
               @update:expanded-keys="onExpandKeys"
             >
@@ -145,11 +152,20 @@
                 
                 <n-grid-item>
                   <n-form-item label="默认值 (default)">
+                    <!-- 对象和数组类型显示JSON字符串 -->
+                    <n-input 
+                      v-if="selectedVariableData.type === 'object' || selectedVariableData.type === 'array'"
+                      :value="JSON.stringify(selectedVariableData.default)"
+                      :placeholder="`默认${getTypeLabel(selectedVariableData.type)}值`"
+                      readonly
+                      disabled
+                    />
+                    <!-- 其他类型正常处理 -->
                     <component
+                      v-else
                       :is="getInputComponent(selectedVariableData.type)"
                       v-model:value="selectedVariableData.default"
                       :placeholder="`默认${getTypeLabel(selectedVariableData.type)}值`"
-                      :disabled="selectedVariableData.type === 'object' || selectedVariableData.type === 'array'"
                     />
                   </n-form-item>
                 </n-grid-item>
@@ -416,6 +432,13 @@ watch(computedRightWidth, (newWidth) => {
 // 节点属性配置（参考TemplateFileTree）
 const nodeProps = ({ option }) => {
   return {
+    onClick(e) {
+      console.log('节点被点击:', option.key)
+      // 手动设置选中状态
+      selectedKeys.value = [option.key]
+      // 触发选择处理
+      onSelectVariable([option.key])
+    },
     onContextmenu(e) {
       e.preventDefault()
       e.stopPropagation()
@@ -513,22 +536,16 @@ const namingPolicyOptions = [
   { label: '短横线 (kebab)', value: 'kebab' }
 ]
 
-// 转换为变量树数据
+// 转换为变量树数据 - 简化版本
 const variableTreeData = computed(() => {
-  const treeData = convertToTreeData(varsSchema.value)
-  
-  // 如果有正在编辑的节点，将其插入到适当位置
-  if (editingNode.value) {
-    if (editingNode.value.isRoot) {
-      // 根级编辑节点插入到开头
-      treeData.unshift(editingNode.value)
-    } else {
-      // 子级编辑节点插入到父级的children中
-      insertEditingNodeToTree(treeData, editingNode.value)
-    }
+  try {
+    const treeData = convertToTreeData(varsSchema.value)
+    console.log('生成的树数据:', treeData)
+    return treeData
+  } catch (error) {
+    console.error('生成变量树数据时出错:', error)
+    return []
   }
-  
-  return treeData
 })
 
 // 将编辑节点插入到树的正确位置
@@ -564,42 +581,73 @@ const insertEditingNodeToTree = (treeData, editingNode) => {
 }
 
 // 转换变量Schema为树形数据
-const convertToTreeData = (schema, parentPath = '') => {
+const convertToTreeData = (schema, parentPath = '', visited = new Set(), depth = 0) => {
   const treeData = []
+  
+  // 防止过深的递归
+  if (depth > 10) {
+    console.warn('递归深度超过限制，停止处理:', parentPath)
+    return treeData
+  }
   
   if (!schema || typeof schema !== 'object') {
     return treeData
   }
   
-  Object.entries(schema).forEach(([key, value]) => {
-    const currentPath = parentPath ? `${parentPath}.${key}` : key
-    const varType = value.type || 'string'
-    
-    // 检查对象类型是否有子变量
-    const hasChildren = varType === 'object' && value.properties && Object.keys(value.properties).length > 0
-    
-    const node = {
-      key: currentPath,
-      title: key, // 使用变量的实际键名作为显示标题
-      type: varType,
-      path: currentPath,
-      data: value,
-      isLeaf: varType !== 'object', // 对象类型永远不是叶子节点，可以展开添加子属性
-      isEditing: Boolean(renamingNode.value && renamingNode.value.path === currentPath), // 确保是布尔值
-      children: [], // 总是初始化children数组
-      // 添加prefix函数，参考模板资源树的实现
-      prefix: () => h(NIcon, { class: `var-icon var-${varType}` }, {
-        default: () => h(getVariableIconComponent(varType, hasChildren))
-      })
-    }
-    
-    // 如果是对象类型且有properties，递归生成子节点
-    if (hasChildren) {
-      node.children = convertToTreeData(value.properties, currentPath)
-    }
-    
-    treeData.push(node)
-  })
+  try {
+    Object.entries(schema).forEach(([key, value]) => {
+      const currentPath = parentPath ? `${parentPath}.${key}` : key
+      
+      // 检测循环引用
+      if (visited.has(currentPath)) {
+        console.warn('检测到循环引用，跳过节点:', currentPath)
+        return
+      }
+      
+      // 检查值是否有效
+      if (!value || typeof value !== 'object') {
+        console.warn('无效的变量值，跳过:', key, value)
+        return
+      }
+      
+      const varType = value.type || 'string'
+      
+      // 检查对象类型是否有子变量
+      const hasChildren = varType === 'object' && value.properties && 
+                         typeof value.properties === 'object' && 
+                         Object.keys(value.properties).length > 0
+      
+      const node = {
+        key: currentPath,
+        title: key,
+        type: varType,
+        path: currentPath,
+        data: value,
+        isLeaf: varType !== 'object',
+        isEditing: Boolean(renamingNode.value && renamingNode.value.path === currentPath),
+        children: [],
+        prefix: () => h(NIcon, { class: `var-icon var-${varType}` }, {
+          default: () => h(getVariableIconComponent(varType, hasChildren))
+        })
+      }
+      
+      // 如果是对象类型且有properties，递归生成子节点
+      if (hasChildren) {
+        try {
+          const newVisited = new Set(visited)
+          newVisited.add(currentPath)
+          node.children = convertToTreeData(value.properties, currentPath, newVisited, depth + 1)
+        } catch (childError) {
+          console.error('处理子节点时出错:', currentPath, childError)
+          node.children = []
+        }
+      }
+      
+      treeData.push(node)
+    })
+  } catch (error) {
+    console.error('convertToTreeData 处理时出错:', error)
+  }
   
   return treeData
 }
@@ -628,65 +676,8 @@ const getVariableIconComponent = (type, hasChildren = false) => {
 const renderSwitcherIcon = () => h(NIcon, null, { default: () => h(ChevronForward) })
 
 // 渲染标签（支持内联编辑）
+// 简化标签渲染 - 不再需要复杂的内联编辑
 const renderLabel = ({ option }) => {
-  if (option.isEditing === true) {
-    const isRenaming = renamingNode.value && String(option.path) === String(renamingNode.value.path)
-    const placeholder = isRenaming ? '请输入新变量名' : '请输入变量名'
-    
-    // 使用一个更稳定的引用，包含时间戳避免key冲突
-    const timestamp = editingNode.value?.key || renamingNode.value?.key || Date.now()
-    const stableKey = isRenaming ? `rename-${renamingNode.value.path}-${timestamp}` : `add-${timestamp}`
-    
-    return h('input', {
-      key: stableKey,
-      class: 'vscode-tree-input',
-      value: newVariableName.value, // 回到使用 value，确保同步
-      placeholder: placeholder,
-      onInput: (e) => {
-        // 直接更新响应式变量
-        newVariableName.value = e.target.value
-      },
-      onKeydown: e => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          // 在确认之前获取最新值
-          newVariableName.value = e.target.value
-          confirmAddVariable()
-        }
-        if (e.key === 'Escape') {
-          e.preventDefault()
-          cancelAddVariable()
-        }
-        e.stopPropagation()
-      },
-      onBlur: (e) => {
-        // 确保获取最新值
-        newVariableName.value = e.target.value
-        setTimeout(() => {
-          if (editingNode.value || renamingNode.value) {
-            confirmAddVariable()
-          }
-        }, 150)
-      },
-      onClick: e => e.stopPropagation(),
-      onVnodeMounted: (vnode) => {
-        // 确保输入框挂载后立即获得焦点
-        const el = vnode.el
-        if (el) {
-          setTimeout(() => {
-            el.focus()
-            if (isRenaming && newVariableName.value) {
-              el.select() // 重命名时选中所有文本
-            } else {
-              // 新增时将光标定位到末尾
-              const length = el.value.length
-              el.setSelectionRange(length, length)
-            }
-          }, 10)
-        }
-      }
-    })
-  }
   return option.title
 }
 
@@ -918,47 +909,79 @@ const getDefaultComponent = (type) => {
 
 // 树选择处理
 const onSelectVariable = (selectedKeys) => {
-  // 如果正在编辑中且点击的是编辑节点，不处理
-  if ((editingNode.value || renamingNode.value) && 
-      selectedKeys.length > 0 && 
-      (selectedKeys[0].startsWith('__new__') || selectedKeys[0] === editingNode.value?.key)) {
-    return
-  }
-  
-  // 如果正在编辑但点击的是其他节点，先取消编辑状态
-  if (editingNode.value || renamingNode.value) {
-    cancelAddVariable()
-  }
-  
-  if (selectedKeys.length > 0) {
-    const selectedKey = selectedKeys[0]
+  try {
+    console.log('onSelectVariable 被调用:', selectedKeys)
     
-    // 跳过临时编辑节点
-    if (selectedKey.startsWith('__new__')) {
+    // 如果正在编辑中且点击的是编辑节点，不处理
+    if ((editingNode.value || renamingNode.value) && 
+        selectedKeys.length > 0 && 
+        (selectedKeys[0].startsWith('__new__') || selectedKeys[0] === editingNode.value?.key)) {
+      console.log('跳过编辑节点')
       return
     }
     
-    const variable = getVariableByPath(selectedKey)
+    // 如果正在编辑但点击的是其他节点，先取消编辑状态
+    if (editingNode.value || renamingNode.value) {
+      console.log('取消编辑状态')
+      cancelAddVariable()
+    }
     
-    if (variable) {
-      // 创建编辑数据的响应式副本
-      selectedVariableData.value = {
-        path: selectedKey,
-        ...JSON.parse(JSON.stringify(variable)),
-        // 确保必要的嵌套对象存在
-        ui: variable.ui || {
-          panel: true,
-          order: 10,
-          group: '基础信息',
-          component: getDefaultComponent(variable.type || 'string')
-        },
-        items: variable.items || (variable.type === 'array' ? { type: 'string' } : undefined),
-        enum: variable.enum || (variable.type === 'enum' ? [] : undefined)
+    if (selectedKeys.length > 0) {
+      const selectedKey = selectedKeys[0]
+      console.log('选中的key:', selectedKey)
+      
+      // 跳过临时编辑节点
+      if (selectedKey.startsWith('__new__')) {
+        console.log('跳过临时编辑节点')
+        return
+      }
+      
+      const variable = getVariableByPath(selectedKey)
+      console.log('找到的变量:', variable)
+      
+      if (variable) {
+        // 创建编辑数据的安全副本，避免循环引用
+        const safeClone = (obj, visited = new WeakSet()) => {
+          if (obj === null || typeof obj !== 'object') return obj
+          if (visited.has(obj)) return {} // 跳过循环引用
+          
+          visited.add(obj)
+          const clone = Array.isArray(obj) ? [] : {}
+          
+          for (const key in obj) {
+            if (obj.hasOwnProperty(key)) {
+              clone[key] = safeClone(obj[key], visited)
+            }
+          }
+          
+          return clone
+        }
+        
+        // 创建安全的编辑数据，排除properties避免循环引用
+        const { properties, ...safeVariable } = variable
+        
+        selectedVariableData.value = {
+          path: selectedKey,
+          ...safeVariable,
+          // 确保必要的嵌套对象存在
+          ui: variable.ui || {
+            panel: true,
+            order: 10,
+            group: '基础信息',
+            component: getDefaultComponent(variable.type || 'string')
+          },
+          items: variable.items || (variable.type === 'array' ? { type: 'string' } : undefined),
+          enum: variable.enum || (variable.type === 'enum' ? [] : undefined)
+        }
+        console.log('设置selectedVariableData成功:', selectedVariableData.value)
+      } else {
+        selectedVariableData.value = null
       }
     } else {
       selectedVariableData.value = null
     }
-  } else {
+  } catch (error) {
+    console.error('选择变量时出错:', error)
     selectedVariableData.value = null
   }
 }
@@ -968,33 +991,54 @@ const onExpandKeys = (keys) => {
   expandedKeys.value = keys
 }
 
-// 添加根变量
+// 添加根变量 - 简化版本
 const addRootVariable = () => {
-  // 取消任何现有的编辑状态
-  editingNode.value = null
-  renamingNode.value = null
+  // 1. 直接弹窗获取变量名
+  const variableName = prompt('请输入变量名称:')
+  if (!variableName || !variableName.trim()) {
+    return
+  }
   
-  // 清空输入框
-  newVariableName.value = ''
-  addVariableType.value = 'string'
+  // 2. 验证变量名
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(variableName)) {
+    message.error('变量名只能包含字母、数字和下划线，且不能以数字开头')
+    return
+  }
   
-  // 创建临时编辑节点
-  const newKey = '__new__' + Date.now() + Math.random().toString(36).slice(2)
+  // 3. 检查重复
+  if (varsSchema.value[variableName]) {
+    message.error('变量名已存在')
+    return
+  }
   
+  // 4. 创建新变量 - 就这么简单！
+  varsSchema.value[variableName] = {
+    type: 'string',
+    title: variableName,
+    description: '',
+    required: false,
+    default: '',
+    ui: {
+      panel: true,
+      order: 10,
+      group: '基础信息',
+      component: 'input'
+    },
+    naming_policy: 'go_snake'
+  }
+  
+  console.log('创建新变量:', variableName, varsSchema.value)
+  
+  // 5. 选中新变量
+  selectedKeys.value = [variableName]
+  console.log('设置selectedKeys:', selectedKeys.value)
+  
+  // 6. 手动触发选择事件
   nextTick(() => {
-    editingNode.value = {
-      key: newKey,
-      title: '',
-      type: 'string',
-      path: newKey,
-      isLeaf: true,
-      isEditing: true,
-      isRoot: true,
-      prefix: () => h(NIcon, { class: 'var-icon var-string' }, {
-        default: () => h(getVariableIconComponent('string', false))
-      })
-    }
+    onSelectVariable([variableName])
   })
+  
+  message.success(`已添加变量: ${variableName}`)
 }
 
 
@@ -1083,58 +1127,69 @@ const renameVariable = (path) => {
   varsSchema.value = { ...varsSchema.value }
 }
 
-// 添加子变量
+// 添加子变量 - 简化版本
 const addChildVariable = (parentPath) => {
+  // 1. 获取父级变量
   const parent = getVariableByPath(parentPath)
-  
   if (!parent) {
     message.error('父级变量不存在')
     return
   }
   
-  // 确保父级是对象类型
-  if (parent.type !== 'object') {
-    parent.type = 'object'
-    parent.ui = parent.ui || {}
-    parent.ui.component = 'input'
+  // 2. 直接弹窗获取变量名
+  const variableName = prompt('请输入子变量名称:')
+  if (!variableName || !variableName.trim()) {
+    return
   }
   
-  // 确保有properties对象
+  // 3. 验证变量名
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(variableName)) {
+    message.error('变量名只能包含字母、数字和下划线，且不能以数字开头')
+    return
+  }
+  
+  // 4. 检查父级是否可以包含子变量
+  if (parent.type !== 'object') {
+    message.error('只有对象类型的变量才能添加子变量，请先将父级变量类型改为object')
+    return
+  }
+  
+  // 5. 确保有properties对象
   if (!parent.properties) {
     parent.properties = {}
   }
   
-  // 先展开父级
+  // 6. 检查重复
+  if (parent.properties[variableName]) {
+    message.error('变量名已存在')
+    return
+  }
+  
+  // 7. 创建新变量 - 就这么简单！
+  parent.properties[variableName] = {
+    type: 'string',
+    title: variableName,
+    description: '',
+    required: false,
+    default: '',
+    ui: {
+      panel: true,
+      order: 10,
+      group: '基础信息',
+      component: 'input'
+    },
+    naming_policy: 'go_snake'
+  }
+  
+  // 8. 展开父级并选中新变量
   if (!expandedKeys.value.includes(parentPath)) {
     expandedKeys.value = [...expandedKeys.value, parentPath]
   }
   
-  // 取消任何现有的编辑状态
-  editingNode.value = null
-  renamingNode.value = null
+  const newPath = `${parentPath}.${variableName}`
+  selectedKeys.value = [newPath]
   
-  // 清空输入框
-  newVariableName.value = ''
-  addVariableType.value = 'string'
-  
-  // 创建临时编辑节点
-  const newKey = '__new__child_' + Date.now() + Math.random().toString(36).slice(2)
-  
-  nextTick(() => {
-    editingNode.value = {
-      key: newKey,
-      title: '',
-      type: 'string',
-      path: newKey,
-      parentPath: parentPath,
-      isLeaf: true,
-      isEditing: true,
-      isRoot: false,
-      prefix: () => h(NIcon, { class: 'var-icon var-string' }, {
-        default: () => h(getVariableIconComponent('string', false))
-      })
-    }
-  })
+  message.success(`已添加子变量: ${variableName}`)
 }
 
 
@@ -1206,6 +1261,8 @@ const deleteVariable = (path) => {
 // 类型改变处理
 const onTypeChange = (newType) => {
   if (!selectedVariableData.value) return
+  
+  console.log('类型变更:', selectedVariableData.value.path, '从', selectedVariableData.value.type, '到', newType)
   
   // 重置类型相关的字段
   selectedVariableData.value.default = getDefaultValue(newType)
@@ -1314,63 +1371,86 @@ const confirmAddVariable = () => {
   if (!editingNode.value) return
   
   if (editingNode.value.isRoot) {
-    // 检查根级变量名是否重复
-    if (varsSchema.value[variableName]) {
-      message.error('变量名已存在')
-      return
+    try {
+      // 检查根级变量名是否重复
+      if (varsSchema.value[variableName]) {
+        message.error('变量名已存在')
+        return
+      }
+      
+      // 创建根级变量
+      varsSchema.value[variableName] = createDefaultVariable(variableName, addVariableType.value)
+      
+      message.success(`已添加变量: ${variableName}`)
+      
+      // 先清除编辑状态，再选中新变量
+      editingNode.value = null
+      newVariableName.value = ''
+      
+      // 直接选中新创建的变量，不需要强制更新schema
+      selectedKeys.value = [variableName]
+      nextTick(() => {
+        try {
+          onSelectVariable([variableName])
+        } catch (error) {
+          console.error('选择新变量时出错:', error)
+        }
+      })
+    } catch (error) {
+      console.error('添加根变量时出错:', error)
+      message.error('添加变量失败')
     }
-    
-    // 创建根级变量
-    varsSchema.value[variableName] = createDefaultVariable(variableName, addVariableType.value)
-    
-    message.success(`已添加变量: ${variableName}`)
-    
-    // 先清除编辑状态，再选中新变量
-    editingNode.value = null
-    newVariableName.value = ''
-    
-    // 直接选中新创建的变量，不需要强制更新schema
-    selectedKeys.value = [variableName]
-    nextTick(() => {
-      onSelectVariable([variableName])
-    })
   } else {
     // 处理子变量
-    const parent = getVariableByPath(editingNode.value.parentPath)
-    
-    if (!parent) {
-      message.error('无法找到父级变量')
-      return
+    try {
+      if (!editingNode.value || !editingNode.value.parentPath) {
+        message.error('编辑节点信息不完整')
+        return
+      }
+      
+      const parent = getVariableByPath(editingNode.value.parentPath)
+      
+      if (!parent) {
+        message.error('无法找到父级变量')
+        return
+      }
+      
+      if (!parent.properties) {
+        parent.properties = {}
+      }
+      
+      // 检查子变量名是否重复
+      if (parent.properties[variableName]) {
+        message.error('变量名已存在')
+        return
+      }
+      
+      // 创建子变量
+      const newVariable = createDefaultVariable(variableName, addVariableType.value)
+      parent.properties[variableName] = newVariable
+      
+      // 选中新创建的子变量
+      const newPath = `${editingNode.value.parentPath}.${variableName}`
+      
+      message.success(`已添加子变量: ${variableName}`)
+      
+      // 先清除编辑状态，再选中新变量
+      editingNode.value = null
+      newVariableName.value = ''
+      
+      // 直接选中新创建的子变量，不需要强制更新schema
+      selectedKeys.value = [newPath]
+      nextTick(() => {
+        try {
+          onSelectVariable([newPath])
+        } catch (error) {
+          console.error('选择新变量时出错:', error)
+        }
+      })
+    } catch (error) {
+      console.error('添加子变量时出错:', error)
+      message.error('添加子变量失败')
     }
-    
-    if (!parent.properties) {
-      parent.properties = {}
-    }
-    
-    // 检查子变量名是否重复
-    if (parent.properties[variableName]) {
-      message.error('变量名已存在')
-      return
-    }
-    
-    // 创建子变量
-    const newVariable = createDefaultVariable(variableName, addVariableType.value)
-    parent.properties[variableName] = newVariable
-    
-    // 选中新创建的子变量
-    const newPath = `${editingNode.value.parentPath}.${variableName}`
-    
-    message.success(`已添加子变量: ${variableName}`)
-    
-    // 先清除编辑状态，再选中新变量
-    editingNode.value = null
-    newVariableName.value = ''
-    
-    // 直接选中新创建的子变量，不需要强制更新schema
-    selectedKeys.value = [newPath]
-    nextTick(() => {
-      onSelectVariable([newPath])
-    })
   }
 }
 
@@ -1399,18 +1479,44 @@ const handleGlobalClick = (event) => {
   }
 }
 
+// 安全清理循环引用的函数
+const cleanCircularReferences = (obj, visited = new WeakSet()) => {
+  if (obj === null || typeof obj !== 'object') return obj
+  if (visited.has(obj)) return '[Circular Reference]'
+  
+  visited.add(obj)
+  const cleaned = Array.isArray(obj) ? [] : {}
+  
+  for (const key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      cleaned[key] = cleanCircularReferences(obj[key], visited)
+    }
+  }
+  
+  visited.delete(obj)
+  return cleaned
+}
+
 // Schema 预览内容
 const schemaContent = computed(() => {
-  const schema = { vars_schema: varsSchema.value }
-  if (previewFormat.value === 'yaml') {
-    return YAML.dump(schema, {
-      indent: 2,
-      lineWidth: -1,
-      noRefs: true,
-      sortKeys: false
-    })
-  } else {
-    return JSON.stringify(schema, null, 2)
+  try {
+    // 先清理循环引用
+    const cleanedSchema = cleanCircularReferences(varsSchema.value)
+    const schema = { vars_schema: cleanedSchema }
+    
+    if (previewFormat.value === 'yaml') {
+      return YAML.dump(schema, {
+        indent: 2,
+        lineWidth: -1,
+        noRefs: true,
+        sortKeys: false
+      })
+    } else {
+      return JSON.stringify(schema, null, 2)
+    }
+  } catch (error) {
+    console.error('生成schema内容时出错:', error)
+    return '# Schema 生成失败\n# 错误: ' + error.message
   }
 })
 
@@ -1464,17 +1570,22 @@ const initSchemaEditor = () => {
 
 // 更新编辑器内容
 const updateSchemaEditor = () => {
-  if (!schemaEditor) return
-  
-  const transaction = schemaEditor.state.update({
-    changes: {
-      from: 0,
-      to: schemaEditor.state.doc.length,
-      insert: schemaContent.value
-    }
-  })
-  
-  schemaEditor.dispatch(transaction)
+  try {
+    if (!schemaEditor) return
+    
+    const content = schemaContent.value
+    const transaction = schemaEditor.state.update({
+      changes: {
+        from: 0,
+        to: schemaEditor.state.doc.length,
+        insert: content
+      }
+    })
+    
+    schemaEditor.dispatch(transaction)
+  } catch (error) {
+    console.error('更新schema编辑器时出错:', error)
+  }
 }
 
 // 重新初始化编辑器（切换格式时）
@@ -1483,23 +1594,53 @@ const reinitSchemaEditor = async () => {
   initSchemaEditor()
 }
 
+// 清理损坏的变量数据（移除循环引用）
+const cleanVariableData = (obj, visited = new WeakSet()) => {
+  if (obj === null || typeof obj !== 'object') return obj
+  if (visited.has(obj)) return null // 发现循环引用，返回null
+  
+  visited.add(obj)
+  const cleaned = Array.isArray(obj) ? [] : {}
+  
+  for (const key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      const cleanedValue = cleanVariableData(obj[key], visited)
+      if (cleanedValue !== null) {
+        cleaned[key] = cleanedValue
+      }
+    }
+  }
+  
+  return cleaned
+}
+
 // 加载现有变量定义（本地模拟）
 const loadVariableDefinitions = async () => {
   try {
-    // 尝试从本地存储加载
+    // 从本地存储加载变量定义
     const savedSchema = localStorage.getItem(`template_${props.templateId}_vars_schema`)
+    
     if (savedSchema) {
-      varsSchema.value = JSON.parse(savedSchema)
-      message.success('已加载本地保存的变量定义')
+      const parsed = JSON.parse(savedSchema)
+      varsSchema.value = parsed || {}
+      console.log('从localStorage加载变量定义:', varsSchema.value)
     } else {
-      // 使用空对象初始化
+      // 如果没有保存的数据，使用空的schema
       varsSchema.value = {}
-      message.success('变量定义已初始化')
+      console.log('使用空的变量定义')
     }
+    
+    // 重置选择状态
+    selectedVariableData.value = null
+    selectedKeys.value = []
+    editingNode.value = null
+    renamingNode.value = null
+    newVariableName.value = ''
+    
   } catch (error) {
-    console.error('加载本地数据失败:', error)
+    console.error('加载变量定义失败:', error)
     varsSchema.value = {}
-    message.success('变量定义已初始化')
+    message.error('加载变量定义失败')
   }
 }
 
@@ -1533,15 +1674,28 @@ const updateVariableInSchema = (path, variableData) => {
   const variable = getVariableByPath(path)
   
   if (variable && variableData) {
-    // 只更新变量的配置数据，不包括path
-    const { path: _, ...configData } = variableData
-    Object.assign(variable, configData)
+    // 只更新基本字段，避免覆盖properties导致循环引用
+    const { path: _, properties, ...configData } = variableData
+    
+    // 安全地更新基本属性
+    Object.keys(configData).forEach(key => {
+      if (key !== 'properties') {
+        variable[key] = configData[key]
+      }
+    })
+    
+    // properties字段单独处理，避免循环引用
+    // 如果原variable没有properties但新数据有，才创建空的properties
+    if (!variable.properties && variableData.type === 'object') {
+      variable.properties = {}
+    }
   }
 }
 
 // 监听变量数据变化，实时同步到schema
 watch(selectedVariableData, (newData) => {
   if (newData && selectedKeys.value.length > 0) {
+    console.log('变量数据更新:', selectedKeys.value[0], newData.type)
     updateVariableInSchema(selectedKeys.value[0], newData)
   }
 }, { deep: true })
@@ -1640,9 +1794,41 @@ const startRightResize = (e) => {
   document.body.style.cursor = 'ew-resize'
 }
 
+// 紧急清理函数
+const emergencyCleanup = () => {
+  try {
+    // 清空所有可能的本地存储
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && key.includes('vars_schema')) {
+        localStorage.removeItem(key)
+      }
+    }
+    
+    // 重置所有响应式数据
+    varsSchema.value = {}
+    selectedVariableData.value = null
+    selectedKeys.value = []
+    editingNode.value = null
+    renamingNode.value = null
+    newVariableName.value = ''
+    
+    // 强制触发重新渲染
+    nextTick(() => {
+      console.log('紧急清理完成，数据已重置')
+    })
+    
+    message.success('所有变量数据已重置，可以重新开始创建变量')
+  } catch (error) {
+    console.error('紧急清理失败:', error)
+    message.error('重置失败')
+  }
+}
+
 // 监听抽屉显示状态
 watch(visible, async (show) => {
   if (show) {
+    // 加载变量定义数据
     loadVariableDefinitions()
     await nextTick()
     initPanelWidths()
@@ -1655,10 +1841,25 @@ watch(previewFormat, () => {
   reinitSchemaEditor()
 })
 
-// 监听varsSchema变化
-watch(varsSchema, () => {
-  updateSchemaEditor()
-}, { deep: true })
+// 监听varsSchema变化 - 暂时禁用深度监听避免循环引用错误
+// watch(varsSchema, (newSchema) => {
+//   try {
+//     console.log('varsSchema变化:', newSchema)
+//     updateSchemaEditor()
+//   } catch (error) {
+//     console.error('varsSchema watcher 执行时出错:', error)
+//   }
+// }, { deep: true })
+
+// 改为浅层监听，避免深度遍历时的循环引用问题
+watch(varsSchema, (newSchema) => {
+  try {
+    console.log('varsSchema浅层变化')
+    updateSchemaEditor()
+  } catch (error) {
+    console.error('varsSchema watcher 执行时出错:', error)
+  }
+})
 
 // 组件挂载时添加全局事件监听
 onMounted(() => {
