@@ -1,27 +1,27 @@
 <template>
   <n-drawer v-model:show="visible" :width="'90%'" placement="bottom" :height="drawerHeight + 'px'">
     <n-drawer-content title="模板变量定义" :native-scrollbar="false">
-      <template #header-extra>
-        <n-space>
-          <n-button size="small" @click="saveVariables" type="primary" :loading="saving">
-            <template #icon>
-              <n-icon><SaveOutline /></n-icon>
-            </template>
-            保存定义
-          </n-button>
-          <n-button size="small" @click="emergencyCleanup" type="warning" quaternary>
-            <template #icon>
-              <n-icon><TrashOutline /></n-icon>
-            </template>
-            重置所有
-          </n-button>
-          <n-button size="small" quaternary @click="visible = false">
-            <template #icon>
-              <n-icon><CloseOutline /></n-icon>
-            </template>
-          </n-button>
-        </n-space>
-      </template>
+      <!-- 头部操作按钮 -->
+      <div class="header-actions" style="display: flex; justify-content: flex-end; margin-bottom: 16px; gap: 8px;">
+        <n-button size="small" @click="handleSaveClick" type="primary" :loading="saving">
+          <template #icon>
+            <n-icon><SaveOutline /></n-icon>
+          </template>
+          保存定义
+        </n-button>
+        <n-button size="small" @click="emergencyCleanup" type="warning" quaternary>
+          <template #icon>
+            <n-icon><TrashOutline /></n-icon>
+          </template>
+          重置所有
+        </n-button>
+        <n-button size="small" quaternary @click="visible = false">
+          <template #icon>
+            <n-icon><CloseOutline /></n-icon>
+          </template>
+          关闭
+        </n-button>
+      </div>
 
       <!-- 拖拽手柄 -->
       <div class="resize-handle" @mousedown="startResize">
@@ -137,6 +137,15 @@
                       type="textarea" 
                       :rows="2"
                       placeholder="一句话说明变量的用途"
+                    />
+                  </n-form-item>
+                </n-grid-item>
+                
+                <n-grid-item :span="2">
+                  <n-form-item label="插入文本 (insertText)">
+                    <n-input 
+                      v-model:value="selectedVariableData.insertText" 
+                      placeholder="{{.变量名}}"
                     />
                   </n-form-item>
                 </n-grid-item>
@@ -461,12 +470,12 @@ import {
   CreateOutline, DownloadOutline, CloudUploadOutline, CopyOutline, 
   RefreshOutline, SyncOutline
 } from '@vicons/ionicons5'
-// import request from '@/utils/request' // 暂时禁用API调用
 import { EditorView, basicSetup } from 'codemirror'
 import { EditorState } from '@codemirror/state'
 import { json } from '@codemirror/lang-json'
 import { yaml } from '@codemirror/lang-yaml'
 import * as YAML from 'js-yaml'
+import { getTemplateExpose, setTemplateExpose } from '@/api/templateExpose'
 
 const props = defineProps({
   show: {
@@ -1036,6 +1045,7 @@ const createDefaultVariable = (name = '', type = 'string') => {
     description: '',
     required: false,
     default: getDefaultValue(type),
+    insertText: getVariableTemplate(name),
     ui: {
       panel: false,
       order: 10,
@@ -1154,6 +1164,8 @@ const onSelectVariable = (selectedKeys) => {
         selectedVariableData.value = {
           path: selectedKey,
           ...safeVariable,
+          // 确保必要的字段存在
+          insertText: variable.insertText || getVariableTemplate(selectedKey.split('.').pop()),
           // 确保必要的嵌套对象存在
           ui: variable.ui || {
             panel: false,
@@ -1425,6 +1437,13 @@ const onTypeChange = (newType) => {
   selectedVariableData.value.default = getDefaultValue(newType)
   selectedVariableData.value.ui.component = getDefaultComponent(newType)
   
+  // 更新插入文本（如果当前是默认值，则更新为新的默认值）
+  const currentVarName = selectedVariableData.value.path.split('.').pop()
+  const expectedInsertText = getVariableTemplate(currentVarName)
+  if (!selectedVariableData.value.insertText || selectedVariableData.value.insertText === expectedInsertText) {
+    selectedVariableData.value.insertText = expectedInsertText
+  }
+  
   // 根据类型设置特殊字段
   if (newType === 'enum') {
     selectedVariableData.value.enum = []
@@ -1504,6 +1523,10 @@ const confirmAddVariable = () => {
     
     // 执行重命名：复制变量数据到新名称，删除旧名称
     const variable = container[oldName]
+    // 更新变量的insertText字段为新名称
+    if (variable.insertText === getVariableTemplate(oldName)) {
+      variable.insertText = getVariableTemplate(variableName)
+    }
     container[variableName] = variable
     delete container[oldName]
     
@@ -1772,20 +1795,30 @@ const cleanVariableData = (obj, visited = new WeakSet()) => {
   return cleaned
 }
 
-// 加载现有变量定义（本地模拟）
+// 加载现有变量定义
 const loadVariableDefinitions = async () => {
   try {
-    // 从本地存储加载变量定义
-    const savedSchema = localStorage.getItem(`template_${props.templateId}_vars_schema`)
-    
-    if (savedSchema) {
-      const parsed = JSON.parse(savedSchema)
-      varsSchema.value = parsed || {}
-      console.log('从localStorage加载变量定义:', varsSchema.value)
+    // 从API加载变量定义
+    if (props.templateId) {
+      const templateId = parseInt(props.templateId)
+      const response = await getTemplateExpose({ templateId })
+      if (response.data && response.data.data && response.data.data.templateExpose) {
+        // 从fieldSchemaJson字段解析JSON
+        const fieldSchemaJson = response.data.data.templateExpose.fieldSchemaJson
+        if (fieldSchemaJson) {
+          varsSchema.value = JSON.parse(fieldSchemaJson)
+          console.log('从API加载变量定义:', varsSchema.value)
+        } else {
+          varsSchema.value = {}
+          console.log('使用空的变量定义')
+        }
+      } else {
+        // 如果没有保存的数据，使用空的schema
+        varsSchema.value = {}
+        console.log('使用空的变量定义')
+      }
     } else {
-      // 如果没有保存的数据，使用空的schema
       varsSchema.value = {}
-      console.log('使用空的变量定义')
     }
     
     // 重置选择状态
@@ -1797,13 +1830,41 @@ const loadVariableDefinitions = async () => {
     
   } catch (error) {
     console.error('加载变量定义失败:', error)
-    varsSchema.value = {}
-    message.error('加载变量定义失败')
+    // 如果API加载失败，尝试从localStorage加载作为备用
+    try {
+      const savedSchema = localStorage.getItem(`template_${props.templateId}_vars_schema`)
+      if (savedSchema) {
+        const parsed = JSON.parse(savedSchema)
+        varsSchema.value = parsed || {}
+        console.log('从localStorage加载备用变量定义:', varsSchema.value)
+        message.warning('从本地缓存加载变量定义')
+      } else {
+        varsSchema.value = {}
+      }
+    } catch (localError) {
+      varsSchema.value = {}
+      message.error('加载变量定义失败')
+    }
   }
 }
 
-// 保存变量定义（本地模拟）
+// 处理保存点击
+const handleSaveClick = () => {
+  console.log('保存按钮被点击', { templateId: props.templateId, saving: saving.value })
+  if (!props.templateId) {
+    message.error('模板ID不存在，无法保存')
+    return
+  }
+  if (saving.value) {
+    console.log('正在保存中，跳过重复操作')
+    return
+  }
+  saveVariables()
+}
+
+// 保存变量定义
 const saveVariables = async () => {
+  console.log('保存变量定义被调用', { templateId: props.templateId, varsSchema: varsSchema.value })
   saving.value = true
   try {
     // 同步当前编辑的变量数据到schema
@@ -1812,16 +1873,24 @@ const saveVariables = async () => {
       updateVariableInSchema(path, selectedVariableData.value)
     }
     
-    // 模拟保存延时
-    await new Promise(resolve => setTimeout(resolve, 500))
+    // 清理循环引用
+    const cleanedSchema = cleanCircularReferences(varsSchema.value)
     
-    // 模拟保存到本地存储
-    localStorage.setItem(`template_${props.templateId}_vars_schema`, JSON.stringify(varsSchema.value))
+    // 调用API保存到后端
+    const templateId = parseInt(props.templateId)
+    await setTemplateExpose({
+      templateId,
+      varsSchema: cleanedSchema,
+      version: '1.0'
+    })
     
-    message.success('变量定义保存成功（本地存储）')
+    // 同时保存到本地存储作为备份
+    localStorage.setItem(`template_${props.templateId}_vars_schema`, JSON.stringify(cleanedSchema))
+    
+    message.success('变量定义保存成功')
   } catch (error) {
     console.error('保存失败:', error)
-    message.error('保存失败')
+    message.error('保存失败：' + (error.message || '未知错误'))
   } finally {
     saving.value = false
   }
@@ -1989,6 +2058,7 @@ const emergencyCleanup = () => {
 // 监听抽屉显示状态
 watch(visible, async (show) => {
   if (show) {
+    console.log('变量定义抽屉打开', { templateId: props.templateId, type: typeof props.templateId })
     // 加载变量定义数据
     loadVariableDefinitions()
     await nextTick()
@@ -2173,26 +2243,32 @@ const syncToTree = () => {
 }
 
 // 确认导入
-const confirmImport = () => {
+const confirmImport = async () => {
   if (pendingImportData.value) {
     varsSchema.value = pendingImportData.value
     selectedVariableData.value = null
     selectedKeys.value = []
-    message.success('Schema导入成功')
     showImportConfirmModal.value = false
     pendingImportData.value = null
+    
+    // 导入后自动保存
+    message.success('Schema导入成功，正在保存...')
+    await saveVariables()
   }
 }
 
 // 确认同步
-const confirmSync = () => {
+const confirmSync = async () => {
   if (pendingSyncData.value) {
     varsSchema.value = pendingSyncData.value
     selectedVariableData.value = null
     selectedKeys.value = []
-    message.success('已同步到变量树')
     showSyncConfirmModal.value = false
     pendingSyncData.value = null
+    
+    // 同步后自动保存
+    message.success('已同步到变量树，正在保存...')
+    await saveVariables()
   }
 }
 
