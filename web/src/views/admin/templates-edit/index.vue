@@ -65,7 +65,7 @@
       </template>
 
       <div class="variable-manager-content">
-        <VariableManager ref="variableManagerRef" :variables="templateVariables" :template-id="route.params.id"
+        <VariableManager ref="variableManagerRef" :variables="userVariables" :template-id="route.params.id"
           @add="onAddVariable" @edit="onEditVariable" @delete="onDeleteVariable" @insert="onInsertVariable"
           @applyTestData="onApplyTestData" />
       </div>
@@ -100,6 +100,7 @@
       v-model:show="showVariableExposeDrawer"
       :template-id="route.params.id"
       :template-variables="templateVariables"
+      @variables-saved="refreshUserVariables"
     />
     
   </div>
@@ -110,6 +111,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileDetail, getTemplateFileContent, renameTemplateFile, uploadZipFile, uploadCodeFile, moveTemplateFile, setFileCondition, getFileCondition } from '@/api/templateFiles'
 import { listTemplateVariables, addTemplateVariable, editTemplateVariable, deleteTemplateVariable } from '@/api/templateVariables'
+import { getTemplateExpose } from '@/api/templateExpose'
 import { getBuiltinFunctions } from '@/api/builtinFunctions'
 import { getSprigFunctions } from '@/api/sprigFunctions'
 import TemplateExplorer from './components/TemplateFileTree.vue'
@@ -141,6 +143,11 @@ const goToVariableExpose = () => {
   showVariableExposeDrawer.value = true
 }
 
+// 刷新用户变量（在变量定义保存后调用）
+const refreshUserVariables = async () => {
+  await loadUserVariables()
+}
+
 const treeData = ref([])
 const loadingTree = ref(true)
 const noTreeData = ref(false)
@@ -152,6 +159,7 @@ const templateFileStore = useTemplateFileStore()
 
 // 变量相关
 const templateVariables = ref([])
+const userVariables = ref([]) // 从变量定义转换的用户变量
 const templateEditorRef = ref(null)
 const variableManagerRef = ref(null)
 const conditionModalRef = ref(null)
@@ -382,6 +390,7 @@ const handleKeyDown = (event) => {
 onMounted(async () => {
   await loadTree()
   await loadVariables()
+  await loadUserVariables() // 加载用户变量
   await loadBuiltinFunctions()
   await loadSprigFunctions()
   loadTestData()
@@ -449,6 +458,72 @@ async function loadVariables() {
   } catch (e) {
     templateVariables.value = []
     console.error('加载变量失败:', e)
+  }
+}
+
+// 从变量定义Schema转换为用户变量格式
+const convertSchemaToUserVariables = (schema, parentPath = '') => {
+  const variables = []
+  
+  if (!schema || typeof schema !== 'object') {
+    return variables
+  }
+  
+  Object.keys(schema).forEach((key, index) => {
+    const variable = schema[key]
+    if (!variable || typeof variable !== 'object') return
+    
+    const fullPath = parentPath ? `${parentPath}.${key}` : key
+    const userVariable = {
+      id: `${route.params.id}_${fullPath}`, // 生成唯一ID
+      name: key,
+      variableType: variable.type || 'string',
+      description: variable.description || '',
+      defaultValue: variable.default || '',
+      isRequired: variable.required ? 1 : 0,
+      sort: (variable.ui?.order || 10) + index,
+      insertText: variable.insertText || `{{.${key}}}`,
+      title: variable.title || key,
+      // 扩展字段
+      path: fullPath,
+      parent: parentPath || null,
+      level: parentPath.split('.').length,
+      ui: variable.ui || {}
+    }
+    
+    variables.push(userVariable)
+    
+    // 递归处理子变量（object类型）
+    if (variable.type === 'object' && variable.properties) {
+      const childVariables = convertSchemaToUserVariables(variable.properties, fullPath)
+      variables.push(...childVariables)
+    }
+  })
+  
+  return variables.sort((a, b) => a.sort - b.sort)
+}
+
+// 加载用户变量（从变量定义）
+async function loadUserVariables() {
+  try {
+    const templateId = parseInt(route.params.id)
+    const response = await getTemplateExpose({ templateId })
+    
+    if (response.data && response.data.data && response.data.data.templateExpose) {
+      const fieldSchemaJson = response.data.data.templateExpose.fieldSchemaJson
+      if (fieldSchemaJson) {
+        const schema = JSON.parse(fieldSchemaJson)
+        userVariables.value = convertSchemaToUserVariables(schema)
+        console.log('加载用户变量成功:', userVariables.value)
+      } else {
+        userVariables.value = []
+      }
+    } else {
+      userVariables.value = []
+    }
+  } catch (error) {
+    console.error('加载用户变量失败:', error)
+    userVariables.value = []
   }
 }
 

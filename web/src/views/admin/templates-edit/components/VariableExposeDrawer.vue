@@ -492,7 +492,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:show'])
+const emit = defineEmits(['update:show', 'variables-saved'])
 
 const message = useMessage()
 
@@ -1888,6 +1888,9 @@ const saveVariables = async () => {
     localStorage.setItem(`template_${props.templateId}_vars_schema`, JSON.stringify(cleanedSchema))
     
     message.success('变量定义保存成功')
+    
+    // 通知父组件刷新用户变量
+    emit('variables-saved')
   } catch (error) {
     console.error('保存失败:', error)
     message.error('保存失败：' + (error.message || '未知错误'))
@@ -2254,6 +2257,7 @@ const confirmImport = async () => {
     // 导入后自动保存
     message.success('Schema导入成功，正在保存...')
     await saveVariables()
+    // saveVariables 中已经会触发 emit('variables-saved')
   }
 }
 
@@ -2269,6 +2273,7 @@ const confirmSync = async () => {
     // 同步后自动保存
     message.success('已同步到变量树，正在保存...')
     await saveVariables()
+    // saveVariables 中已经会触发 emit('variables-saved')
   }
 }
 

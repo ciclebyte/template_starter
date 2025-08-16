@@ -2,13 +2,13 @@
   <div class="variable-manager">
     <div class="variable-tabs">
       <n-tabs type="line" animated>
-        <n-tab-pane name="variables" tab="变量管理">
+        <n-tab-pane name="variables" tab="用户变量">
           <div class="variable-content">
             <div class="variable-list">
               <div class="variable-header">
                 <div class="header-info">
                   <span class="header-title">变量列表</span>
-                  <span class="header-count">共 {{ templateVariables.length }} 个变量</span>
+                  <span class="header-count">共 {{ props.variables.length }} 个变量</span>
                 </div>
                 <div class="header-actions">
                   <n-button type="primary" size="small" @click="addVariable">
@@ -104,6 +104,34 @@
                 </div>
               </div>
 
+              <!-- 其他类型变量 (array, object, enum, secret) -->
+              <div class="variable-section" v-if="otherVariables.length > 0">
+                <div class="section-title">
+                  <n-icon><ArchiveOutline /></n-icon>
+                  其他类型 ({{ otherVariables.length }})
+                </div>
+                <div class="variable-grid">
+                  <div v-for="variable in otherVariables" :key="variable.id" class="variable-card">
+                    <div class="variable-header-card">
+                      <div class="variable-name">{{ variable.name }}</div>
+                      <div class="variable-actions">
+                        <n-button size="tiny" @click="insertVariable(variable)">插入</n-button>
+                        <n-button size="tiny" @click="editVariable(variable)">编辑</n-button>
+                        <n-button size="tiny" type="error" @click="deleteVariable(variable.id)">删除</n-button>
+                      </div>
+                    </div>
+                    <div class="variable-desc">{{ variable.description }}</div>
+                    <div class="variable-meta">
+                      <n-tag size="small" :type="variable.isRequired === 1 ? 'error' : 'default'">
+                        {{ variable.isRequired === 1 ? '必填' : '可选' }}
+                      </n-tag>
+                      <n-tag size="small" type="warning">{{ getVariableTypeDisplayName(variable.variableType) }}</n-tag>
+                      <span class="meta-text" v-if="variable.defaultValue">默认值: {{ variable.defaultValue }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- 列表变量 -->
               <div class="variable-section" v-if="listVariables.length > 0">
                 <div class="section-title">
@@ -189,10 +217,10 @@
               </div>
 
               <!-- 空状态 -->
-              <div v-if="templateVariables.length === 0" class="empty-state">
+              <div v-if="props.variables.length === 0" class="empty-state">
                 <div class="empty-icon">📝</div>
                 <div class="empty-title">暂无变量</div>
-                <div class="empty-desc">点击"新增变量"按钮开始创建变量</div>
+                <div class="empty-desc">请在"变量定义"中定义变量</div>
               </div>
             </div>
           </div>
@@ -234,14 +262,14 @@
             </div>
             
             <!-- 自定义变量测试值 -->
-            <div class="test-data-section" v-if="templateVariables.length > 0">
+            <div class="test-data-section" v-if="props.variables.length > 0">
               <div class="section-title">
                 <n-icon><DocumentText /></n-icon>
                 自定义变量测试值
               </div>
               <div class="test-data-grid">
                 <div 
-                  v-for="variable in templateVariables" 
+                  v-for="variable in props.variables" 
                   :key="variable.id"
                   class="test-data-item"
                 >
@@ -463,6 +491,7 @@ const stringVariables = computed(() => {
 const numberVariables = computed(() => {
   return props.variables.filter(v => 
     v.variableType === 'number' || 
+    v.variableType === 'integer' || 
     v.variableType === '数字'
   )
 })
@@ -492,9 +521,17 @@ const conditionalVariables = computed(() => {
   return props.variables.filter(v => v.variableType === 'conditional')
 })
 
-const templateVariables = computed(() => {
-  return props.variables
+const otherVariables = computed(() => {
+  return props.variables.filter(v => 
+    v.variableType === 'array' || 
+    v.variableType === 'object' ||
+    v.variableType === 'enum' ||
+    v.variableType === 'secret' ||
+    (v.variableType && !['string', 'text', 'number', 'integer', 'boolean', 'list', 'conditional'].includes(v.variableType))
+  )
 })
+
+// templateVariables computed 已移除，直接使用 props.variables
 
 // 编辑表单
 const showEditModal = ref(false)
@@ -575,7 +612,7 @@ const initTestData = () => {
     })
     
     // 补充自定义变量（如果保存的数据中没有）
-    templateVariables.value.forEach(variable => {
+    props.variables.forEach(variable => {
       if (!(variable.name in data)) {
         data[variable.name] = variable.defaultValue || ''
       }
@@ -592,7 +629,7 @@ const initTestData = () => {
     })
     
     // 初始化自定义变量
-    templateVariables.value.forEach(variable => {
+    props.variables.forEach(variable => {
       data[variable.name] = variable.defaultValue || ''
     })
     
@@ -748,7 +785,8 @@ async function saveVariable() {
 
 // 插入变量
 function insertVariable(variable) {
-  const template = `{{.${variable.name}}}`
+  // 优先使用 insertText 字段，如果没有则使用默认格式
+  const template = variable.insertText || `{{.${variable.name}}}`
   emit('insert', template)
 }
 

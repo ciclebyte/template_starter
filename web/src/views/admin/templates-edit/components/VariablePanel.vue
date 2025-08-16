@@ -224,42 +224,49 @@
       
       <!-- 用户变量 Tab -->
       <div v-show="activeTab === 'custom'" class="tab-content">
-        <div v-if="textVariables.length > 0" class="variable-section">
-          <div class="section-title">用户变量</div>
-          <div class="variable-tags">
-            <n-tag
-              v-for="variable in textVariables"
-              :key="variable.id"
-              :class="['variable-tag', getVariableTagClass(variable.variableType)]"
-              @click="handleInsertVariable(variable.name)"
-              :title="`${variable.name} (${getVariableTypeLabel(variable.variableType)})${variable.description ? ' - ' + variable.description : ''}`"
-            >
-              {{ variable.name }}
-              <span class="variable-type-badge">{{ getVariableTypeLabel(variable.variableType) }}</span>
-            </n-tag>
-          </div>
+        <div v-if="loadingVariableDefinitions" class="loading-state">
+          <n-spin size="small" />
+          <span style="margin-left: 8px;">加载变量定义中...</span>
         </div>
         
-        <div v-if="conditionalVariables.length > 0" class="variable-section">
-          <div class="section-title">条件变量</div>
-          <div class="variable-tags">
-            <n-tag
-              v-for="variable in conditionalVariables"
-              :key="variable.id"
-              class="variable-tag conditional"
-              @click="handleInsertVariable(variable.name)"
-              :title="`${variable.name}${variable.description ? ' - ' + variable.description : ''}`"
-            >
-              {{ variable.name }}
-            </n-tag>
+        <div v-else>
+          <div v-if="textVariables.length > 0" class="variable-section">
+            <div class="section-title">变量定义 ({{ textVariables.length }})</div>
+            <div class="variable-tags">
+              <n-tag
+                v-for="variable in textVariables"
+                :key="variable.id"
+                :class="['variable-tag', getVariableTagClass(variable.variableType)]"
+                @click="handleInsertVariableDefinition(variable)"
+                :title="`${variable.displayName || variable.name} (${getVariableTypeLabel(variable.variableType)})${variable.description ? ' - ' + variable.description : ''}`"
+              >
+                {{ variable.displayName || variable.name }}
+                <span class="variable-type-badge">{{ getVariableTypeLabel(variable.variableType) }}</span>
+              </n-tag>
+            </div>
           </div>
-        </div>
-        
-        <div v-if="templateVariables.length === 0" class="empty-variables">
-          <div class="empty-text">暂无自定义变量</div>
-          <n-button text type="primary" size="small" @click="$emit('show-variable-manager')">
-            添加变量
-          </n-button>
+          
+          <div v-if="conditionalVariables.length > 0" class="variable-section">
+            <div class="section-title">条件变量</div>
+            <div class="variable-tags">
+              <n-tag
+                v-for="variable in conditionalVariables"
+                :key="variable.id"
+                class="variable-tag conditional"
+                @click="handleInsertVariable(variable.name)"
+                :title="`${variable.name}${variable.description ? ' - ' + variable.description : ''}`"
+              >
+                {{ variable.name }}
+              </n-tag>
+            </div>
+          </div>
+          
+          <div v-if="variableDefinitions.length === 0 && !loadingVariableDefinitions" class="empty-variables">
+            <div class="empty-text">暂无变量定义</div>
+            <n-button text type="primary" size="small" @click="$emit('show-variable-manager')">
+              前往变量定义
+            </n-button>
+          </div>
         </div>
       </div>
 
@@ -477,6 +484,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { NSpin, NButton, NTag, NEmpty, NSwitch, NIcon, NModal, NCard, NInput, NCheckbox, NPagination, useMessage } from 'naive-ui'
 import { AddOutline, CloseOutline, SearchOutline } from '@vicons/ionicons5'
 import request from '@/utils/request'
+import { getTemplateExpose } from '@/api/templateExpose'
 
 const props = defineProps({
   isOpen: {
@@ -639,6 +647,10 @@ const activeTab = ref('syntax')
 const panelHeight = ref(300)
 const isResizing = ref(false)
 
+// 变量定义相关状态
+const variableDefinitions = ref([])
+const loadingVariableDefinitions = ref(false)
+
 // 预设变量相关状态
 const message = useMessage()
 const subscribedPresets = ref([])
@@ -668,16 +680,88 @@ const maxPanelHeight = 600
 let startY = 0
 let startHeight = 0
 
+// 变量定义解析函数
+const parseVariableDefinitions = (fieldSchemaJson) => {
+  const variables = []
+  
+  try {
+    const schema = JSON.parse(fieldSchemaJson)
+    
+    const parseSchema = (schemaObj, parentPath = '') => {
+      if (!schemaObj || typeof schemaObj !== 'object') return
+      
+      // 如果是根对象，解析其properties
+      if (schemaObj.properties) {
+        for (const [key, value] of Object.entries(schemaObj.properties)) {
+          const currentPath = parentPath ? `${parentPath}.${key}` : key
+          
+          // 创建变量对象
+          const variable = {
+            id: `var_def_${currentPath}`,
+            name: key,
+            displayName: value.title || key,
+            description: value.description || '',
+            variableType: value.type || 'string',
+            path: currentPath,
+            insertText: value.insertText || `{{.${currentPath}}}`,
+            isRequired: value.required || false,
+            defaultValue: value.default,
+            level: (currentPath.match(/\./g) || []).length,
+            parentPath: parentPath
+          }
+          
+          variables.push(variable)
+          
+          // 如果是对象类型且有子属性，递归处理
+          if (value.type === 'object' && value.properties) {
+            parseSchema(value, currentPath)
+          }
+        }
+      }
+    }
+    
+    parseSchema(schema)
+  } catch (error) {
+    console.error('解析变量定义失败:', error)
+  }
+  
+  return variables
+}
+
+// 加载变量定义
+const loadVariableDefinitions = async () => {
+  if (!props.templateId) return
+  
+  loadingVariableDefinitions.value = true
+  try {
+    const response = await getTemplateExpose({ templateId: props.templateId })
+    if (response.data && response.data.data && response.data.data.fieldSchemaJson) {
+      const parsedVariables = parseVariableDefinitions(response.data.data.fieldSchemaJson)
+      variableDefinitions.value = parsedVariables
+    } else {
+      variableDefinitions.value = []
+    }
+  } catch (error) {
+    console.error('加载变量定义失败:', error)
+    variableDefinitions.value = []
+  } finally {
+    loadingVariableDefinitions.value = false
+  }
+}
+
 // 计算属性：按类型分组变量
 const textVariables = computed(() => {
-  return props.templateVariables.filter(v => 
+  // 使用变量定义数据而不是传统模板变量
+  return variableDefinitions.value.filter(v => 
     v.variableType === 'text' || 
     v.variableType === 'string' || 
     v.variableType === '字符串' ||
     v.variableType === 'number' || 
+    v.variableType === 'integer' ||
     v.variableType === '数字' ||
     v.variableType === 'boolean' || 
     v.variableType === '布尔值' ||
+    v.variableType === 'array' ||
     v.variableType === 'list' || 
     v.variableType === '列表' ||
     v.variableType === 'object' || 
@@ -687,6 +771,7 @@ const textVariables = computed(() => {
 })
 
 const conditionalVariables = computed(() => {
+  // 变量定义中通常没有条件变量，保留原有逻辑
   return props.templateVariables.filter(v => v.variableType === 'conditional')
 })
 
@@ -698,9 +783,11 @@ const getVariableTypeLabel = (type) => {
     'text': '文本',
     '文本': '文本',
     'number': '数字',
+    'integer': '整数',
     '数字': '数字',
     'boolean': '布尔值',
     '布尔值': '布尔值',
+    'array': '数组',
     'list': '列表',
     '列表': '列表',
     'object': '对象',
@@ -718,9 +805,11 @@ const getVariableTagClass = (type) => {
     'text': 'string',
     '文本': 'string',
     'number': 'number',
+    'integer': 'number',
     '数字': 'number',
     'boolean': 'boolean',
     '布尔值': 'boolean',
+    'array': 'list',
     'list': 'list',
     '列表': 'list',
     'object': 'object',
@@ -759,6 +848,12 @@ const handleInsertSprigFunction = (func) => {
 
 const handleInsertVariable = (variableName) => {
   emit('insert-variable', variableName)
+}
+
+const handleInsertVariableDefinition = (variable) => {
+  // 使用变量定义中的insertText，如果没有则使用路径
+  const insertText = variable.insertText || `{{.${variable.path || variable.name}}}`
+  emit('insert-variable', insertText)
 }
 
 const handleInsertPresetVariable = (insertText) => {
@@ -1010,13 +1105,17 @@ const updatePresetStatus = async (preset) => {
 watch(() => props.templateId, () => {
   if (props.templateId) {
     loadSubscribedPresets()
+    loadVariableDefinitions()
   }
 }, { immediate: true })
 
-// 监听活动tab变化，如果切换到预设变量tab则刷新数据
+// 监听活动tab变化，如果切换到预设变量tab或用户变量tab则刷新数据
 watch(() => activeTab.value, (newTab) => {
   if (newTab === 'presets' && props.templateId) {
     loadSubscribedPresets()
+  }
+  if (newTab === 'custom' && props.templateId) {
+    loadVariableDefinitions()
   }
 })
 
