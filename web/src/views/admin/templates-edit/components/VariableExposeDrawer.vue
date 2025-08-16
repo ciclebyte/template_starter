@@ -37,6 +37,8 @@
               label-field="title"
               children-field="children"
               :node-props="nodeProps"
+              :render-switcher-icon="renderSwitcherIcon"
+              :render-label="renderLabel"
               block-line
               @update:selected-keys="onSelectVariable"
               @update:expanded-keys="onExpandKeys"
@@ -309,7 +311,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, h, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, h, nextTick, onMounted, onUnmounted } from 'vue'
 import { 
   NDrawer, NDrawerContent, NButton, NIcon, NSpace, NForm, NFormItem, 
   NGrid, NGridItem, NInput, NSelect, NSwitch, NTabs, NTabPane, NInputNumber,
@@ -320,9 +322,10 @@ import {
   EllipsisHorizontalOutline, SettingsOutline, CodeSlashOutline,
   TextOutline, Calculator, ToggleOutline, ListOutline, ArchiveOutline,
   KeyOutline, LockClosedOutline, Folder, FolderOpenOutline, 
-  EllipsisVerticalOutline, CheckboxOutline, CodeOutline
+  EllipsisVerticalOutline, CheckboxOutline, CodeOutline, ChevronForward,
+  CreateOutline
 } from '@vicons/ionicons5'
-import request from '@/utils/request'
+// import request from '@/utils/request' // 暂时禁用API调用
 import { EditorView, basicSetup } from 'codemirror'
 import { EditorState } from '@codemirror/state'
 import { json } from '@codemirror/lang-json'
@@ -370,6 +373,12 @@ const contextMenuX = ref(0)
 const contextMenuY = ref(0)
 const contextMenuOptions = ref([])
 const contextMenuTarget = ref(null)
+
+// 编辑状态管理（参考模板文件树）
+const editingNode = ref(null)
+const renamingNode = ref(null)
+const newVariableName = ref('')
+const addVariableType = ref('string')
 
 // 拖拽相关状态
 const drawerHeight = ref(Math.floor(window.innerHeight * 0.67)) // 默认三分之二高度
@@ -470,7 +479,6 @@ const onTreeAreaContextMenu = (event) => {
   contextMenuY.value = event.clientY
   showContextMenuFlag.value = true
   
-  console.log('Right-click on empty area at', event.clientX, event.clientY)
 }
 
 // 数据类型选项
@@ -508,9 +516,52 @@ const namingPolicyOptions = [
 // 转换为变量树数据
 const variableTreeData = computed(() => {
   const treeData = convertToTreeData(varsSchema.value)
-  console.log('Generated tree data:', treeData) // 调试日志
+  
+  // 如果有正在编辑的节点，将其插入到适当位置
+  if (editingNode.value) {
+    if (editingNode.value.isRoot) {
+      // 根级编辑节点插入到开头
+      treeData.unshift(editingNode.value)
+    } else {
+      // 子级编辑节点插入到父级的children中
+      insertEditingNodeToTree(treeData, editingNode.value)
+    }
+  }
+  
   return treeData
 })
+
+// 将编辑节点插入到树的正确位置
+const insertEditingNodeToTree = (treeData, editingNode) => {
+  if (!editingNode.parentPath) return false
+  
+  const findAndInsert = (nodes) => {
+    for (const node of nodes) {
+      if (node.path === editingNode.parentPath) {
+        if (!node.children) node.children = []
+        // 确保编辑节点具有完整的属性
+        const completeEditingNode = {
+          ...editingNode,
+          isEditing: true, // 强制标记为编辑状态
+          children: [],
+          isLeaf: true
+        }
+        node.children.unshift(completeEditingNode)
+        return true
+      }
+      if (node.children && node.children.length > 0 && findAndInsert(node.children)) {
+        return true
+      }
+    }
+    return false
+  }
+  
+  const result = findAndInsert(treeData)
+  if (!result) {
+    console.error('Failed to find parent node for editing node:', editingNode.parentPath) // 调试日志
+  }
+  return result
+}
 
 // 转换变量Schema为树形数据
 const convertToTreeData = (schema, parentPath = '') => {
@@ -529,11 +580,13 @@ const convertToTreeData = (schema, parentPath = '') => {
     
     const node = {
       key: currentPath,
-      title: value.title || key,
+      title: key, // 使用变量的实际键名作为显示标题
       type: varType,
       path: currentPath,
       data: value,
-      isLeaf: !hasChildren,
+      isLeaf: varType !== 'object', // 对象类型永远不是叶子节点，可以展开添加子属性
+      isEditing: Boolean(renamingNode.value && renamingNode.value.path === currentPath), // 确保是布尔值
+      children: [], // 总是初始化children数组
       // 添加prefix函数，参考模板资源树的实现
       prefix: () => h(NIcon, { class: `var-icon var-${varType}` }, {
         default: () => h(getVariableIconComponent(varType, hasChildren))
@@ -571,6 +624,179 @@ const getVariableIconComponent = (type, hasChildren = false) => {
   return iconMap[type] || TextOutline
 }
 
+// 渲染展开/收起图标（参考模板文件树）
+const renderSwitcherIcon = () => h(NIcon, null, { default: () => h(ChevronForward) })
+
+// 渲染标签（支持内联编辑）
+const renderLabel = ({ option }) => {
+  if (option.isEditing === true) {
+    const isRenaming = renamingNode.value && String(option.path) === String(renamingNode.value.path)
+    const placeholder = isRenaming ? '请输入新变量名' : '请输入变量名'
+    
+    // 使用一个更稳定的引用，包含时间戳避免key冲突
+    const timestamp = editingNode.value?.key || renamingNode.value?.key || Date.now()
+    const stableKey = isRenaming ? `rename-${renamingNode.value.path}-${timestamp}` : `add-${timestamp}`
+    
+    return h('input', {
+      key: stableKey,
+      class: 'vscode-tree-input',
+      value: newVariableName.value, // 回到使用 value，确保同步
+      placeholder: placeholder,
+      onInput: (e) => {
+        // 直接更新响应式变量
+        newVariableName.value = e.target.value
+      },
+      onKeydown: e => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          // 在确认之前获取最新值
+          newVariableName.value = e.target.value
+          confirmAddVariable()
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          cancelAddVariable()
+        }
+        e.stopPropagation()
+      },
+      onBlur: (e) => {
+        // 确保获取最新值
+        newVariableName.value = e.target.value
+        setTimeout(() => {
+          if (editingNode.value || renamingNode.value) {
+            confirmAddVariable()
+          }
+        }, 150)
+      },
+      onClick: e => e.stopPropagation(),
+      onVnodeMounted: (vnode) => {
+        // 确保输入框挂载后立即获得焦点
+        const el = vnode.el
+        if (el) {
+          setTimeout(() => {
+            el.focus()
+            if (isRenaming && newVariableName.value) {
+              el.select() // 重命名时选中所有文本
+            } else {
+              // 新增时将光标定位到末尾
+              const length = el.value.length
+              el.setSelectionRange(length, length)
+            }
+          }, 10)
+        }
+      }
+    })
+  }
+  return option.title
+}
+
+// 安全地访问嵌套变量的辅助函数
+const getVariableByPath = (path) => {
+  if (!path) return null
+  
+  const pathParts = path.split('.')
+  let current = varsSchema.value
+  
+  for (let i = 0; i < pathParts.length; i++) {
+    const part = pathParts[i]
+    
+    if (i === 0) {
+      // 第一层直接访问
+      if (current[part]) {
+        current = current[part]
+      } else {
+        return null
+      }
+    } else {
+      // 后续层需要通过properties访问
+      if (current.properties && current.properties[part]) {
+        current = current.properties[part]
+      } else {
+        return null
+      }
+    }
+  }
+  
+  return current
+}
+
+// 安全地设置嵌套变量的辅助函数
+const setVariableByPath = (path, value) => {
+  if (!path) return false
+  
+  const pathParts = path.split('.')
+  const varName = pathParts[pathParts.length - 1]
+  
+  if (pathParts.length === 1) {
+    // 设置根级变量
+    varsSchema.value[varName] = value
+    return true
+  }
+  
+  // 获取父级变量
+  const parentPath = pathParts.slice(0, -1).join('.')
+  const parent = getVariableByPath(parentPath)
+  
+  if (parent && parent.type === 'object') {
+    if (!parent.properties) {
+      parent.properties = {}
+    }
+    parent.properties[varName] = value
+    return true
+  }
+  
+  return false
+}
+
+// 安全地删除嵌套变量的辅助函数
+const deleteVariableByPath = (path) => {
+  if (!path) return false
+  
+  const pathParts = path.split('.')
+  const varName = pathParts[pathParts.length - 1]
+  
+  if (pathParts.length === 1) {
+    // 删除根级变量
+    delete varsSchema.value[varName]
+    return true
+  }
+  
+  // 获取父级变量
+  const parentPath = pathParts.slice(0, -1).join('.')
+  const parent = getVariableByPath(parentPath)
+  
+  if (parent && parent.properties && parent.properties[varName]) {
+    delete parent.properties[varName]
+    return true
+  }
+  
+  return false
+}
+
+// 获取变量容器（用于添加同级变量）
+const getVariableContainer = (path) => {
+  if (!path) return varsSchema.value
+  
+  const pathParts = path.split('.')
+  
+  if (pathParts.length === 1) {
+    // 根级变量的容器就是根对象
+    return varsSchema.value
+  }
+  
+  // 获取父级变量
+  const parentPath = pathParts.slice(0, -1).join('.')
+  const parent = getVariableByPath(parentPath)
+  
+  if (parent && parent.type === 'object') {
+    if (!parent.properties) {
+      parent.properties = {}
+    }
+    return parent.properties
+  }
+  
+  return null
+}
 
 // 获取类型标签样式
 const getTypeTagType = (type) => {
@@ -621,28 +847,43 @@ const getVariableTemplate = (varName) => {
 
 // 创建默认变量配置
 const createDefaultVariable = (name = '', type = 'string') => {
-  return {
+  const variable = {
     type,
     title: name,
     description: '',
     required: false,
     default: getDefaultValue(type),
-    enum: type === 'enum' ? [] : undefined,
-    items: type === 'array' ? { type: 'string' } : undefined,
-    properties: type === 'object' ? {} : undefined,
-    min: ['integer', 'number'].includes(type) ? undefined : undefined,
-    max: ['integer', 'number'].includes(type) ? undefined : undefined,
-    minItems: type === 'array' ? undefined : undefined,
-    pattern: type === 'string' ? undefined : undefined,
     ui: {
       panel: true,
       order: 10,
       group: '基础信息',
       component: getDefaultComponent(type)
     },
-    naming_policy: 'go_snake',
-    conditional: undefined
+    naming_policy: 'go_snake'
   }
+
+  // 只为特定类型添加相应的字段
+  if (type === 'enum') {
+    variable.enum = []
+  }
+  
+  if (type === 'array') {
+    variable.items = { type: 'string' }
+  }
+  
+  if (type === 'object') {
+    variable.properties = {}
+  }
+  
+  if (['integer', 'number'].includes(type)) {
+    // 为数值类型预留min/max字段，但不设置默认值
+  }
+  
+  if (type === 'string') {
+    // 为字符串类型预留pattern字段，但不设置默认值
+  }
+
+  return variable
 }
 
 // 获取类型默认值
@@ -677,30 +918,45 @@ const getDefaultComponent = (type) => {
 
 // 树选择处理
 const onSelectVariable = (selectedKeys) => {
+  // 如果正在编辑中且点击的是编辑节点，不处理
+  if ((editingNode.value || renamingNode.value) && 
+      selectedKeys.length > 0 && 
+      (selectedKeys[0].startsWith('__new__') || selectedKeys[0] === editingNode.value?.key)) {
+    return
+  }
+  
+  // 如果正在编辑但点击的是其他节点，先取消编辑状态
+  if (editingNode.value || renamingNode.value) {
+    cancelAddVariable()
+  }
+  
   if (selectedKeys.length > 0) {
     const selectedKey = selectedKeys[0]
-    const pathParts = selectedKey.split('.')
-    let current = varsSchema.value
     
-    for (const part of pathParts) {
-      if (current[part]) {
-        current = current[part]
-      }
+    // 跳过临时编辑节点
+    if (selectedKey.startsWith('__new__')) {
+      return
     }
     
-    // 创建编辑数据的响应式副本
-    selectedVariableData.value = {
-      path: selectedKey,
-      ...JSON.parse(JSON.stringify(current)),
-      // 确保必要的嵌套对象存在
-      ui: current.ui || {
-        panel: true,
-        order: 10,
-        group: '基础信息',
-        component: 'input'
-      },
-      items: current.items || (current.type === 'array' ? { type: 'string' } : undefined),
-      enum: current.enum || (current.type === 'enum' ? [] : undefined)
+    const variable = getVariableByPath(selectedKey)
+    
+    if (variable) {
+      // 创建编辑数据的响应式副本
+      selectedVariableData.value = {
+        path: selectedKey,
+        ...JSON.parse(JSON.stringify(variable)),
+        // 确保必要的嵌套对象存在
+        ui: variable.ui || {
+          panel: true,
+          order: 10,
+          group: '基础信息',
+          component: getDefaultComponent(variable.type || 'string')
+        },
+        items: variable.items || (variable.type === 'array' ? { type: 'string' } : undefined),
+        enum: variable.enum || (variable.type === 'enum' ? [] : undefined)
+      }
+    } else {
+      selectedVariableData.value = null
     }
   } else {
     selectedVariableData.value = null
@@ -714,12 +970,31 @@ const onExpandKeys = (keys) => {
 
 // 添加根变量
 const addRootVariable = () => {
-  const varName = `variable_${Date.now()}`
-  varsSchema.value[varName] = createDefaultVariable(varName, 'string')
+  // 取消任何现有的编辑状态
+  editingNode.value = null
+  renamingNode.value = null
   
-  // 自动选中新创建的变量
-  selectedKeys.value = [varName]
-  onSelectVariable([varName])
+  // 清空输入框
+  newVariableName.value = ''
+  addVariableType.value = 'string'
+  
+  // 创建临时编辑节点
+  const newKey = '__new__' + Date.now() + Math.random().toString(36).slice(2)
+  
+  nextTick(() => {
+    editingNode.value = {
+      key: newKey,
+      title: '',
+      type: 'string',
+      path: newKey,
+      isLeaf: true,
+      isEditing: true,
+      isRoot: true,
+      prefix: () => h(NIcon, { class: 'var-icon var-string' }, {
+        default: () => h(getVariableIconComponent('string', false))
+      })
+    }
+  })
 }
 
 
@@ -727,7 +1002,7 @@ const addRootVariable = () => {
 const getNodeMenuOptions = (option) => {
   const menuOptions = []
   
-  // 对象类型可以添加子属性
+  // 只有真正的对象类型变量才可以添加子属性
   if (option.type === 'object') {
     menuOptions.push({
       label: '新增子变量',
@@ -735,6 +1010,13 @@ const getNodeMenuOptions = (option) => {
       icon: () => h(NIcon, null, { default: () => h(AddOutline) })
     })
   }
+  
+  // 重命名变量
+  menuOptions.push({
+    label: '重命名变量',
+    key: 'rename',
+    icon: () => h(NIcon, null, { default: () => h(CreateOutline) })
+  })
   
   // 复制变量
   menuOptions.push({
@@ -759,6 +1041,9 @@ const handleNodeAction = (key, option) => {
     case 'add-child':
       addChildVariable(option.path)
       break
+    case 'rename':
+      renameVariable(option.path)
+      break
     case 'copy':
       copyVariable(option.path)
       break
@@ -768,125 +1053,143 @@ const handleNodeAction = (key, option) => {
   }
 }
 
-// 添加子变量
-const addChildVariable = (parentPath) => {
-  console.log('Adding child to:', parentPath) // 调试日志
+// 重命名变量
+const renameVariable = (path) => {
+  const variable = getVariableByPath(path)
   
-  const pathParts = parentPath.split('.')
-  let current = varsSchema.value
-  
-  // 导航到父级变量
-  for (const part of pathParts) {
-    if (current[part]) {
-      current = current[part]
-    } else {
-      console.error('Path not found:', part, 'in', current)
-      return
-    }
+  if (!variable) {
+    message.error('变量不存在')
+    return
   }
   
-  // 确保父级是对象类型并有properties
-  if (current.type !== 'object') {
-    current.type = 'object'
+  // 取消任何现有的编辑状态
+  cancelAddVariable()
+  
+  // 获取当前变量名
+  const pathParts = path.split('.')
+  const currentName = pathParts[pathParts.length - 1]
+  
+  // 设置重命名状态
+  renamingNode.value = {
+    path: path,
+    oldName: currentName,
+    key: path
   }
   
-  if (!current.properties) {
-    current.properties = {}
-  }
-  
-  const childName = `child_${Date.now()}`
-  current.properties[childName] = createDefaultVariable(childName, 'string')
-  
-  console.log('Added child:', childName, 'to', parentPath) // 调试日志
-  
-  // 展开父级并选中新创建的子变量
-  const childPath = `${parentPath}.${childName}`
-  if (!expandedKeys.value.includes(parentPath)) {
-    expandedKeys.value = [...expandedKeys.value, parentPath]
-  }
-  selectedKeys.value = [childPath]
-  onSelectVariable([childPath])
+  // 预填充当前名称
+  newVariableName.value = currentName
   
   // 强制更新树数据
   varsSchema.value = { ...varsSchema.value }
 }
 
+// 添加子变量
+const addChildVariable = (parentPath) => {
+  const parent = getVariableByPath(parentPath)
+  
+  if (!parent) {
+    message.error('父级变量不存在')
+    return
+  }
+  
+  // 确保父级是对象类型
+  if (parent.type !== 'object') {
+    parent.type = 'object'
+    parent.ui = parent.ui || {}
+    parent.ui.component = 'input'
+  }
+  
+  // 确保有properties对象
+  if (!parent.properties) {
+    parent.properties = {}
+  }
+  
+  // 先展开父级
+  if (!expandedKeys.value.includes(parentPath)) {
+    expandedKeys.value = [...expandedKeys.value, parentPath]
+  }
+  
+  // 取消任何现有的编辑状态
+  editingNode.value = null
+  renamingNode.value = null
+  
+  // 清空输入框
+  newVariableName.value = ''
+  addVariableType.value = 'string'
+  
+  // 创建临时编辑节点
+  const newKey = '__new__child_' + Date.now() + Math.random().toString(36).slice(2)
+  
+  nextTick(() => {
+    editingNode.value = {
+      key: newKey,
+      title: '',
+      type: 'string',
+      path: newKey,
+      parentPath: parentPath,
+      isLeaf: true,
+      isEditing: true,
+      isRoot: false,
+      prefix: () => h(NIcon, { class: 'var-icon var-string' }, {
+        default: () => h(getVariableIconComponent('string', false))
+      })
+    }
+  })
+}
+
 
 // 复制变量
 const copyVariable = (path) => {
-  console.log('Copying variable:', path)
+  const originalVariable = getVariableByPath(path)
+  
+  if (!originalVariable) {
+    message.error('原始变量不存在')
+    return
+  }
   
   const pathParts = path.split('.')
-  let current = varsSchema.value
-  
-  // 导航到目标变量
-  for (let i = 0; i < pathParts.length - 1; i++) {
-    if (current[pathParts[i]]) {
-      if (current[pathParts[i]].properties) {
-        current = current[pathParts[i]].properties
-      } else {
-        current = current[pathParts[i]]
-      }
-    }
-  }
-  
   const originalVarName = pathParts[pathParts.length - 1]
-  if (current[originalVarName]) {
-    const originalVariable = current[originalVarName]
-    const copyVarName = `${originalVarName}_copy_${Date.now()}`
-    
-    // 深度复制变量定义
-    current[copyVarName] = JSON.parse(JSON.stringify(originalVariable))
-    current[copyVarName].title = (current[copyVarName].title || originalVarName) + ' 复制'
-    
-    console.log('Variable copied successfully:', copyVarName)
-    
-    // 强制更新树数据
-    varsSchema.value = { ...varsSchema.value }
-    
-    // 选中新复制的变量
-    const newPath = pathParts.slice(0, -1).concat([copyVarName]).join('.')
-    selectedKeys.value = [newPath]
-    onSelectVariable([newPath])
-    
-    message.success('变量复制成功')
+  const copyVarName = `${originalVarName}_copy_${Date.now()}`
+  
+  // 获取变量容器
+  const container = getVariableContainer(path)
+  
+  if (!container) {
+    message.error('无法找到变量容器')
+    return
   }
+  
+  // 深度复制变量定义
+  const copiedVariable = JSON.parse(JSON.stringify(originalVariable))
+  copiedVariable.title = (copiedVariable.title || originalVarName) + ' 复制'
+  container[copyVarName] = copiedVariable
+  
+  // 生成新的路径
+  const newPath = pathParts.slice(0, -1).concat([copyVarName]).join('.')
+  
+  // 强制更新树数据
+  varsSchema.value = { ...varsSchema.value }
+  
+  // 选中新复制的变量
+  selectedKeys.value = [newPath]
+  
+  // 等待DOM更新后再选择变量
+  nextTick(() => {
+    onSelectVariable([newPath])
+  })
+  
+  message.success(`变量复制成功: ${copyVarName}`)
 }
 
 
 // 删除变量
 const deleteVariable = (path) => {
-  console.log('Deleting variable:', path) // 调试日志
-  
-  const pathParts = path.split('.')
-  const varName = pathParts[pathParts.length - 1]
-  
-  if (pathParts.length === 1) {
-    // 删除根级变量
-    delete varsSchema.value[varName]
-    console.log('Deleted root variable:', varName)
-  } else {
-    // 删除嵌套变量
-    let current = varsSchema.value
-    for (let i = 0; i < pathParts.length - 2; i++) {
-      if (current[pathParts[i]]) {
-        current = current[pathParts[i]]
-      } else {
-        console.error('Parent path not found:', pathParts[i])
-        return
-      }
-    }
-    
-    const parentVarName = pathParts[pathParts.length - 2]
-    if (current[parentVarName] && current[parentVarName].properties) {
-      delete current[parentVarName].properties[varName]
-      console.log('Deleted nested variable:', varName, 'from', parentVarName)
-    } else {
-      console.error('Parent variable properties not found:', parentVarName)
-    }
+  if (!deleteVariableByPath(path)) {
+    message.error('删除变量失败')
+    return
   }
   
-  // 清除选择
+  // 清除选择（如果删除的是当前选中的变量）
   if (selectedKeys.value.includes(path)) {
     selectedKeys.value = []
     selectedVariableData.value = null
@@ -894,6 +1197,10 @@ const deleteVariable = (path) => {
   
   // 强制更新树数据
   varsSchema.value = { ...varsSchema.value }
+  
+  const pathParts = path.split('.')
+  const varName = pathParts[pathParts.length - 1]
+  message.success(`已删除变量: ${varName}`)
 }
 
 // 类型改变处理
@@ -937,6 +1244,158 @@ const onTypeChange = (newType) => {
     selectedVariableData.value.pattern = undefined
   } else {
     delete selectedVariableData.value.pattern
+  }
+}
+
+// 确认添加/重命名变量
+const confirmAddVariable = () => {
+  
+  if (!newVariableName.value.trim()) {
+    message.warning('请输入变量名')
+    return
+  }
+  
+  // 验证变量名格式
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(newVariableName.value)) {
+    message.error('变量名只能包含字母、数字和下划线，且不能以数字开头')
+    return
+  }
+  
+  const variableName = newVariableName.value.trim()
+  
+  // 处理重命名逻辑
+  if (renamingNode.value) {
+    const oldPath = renamingNode.value.path
+    const pathParts = oldPath.split('.')
+    const oldName = pathParts[pathParts.length - 1]
+    
+    // 如果名称没有改变，直接返回
+    if (oldName === variableName) {
+      cancelAddVariable()
+      return
+    }
+    
+    // 获取变量容器
+    const container = getVariableContainer(oldPath)
+    if (!container) {
+      message.error('无法找到变量容器')
+      return
+    }
+    
+    // 检查新名称是否已存在
+    if (container[variableName]) {
+      message.error('变量名已存在')
+      return
+    }
+    
+    // 执行重命名：复制变量数据到新名称，删除旧名称
+    const variable = container[oldName]
+    container[variableName] = variable
+    delete container[oldName]
+    
+    // 更新选中状态到新路径
+    const newPath = pathParts.slice(0, -1).concat([variableName]).join('.')
+    selectedKeys.value = [newPath]
+    
+    // 清除重命名状态
+    renamingNode.value = null
+    newVariableName.value = ''
+    
+    // 选择重命名后的变量，不需要强制更新schema
+    nextTick(() => {
+      onSelectVariable([newPath])
+    })
+    
+    message.success(`变量已重命名为: ${variableName}`)
+    return
+  }
+  
+  // 处理新增变量逻辑
+  if (!editingNode.value) return
+  
+  if (editingNode.value.isRoot) {
+    // 检查根级变量名是否重复
+    if (varsSchema.value[variableName]) {
+      message.error('变量名已存在')
+      return
+    }
+    
+    // 创建根级变量
+    varsSchema.value[variableName] = createDefaultVariable(variableName, addVariableType.value)
+    
+    message.success(`已添加变量: ${variableName}`)
+    
+    // 先清除编辑状态，再选中新变量
+    editingNode.value = null
+    newVariableName.value = ''
+    
+    // 直接选中新创建的变量，不需要强制更新schema
+    selectedKeys.value = [variableName]
+    nextTick(() => {
+      onSelectVariable([variableName])
+    })
+  } else {
+    // 处理子变量
+    const parent = getVariableByPath(editingNode.value.parentPath)
+    
+    if (!parent) {
+      message.error('无法找到父级变量')
+      return
+    }
+    
+    if (!parent.properties) {
+      parent.properties = {}
+    }
+    
+    // 检查子变量名是否重复
+    if (parent.properties[variableName]) {
+      message.error('变量名已存在')
+      return
+    }
+    
+    // 创建子变量
+    const newVariable = createDefaultVariable(variableName, addVariableType.value)
+    parent.properties[variableName] = newVariable
+    
+    // 选中新创建的子变量
+    const newPath = `${editingNode.value.parentPath}.${variableName}`
+    
+    message.success(`已添加子变量: ${variableName}`)
+    
+    // 先清除编辑状态，再选中新变量
+    editingNode.value = null
+    newVariableName.value = ''
+    
+    // 直接选中新创建的子变量，不需要强制更新schema
+    selectedKeys.value = [newPath]
+    nextTick(() => {
+      onSelectVariable([newPath])
+    })
+  }
+}
+
+// 取消添加变量
+const cancelAddVariable = () => {
+  if (editingNode.value || renamingNode.value) {
+    editingNode.value = null
+    renamingNode.value = null
+    newVariableName.value = ''
+    
+    // 强制更新树数据
+    varsSchema.value = { ...varsSchema.value }
+  }
+}
+
+// 全局点击处理（自动确认编辑）
+const handleGlobalClick = (event) => {
+  const inputElement = event.target.closest('.vscode-tree-input')
+  const dropdownElement = event.target.closest('.n-dropdown-menu')
+  
+  // 如果点击的是输入框或下拉菜单，不处理
+  if (inputElement || dropdownElement) return
+  
+  if (editingNode.value || renamingNode.value) {
+    confirmAddVariable()
   }
 }
 
@@ -1024,72 +1483,27 @@ const reinitSchemaEditor = async () => {
   initSchemaEditor()
 }
 
-// 加载现有变量定义
+// 加载现有变量定义（本地模拟）
 const loadVariableDefinitions = async () => {
   try {
-    const response = await request({
-      url: `/api/v1/templates/${props.templateId}/vars-schema`,
-      method: 'GET'
-    })
-    if (response.data.data && response.data.data.vars_schema) {
-      varsSchema.value = response.data.data.vars_schema
+    // 尝试从本地存储加载
+    const savedSchema = localStorage.getItem(`template_${props.templateId}_vars_schema`)
+    if (savedSchema) {
+      varsSchema.value = JSON.parse(savedSchema)
+      message.success('已加载本地保存的变量定义')
     } else {
-      // 如果没有数据，创建一些测试数据用于调试
-      varsSchema.value = {
-        'app_name': {
-          type: 'string',
-          title: '应用名称',
-          description: '应用的名称',
-          required: true,
-          default: 'my-app',
-          ui: { panel: true, order: 10, group: '基础信息', component: 'input' },
-          naming_policy: 'go_snake'
-        },
-        'database': {
-          type: 'object',
-          title: '数据库配置',
-          description: '数据库相关配置',
-          required: true,
-          properties: {
-            'host': {
-              type: 'string',
-              title: '主机地址',
-              description: '数据库主机地址',
-              required: true,
-              default: 'localhost',
-              ui: { panel: true, order: 20, group: '数据库', component: 'input' }
-            },
-            'port': {
-              type: 'integer',
-              title: '端口号',
-              description: '数据库端口号',
-              required: true,
-              default: 3306,
-              ui: { panel: true, order: 21, group: '数据库', component: 'input' }
-            }
-          },
-          ui: { panel: true, order: 30, group: '基础信息', component: 'input' }
-        }
-      }
-      console.log('Created test data:', varsSchema.value)
+      // 使用空对象初始化
+      varsSchema.value = {}
+      message.success('变量定义已初始化')
     }
   } catch (error) {
-    console.error('加载变量定义失败:', error)
-    // 出错时也创建测试数据
-    varsSchema.value = {
-      'test_var': {
-        type: 'string',
-        title: '测试变量',
-        description: '用于测试的变量',
-        required: false,
-        default: 'test',
-        ui: { panel: true, order: 10, group: '测试', component: 'input' }
-      }
-    }
+    console.error('加载本地数据失败:', error)
+    varsSchema.value = {}
+    message.success('变量定义已初始化')
   }
 }
 
-// 保存变量定义
+// 保存变量定义（本地模拟）
 const saveVariables = async () => {
   saving.value = true
   try {
@@ -1099,14 +1513,13 @@ const saveVariables = async () => {
       updateVariableInSchema(path, selectedVariableData.value)
     }
     
-    await request({
-      url: `/api/v1/templates/${props.templateId}/vars-schema`,
-      method: 'POST',
-      data: {
-        vars_schema: varsSchema.value
-      }
-    })
-    message.success('变量定义保存成功')
+    // 模拟保存延时
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    // 模拟保存到本地存储
+    localStorage.setItem(`template_${props.templateId}_vars_schema`, JSON.stringify(varsSchema.value))
+    
+    message.success('变量定义保存成功（本地存储）')
   } catch (error) {
     console.error('保存失败:', error)
     message.error('保存失败')
@@ -1117,25 +1530,12 @@ const saveVariables = async () => {
 
 // 更新变量到schema
 const updateVariableInSchema = (path, variableData) => {
-  const pathParts = path.split('.')
-  let current = varsSchema.value
+  const variable = getVariableByPath(path)
   
-  // 导航到目标位置
-  for (let i = 0; i < pathParts.length - 1; i++) {
-    if (current[pathParts[i]]) {
-      if (current[pathParts[i]].properties) {
-        current = current[pathParts[i]].properties
-      } else {
-        current = current[pathParts[i]]
-      }
-    }
-  }
-  
-  const varName = pathParts[pathParts.length - 1]
-  if (current[varName]) {
+  if (variable && variableData) {
     // 只更新变量的配置数据，不包括path
     const { path: _, ...configData } = variableData
-    Object.assign(current[varName], configData)
+    Object.assign(variable, configData)
   }
 }
 
@@ -1260,15 +1660,18 @@ watch(varsSchema, () => {
   updateSchemaEditor()
 }, { deep: true })
 
-// 组件销毁时清理编辑器
+// 组件挂载时添加全局事件监听
 onMounted(() => {
-  // 组件被销毁时清理
-  return () => {
-    if (schemaEditor) {
-      schemaEditor.destroy()
-      schemaEditor = null
-    }
+  document.addEventListener('click', handleGlobalClick, true)
+})
+
+// 组件卸载时清理
+onUnmounted(() => {
+  if (schemaEditor) {
+    schemaEditor.destroy()
+    schemaEditor = null
   }
+  document.removeEventListener('click', handleGlobalClick, true)
 })
 </script>
 
@@ -1671,5 +2074,34 @@ onMounted(() => {
   border-color: #1890ff;
   color: #1890ff;
   background: rgba(24, 144, 255, 0.05);
+}
+
+/* VSCode风格的树输入框样式 */
+:deep(.vscode-tree-input) {
+  width: 100%;
+  height: 22px;
+  padding: 1px 4px;
+  font-size: 13px;
+  font-family: 'Segoe UI', 'Consolas', 'Monaco', monospace;
+  background: #ffffff;
+  border: 1px solid #007acc;
+  border-radius: 0;
+  outline: none;
+  color: #333333;
+  line-height: 18px;
+  box-shadow: 0 0 0 1px #007acc;
+  margin: 0;
+  display: block;
+  box-sizing: border-box;
+}
+
+:deep(.vscode-tree-input:focus) {
+  border-color: #007acc;
+  box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.25);
+}
+
+:deep(.vscode-tree-input::placeholder) {
+  color: #999999;
+  font-style: italic;
 }
 </style>

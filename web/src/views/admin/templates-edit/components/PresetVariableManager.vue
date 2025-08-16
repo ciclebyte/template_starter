@@ -23,7 +23,8 @@
         </div>
 
         <!-- 已订阅的预设变量列表 -->
-        <div class="subscribed-list" v-loading="loading">
+        <n-spin :show="loading">
+            <div class="subscribed-list">
             <n-empty v-if="subscribedList.length === 0" description="暂无订阅的预设变量">
                 <template #extra>
                     <n-button size="small" @click="showSubscribeModal = true">立即订阅</n-button>
@@ -89,7 +90,8 @@
                     </div>
                 </div>
             </div>
-        </div>
+            </div>
+        </n-spin>
 
         <!-- 订阅预设变量弹窗 -->
         <n-modal v-model:show="showSubscribeModal" :mask-closable="false">
@@ -117,7 +119,8 @@
                 </div>
 
                 <!-- 可用预设变量列表 -->
-                <div class="available-presets" v-loading="presetsLoading">
+                <n-spin :show="presetsLoading">
+                    <div class="available-presets">
                     <n-empty v-if="availablePresets.length === 0" description="暂无可用的预设变量" />
                     
                     <div v-else class="presets-list">
@@ -141,7 +144,8 @@
                             </div>
                         </div>
                     </div>
-                </div>
+                    </div>
+                </n-spin>
 
                 <!-- 分页 -->
                 <div class="pagination" v-if="totalPresets > pageSize">
@@ -179,7 +183,7 @@
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { 
     NButton, NIcon, NModal, NCard, NInput,
-    NEmpty, NCheckbox, NPagination, NPopconfirm, useMessage
+    NEmpty, NCheckbox, NPagination, NPopconfirm, NSpin, useMessage
 } from 'naive-ui'
 import { 
     AddOutline, CloseOutline, SearchOutline 

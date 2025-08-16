@@ -88,7 +88,7 @@ defineProps({
   }
 })
 
-defineEmits(['toggle-variable-panel', 'show-variable-manager', 'close-edit', 'toggle-file-tree', 'show-settings'])
+defineEmits(['toggle-variable-panel', 'show-variable-manager', 'show-variable-expose', 'close-edit', 'toggle-file-tree', 'show-settings'])
 </script>
 
 <style scoped>

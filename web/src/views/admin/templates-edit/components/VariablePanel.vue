@@ -337,7 +337,8 @@
             </n-button>
           </div>
           
-          <div class="subscribed-variables" v-loading="loadingPresets">
+          <n-spin :show="loadingPresets">
+            <div class="subscribed-variables">
             <n-empty v-if="subscribedPresets.length === 0" description="暂无订阅的预设变量" size="small">
               <template #extra>
                 <n-button size="small" @click="showSubscribeModal = true">立即订阅</n-button>
@@ -367,7 +368,8 @@
                 </div>
               </div>
             </div>
-          </div>
+            </div>
+          </n-spin>
         </div>
       </div>
     </div>
@@ -398,7 +400,8 @@
         </div>
 
         <!-- 可用预设变量列表 -->
-        <div class="available-presets" v-loading="presetsLoading">
+        <n-spin :show="presetsLoading">
+          <div class="available-presets">
           <n-empty v-if="availablePresets.length === 0" description="暂无可用的预设变量" />
           
           <div v-else class="presets-list">
@@ -422,7 +425,8 @@
               </div>
             </div>
           </div>
-        </div>
+          </div>
+        </n-spin>
 
         <!-- 分页 -->
         <div class="pagination" v-if="totalPresets > pageSize">
