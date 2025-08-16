@@ -50,10 +50,8 @@ func (s *sStatistics) GetOverview(ctx context.Context, req *statisticsApi.Overvi
 		return nil, err
 	}
 
-	res.TotalVariables, err = dao.TemplateVariables.Ctx(ctx).Count()
-	if err != nil {
-		return nil, err
-	}
+	// 模板变量功能已移除
+	res.TotalVariables = 0
 
 	// 质量指标
 	res.FeaturedTemplates, err = dao.Templates.Ctx(ctx).Where("is_featured", 1).Count()
@@ -61,14 +59,8 @@ func (s *sStatistics) GetOverview(ctx context.Context, req *statisticsApi.Overvi
 		return nil, err
 	}
 
-	// 包含变量的模板数
-	variableTemplateCount, err := dao.TemplateVariables.Ctx(ctx).
-		Fields("DISTINCT template_id").
-		Count()
-	if err != nil {
-		return nil, err
-	}
-	res.TemplatesWithVariables = variableTemplateCount
+	// 包含变量的模板数 - 模板变量功能已移除
+	res.TemplatesWithVariables = 0
 
 	// 包含描述的模板数
 	res.TemplatesWithDescription, err = dao.Templates.Ctx(ctx).
@@ -220,23 +212,13 @@ func (s *sStatistics) GetTemplateComplexity(ctx context.Context, req *statistics
 		TemplateCount int `json:"template_count"`
 	}
 
-	var variableCountData []VariableCountGroup
-	err = dao.TemplateVariables.Ctx(ctx).
-		Fields("template_id, COUNT(*) as variable_count").
-		Group("template_id").
-		Scan(&variableCountData)
-	if err != nil {
-		return nil, err
-	}
-
-	// 获取无变量的模板数
+	// 模板变量功能已移除，所有模板都算无变量模板
 	totalTemplates, err := dao.Templates.Ctx(ctx).Count()
 	if err != nil {
 		return nil, err
 	}
-
-	templatesWithVariables := len(variableCountData)
-	res.NoVariableTemplates = totalTemplates - templatesWithVariables
+	res.NoVariableTemplates = totalTemplates
+	var variableCountData []VariableCountGroup // 保留空数组以兼容后续代码
 
 	// 统计不同变量数的模板
 	for _, data := range variableCountData {

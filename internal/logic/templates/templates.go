@@ -182,11 +182,8 @@ func (s sTemplates) GetVariables(ctx context.Context, templateId int64) (res *ap
 	err = g.Try(ctx, func(ctx context.Context) {
 		res = &api.TemplatesVariablesRes{}
 
-		// 1. 获取用户自定义变量
-		var customVariables []*model.TemplateVariablesInfo
-		err = dao.TemplateVariables.Ctx(ctx).Where("template_id = ?", templateId).Scan(&customVariables)
-		liberr.ErrIsNil(ctx, err, "获取自定义变量失败")
-		res.CustomVariables = customVariables
+		// 1. 自定义变量功能已移除，返回空数组
+		res.CustomVariables = []interface{}{}
 
 		// 2. 获取模板文件树
 		var fileTree []*model.TemplateFilesInfo
@@ -304,7 +301,7 @@ func (s sTemplates) GetVariables(ctx context.Context, templateId int64) (res *ap
 
 		// 4. 统计信息
 		res.Statistics = &api.VariableStatistics{
-			TotalCustomVariables:  len(customVariables),
+			TotalCustomVariables:  0, // 自定义变量功能已移除
 			TotalBuiltinVariables: len(builtinVars),
 			TotalFunctions:        len(templateFuncs),
 			TotalFiles:            len(fileSet),

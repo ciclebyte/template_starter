@@ -229,7 +229,7 @@ const aiConnected = ref(true)
 // 计算属性
 const contextInfo = computed(() => ({
   fileName: props.currentFileName || '未选择文件',
-  variableCount: props.templateVariables.length,
+  variableCount: 0, // 模板变量功能已移除
   codeLines: props.currentFileContent ? props.currentFileContent.split('\n').length : 0,
   hasSelection: props.editorSelection.hasSelection
 }))

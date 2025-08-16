@@ -90,14 +90,10 @@ const modalVisible = computed({
   set: (value) => emit('update:show', value)
 })
 
-// 布尔类型变量选项
+// 布尔类型变量选项 - 模板变量功能已移除，改为使用变量定义
 const booleanVariableOptions = computed(() => {
-  return props.templateVariables
-    .filter(v => v.variableType === 'boolean' || v.variableType === '布尔值' || v.variableType === 'conditional')
-    .map(v => ({
-      label: `${v.name}${v.description ? ' - ' + v.description : ''}`,
-      value: v.name
-    }))
+  // TODO: 集成变量定义的布尔变量
+  return []
 })
 
 const handleSave = async () => {

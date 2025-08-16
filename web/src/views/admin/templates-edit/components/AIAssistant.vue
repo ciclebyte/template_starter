@@ -455,7 +455,7 @@ const latestAISuggestions = computed(() => {
 // 计算属性：上下文信息
 const contextInfo = computed(() => ({
   fileName: props.currentFileName,
-  variableCount: props.templateVariables.length,
+  variableCount: 0, // 模板变量功能已移除
   codeLines: props.currentFileContent ? props.currentFileContent.split('\n').length : 0
 }))
 
@@ -786,8 +786,8 @@ const getCurrentContext = () => {
     fileName: props.currentFileName,
     fileContent: props.currentFileContent,
     targetContent, // 优先使用选中的内容，如果没有选中则使用整个文件内容
-    variables: props.templateVariables,
-    variableCount: props.templateVariables.length,
+    variables: [], // 模板变量功能已移除
+    variableCount: 0, // 模板变量功能已移除
     codeLines: props.currentFileContent ? props.currentFileContent.split('\n').length : 0,
     hasSelection,
     selectedText: props.editorSelection.selectedText,
@@ -1263,7 +1263,7 @@ const getPriorityText = (priority) => {
 
 // 检查变量是否已添加
 const isVariableAdded = (variableName) => {
-  return props.templateVariables.some(v => v.name === variableName)
+  return false // 模板变量功能已移除
 }
 
 // 添加所有变量

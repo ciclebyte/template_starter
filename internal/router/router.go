@@ -18,7 +18,6 @@ func (router *Router) BindController(ctx context.Context, group *ghttp.RouterGro
 			controller.Languages,
 			controller.Categories,
 			controller.Templates,
-			controller.TemplateVariables,
 			controller.TemplateLanguages,
 			controller.TemplateFiles,
 			controller.BuiltinFunctions,
@@ -35,7 +34,7 @@ func (router *Router) BindController(ctx context.Context, group *ghttp.RouterGro
 
 		// 手动注册流式AI聊天端点
 		group.POST("/ai/chat/stream", controller.AI.ChatStream)
-		
+
 		// 手动注册OpenAI兼容端点
 		group.POST("/v1/chat/completions", controller.OpenAI.ChatCompletions)
 

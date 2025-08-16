@@ -120,11 +120,11 @@ type TemplatesVariablesReq struct {
 	TemplateId interface{} `json:"templateId" v:"required#模板ID不能为空"`
 }
 
-// 模板变量列表响应
+// 模板变量列表响应 - 已废弃，保留空结构体以兼容
 type TemplatesVariablesRes struct {
 	g.Meta            `mime:"application/json" example:"string"`
-	CustomVariables   []*model.TemplateVariablesInfo `json:"customVariables"`
-	BuiltinVariables  []*BuiltinVariableInfo         `json:"builtinVariables"`
-	TemplateFunctions []*TemplateFunctionInfo        `json:"templateFunctions"`
-	Statistics        *VariableStatistics            `json:"statistics"`
+	CustomVariables   []interface{}           `json:"customVariables"`
+	BuiltinVariables  []*BuiltinVariableInfo  `json:"builtinVariables"`
+	TemplateFunctions []*TemplateFunctionInfo `json:"templateFunctions"`
+	Statistics        *VariableStatistics     `json:"statistics"`
 }

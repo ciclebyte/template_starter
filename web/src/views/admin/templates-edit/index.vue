@@ -95,7 +95,6 @@
 import { useRouter, useRoute } from 'vue-router'
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import { getTemplateFileTree, addTemplateFile, delTemplateFile, getTemplateFileDetail, getTemplateFileContent, renameTemplateFile, uploadZipFile, uploadCodeFile, moveTemplateFile, setFileCondition, getFileCondition } from '@/api/templateFiles'
-import { listTemplateVariables } from '@/api/templateVariables'
 import { getTemplateExpose } from '@/api/templateExpose'
 import { getBuiltinFunctions } from '@/api/builtinFunctions'
 import { getSprigFunctions } from '@/api/sprigFunctions'
@@ -141,8 +140,8 @@ const currentFileName = ref('')
 const currentFileId = ref('')
 const templateFileStore = useTemplateFileStore()
 
-// 变量相关
-const templateVariables = ref([])
+// 变量相关  
+const templateVariables = ref([]) // 保留空数组以兼容组件props
 const userVariables = ref([]) // 从变量定义转换的用户变量
 const templateEditorRef = ref(null)
 const conditionModalRef = ref(null)
@@ -371,7 +370,6 @@ const handleKeyDown = (event) => {
 
 onMounted(async () => {
   await loadTree()
-  await loadVariables()
   await loadUserVariables() // 加载用户变量
   await loadBuiltinFunctions()
   await loadSprigFunctions()
@@ -433,15 +431,6 @@ async function loadTree() {
   loadingTree.value = false
 }
 
-async function loadVariables() {
-  try {
-    const res = await listTemplateVariables({ templateId: route.params.id })
-    templateVariables.value = res.data.data.templateVariablesList || []
-  } catch (e) {
-    templateVariables.value = []
-    console.error('加载变量失败:', e)
-  }
-}
 
 // 从变量定义Schema转换为用户变量格式
 const convertSchemaToUserVariables = (schema, parentPath = '') => {

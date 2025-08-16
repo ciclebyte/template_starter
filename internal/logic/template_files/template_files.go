@@ -1485,7 +1485,6 @@ func (s *sTemplateFiles) updateFilePath(ctx context.Context, fileId, templateId 
 	return err
 }
 
-
 // 构建文件路径
 func (s *sTemplateFiles) buildFilePath(ctx context.Context, fileId, templateId int64) (string, error) {
 	// 获取文件信息
@@ -1523,25 +1522,25 @@ func (s *sTemplateFiles) buildFilePath(ctx context.Context, fileId, templateId i
 func (s *sTemplateFiles) SetCondition(ctx context.Context, req *api.TemplateFilesSetConditionReq) (err error) {
 	err = g.Try(ctx, func(ctx context.Context) {
 		fileId := gconv.Int64(req.Id)
-		
+
 		// 检查文件是否存在
 		_, err = s.GetById(ctx, fileId)
 		liberr.ErrIsNil(ctx, err, "文件不存在")
-		
+
 		// 构造生成条件JSON
 		var conditionJson string
 		if req.Enabled {
 			// 检查变量是否存在
 			err = s.checkVariableExists(ctx, fileId, req.VariableName)
 			liberr.ErrIsNil(ctx, err, "关联的变量不存在")
-			
+
 			condition := model.GenerateCondition{
 				Enabled:       req.Enabled,
 				VariableName:  req.VariableName,
 				ExpectedValue: req.ExpectedValue,
 				Description:   req.Description,
 			}
-			
+
 			conditionBytes, err := json.Marshal(condition)
 			liberr.ErrIsNil(ctx, err, "条件序列化失败")
 			conditionJson = string(conditionBytes)
@@ -1549,7 +1548,7 @@ func (s *sTemplateFiles) SetCondition(ctx context.Context, req *api.TemplateFile
 			// 如果禁用条件，设置为null
 			conditionJson = ""
 		}
-		
+
 		// 更新数据库
 		_, err = dao.TemplateFiles.Ctx(ctx).WherePri(fileId).Update(do.TemplateFiles{
 			GenerateCondition: conditionJson,
@@ -1563,18 +1562,18 @@ func (s *sTemplateFiles) SetCondition(ctx context.Context, req *api.TemplateFile
 func (s *sTemplateFiles) GetCondition(ctx context.Context, req *api.TemplateFilesGetConditionReq) (res *api.TemplateFilesGetConditionRes, err error) {
 	err = g.Try(ctx, func(ctx context.Context) {
 		fileId := gconv.Int64(req.Id)
-		
+
 		// 获取文件信息
 		fileInfo, err := s.GetById(ctx, fileId)
 		liberr.ErrIsNil(ctx, err, "文件不存在")
-		
+
 		res = &api.TemplateFilesGetConditionRes{
 			Enabled:       false,
 			VariableName:  "",
 			ExpectedValue: false,
 			Description:   "",
 		}
-		
+
 		// 解析生成条件
 		if fileInfo.GenerateCondition != "" {
 			var condition model.GenerateCondition
@@ -1593,111 +1592,32 @@ func (s *sTemplateFiles) GetCondition(ctx context.Context, req *api.TemplateFile
 // checkVariableExists 检查变量是否存在
 func (s *sTemplateFiles) checkVariableExists(ctx context.Context, fileId int64, variableName string) error {
 	// 获取文件所属的模板ID
-	fileInfo, err := s.GetById(ctx, fileId)
+	_, err := s.GetById(ctx, fileId)
 	if err != nil {
 		return err
 	}
-	
-	// 检查变量是否存在于该模板中
-	count, err := dao.TemplateVariables.Ctx(ctx).Where("template_id = ? AND name = ?", fileInfo.TemplateId, variableName).Count()
-	if err != nil {
-		return err
-	}
-	
-	if count == 0 {
-		return fmt.Errorf("变量 %s 不存在", variableName)
-	}
-	
+
+	// 模板变量功能已移除，跳过变量检查
+
 	return nil
 }
 
 // convertVariableTypes 根据变量定义将变量值转换为正确的数据类型
 func (s sTemplateFiles) convertVariableTypes(ctx context.Context, templateId int64, variables map[string]interface{}) (map[string]interface{}, error) {
-	// 1. 获取模板的变量定义
-	var templateVariables []*entity.TemplateVariables
-	err := dao.TemplateVariables.Ctx(ctx).Where("template_id = ?", templateId).Scan(&templateVariables)
-	if err != nil {
-		return variables, err // 如果获取失败，返回原始变量
-	}
-
-	// 2. 创建变量类型映射
-	variableTypes := make(map[string]string)
-	for _, v := range templateVariables {
-		variableTypes[v.Name] = v.VariableType
-	}
-
-	// 3. 转换变量类型
-	convertedVariables := make(map[string]interface{})
-	for key, value := range variables {
-		variableType, exists := variableTypes[key]
-		if !exists {
-			// 如果没有定义类型，保持原值
-			convertedVariables[key] = value
-			continue
-		}
-
-		// 将接口值转换为字符串进行处理
-		valueStr := gconv.String(value)
-
-		// 根据变量类型进行转换
-		switch variableType {
-		case "string":
-			convertedVariables[key] = valueStr
-		case "boolean":
-			convertedVariables[key] = gconv.Bool(valueStr)
-		case "number":
-			// 尝试转换为整数，如果失败则转换为浮点数
-			if intVal := gconv.Int(valueStr); gconv.String(intVal) == valueStr {
-				convertedVariables[key] = intVal
-			} else {
-				convertedVariables[key] = gconv.Float64(valueStr)
-			}
-		case "list":
-			// 如果是JSON格式的数组字符串，尝试解析
-			if strings.HasPrefix(valueStr, "[") && strings.HasSuffix(valueStr, "]") {
-				var listValue []interface{}
-				if err := json.Unmarshal([]byte(valueStr), &listValue); err == nil {
-					convertedVariables[key] = listValue
-				} else {
-					// 如果解析失败，按逗号分割
-					convertedVariables[key] = strings.Split(valueStr, ",")
-				}
-			} else {
-				// 按逗号分割字符串
-				convertedVariables[key] = strings.Split(valueStr, ",")
-			}
-		case "object":
-			// 如果是JSON格式的对象字符串，尝试解析
-			if (strings.HasPrefix(valueStr, "{") && strings.HasSuffix(valueStr, "}")) ||
-				(strings.HasPrefix(valueStr, "[") && strings.HasSuffix(valueStr, "]")) {
-				var objValue interface{}
-				if err := json.Unmarshal([]byte(valueStr), &objValue); err == nil {
-					convertedVariables[key] = objValue
-				} else {
-					convertedVariables[key] = valueStr
-				}
-			} else {
-				convertedVariables[key] = valueStr
-			}
-		default:
-			// 未知类型，保持原值
-			convertedVariables[key] = value
-		}
-	}
-
-	return convertedVariables, nil
+	// 模板变量功能已移除，直接返回原始变量
+	return variables, nil
 }
 
 // filterFilesByCondition 根据生成条件过滤文件
 func (s sTemplateFiles) filterFilesByCondition(files []*entity.TemplateFiles, variables map[string]interface{}) []*entity.TemplateFiles {
 	var result []*entity.TemplateFiles
 	skippedPaths := make(map[string]bool) // 记录被跳过的路径
-	
+
 	// 按路径排序，确保父目录在子目录之前处理
 	sort.Slice(files, func(i, j int) bool {
 		return len(files[i].FilePath) < len(files[j].FilePath)
 	})
-	
+
 	for _, file := range files {
 		// 检查父路径是否被跳过
 		if s.isParentPathSkipped(file.FilePath, skippedPaths) {
@@ -1705,7 +1625,7 @@ func (s sTemplateFiles) filterFilesByCondition(files []*entity.TemplateFiles, va
 			skippedPaths[file.FilePath] = true
 			continue
 		}
-		
+
 		// 检查文件自身的生成条件
 		if s.shouldGenerateFile(file, variables) {
 			result = append(result, file)
@@ -1715,7 +1635,7 @@ func (s sTemplateFiles) filterFilesByCondition(files []*entity.TemplateFiles, va
 			fmt.Printf("文件 %s 不满足生成条件，被跳过\n", file.FilePath)
 		}
 	}
-	
+
 	return result
 }
 
@@ -1725,26 +1645,26 @@ func (s sTemplateFiles) shouldGenerateFile(file *entity.TemplateFiles, variables
 	if file.GenerateCondition == "" {
 		return true
 	}
-	
+
 	// 解析生成条件
 	var condition model.GenerateCondition
 	if err := json.Unmarshal([]byte(file.GenerateCondition), &condition); err != nil {
 		fmt.Printf("解析文件 %s 的生成条件失败: %v\n", file.FilePath, err)
 		return true // 解析失败时默认生成
 	}
-	
+
 	// 条件未启用，默认生成
 	if !condition.Enabled {
 		return true
 	}
-	
+
 	// 获取变量值
 	variableValue, exists := variables[condition.VariableName]
 	if !exists {
 		fmt.Printf("变量 %s 不存在，文件 %s 默认生成\n", condition.VariableName, file.FilePath)
 		return true
 	}
-	
+
 	// 转换为布尔值
 	boolValue := false
 	switch v := variableValue.(type) {
@@ -1757,12 +1677,12 @@ func (s sTemplateFiles) shouldGenerateFile(file *entity.TemplateFiles, variables
 	default:
 		boolValue = variableValue != nil
 	}
-	
+
 	// 根据期望值判断是否生成
 	shouldGenerate := boolValue == condition.ExpectedValue
-	fmt.Printf("文件 %s: 变量 %s=%v, 期望=%v, 生成=%v\n", 
+	fmt.Printf("文件 %s: 变量 %s=%v, 期望=%v, 生成=%v\n",
 		file.FilePath, condition.VariableName, boolValue, condition.ExpectedValue, shouldGenerate)
-	
+
 	return shouldGenerate
 }
 

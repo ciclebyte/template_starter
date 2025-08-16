@@ -14,8 +14,7 @@ import (
 	_ "github.com/ciclebyte/template_starter/internal/logic/template_expose"
 	_ "github.com/ciclebyte/template_starter/internal/logic/template_files"
 	_ "github.com/ciclebyte/template_starter/internal/logic/template_languages"
-	_ "github.com/ciclebyte/template_starter/internal/logic/template_variables"
+	_ "github.com/ciclebyte/template_starter/internal/logic/template_variable_presets"
 	_ "github.com/ciclebyte/template_starter/internal/logic/templates"
 	_ "github.com/ciclebyte/template_starter/internal/logic/var_preset"
-	_ "github.com/ciclebyte/template_starter/internal/logic/template_variable_presets"
 )

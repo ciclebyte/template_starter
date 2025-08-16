@@ -774,8 +774,8 @@ const textVariables = computed(() => {
 })
 
 const conditionalVariables = computed(() => {
-  // 变量定义中通常没有条件变量，保留原有逻辑
-  return props.templateVariables.filter(v => v.variableType === 'conditional')
+  // 条件变量功能已移除，返回空数组
+  return []
 })
 
 // 获取变量类型标签
