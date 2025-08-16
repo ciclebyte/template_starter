@@ -99,7 +99,7 @@
           <div class="panel-title">变量信息</div>
           
           <!-- 变量编辑表单 -->
-          <div v-if="selectedVariableData" class="variable-form">
+          <div v-if="selectedVariableData" class="variable-form" :key="selectedVariableData.path">
             <div class="form-header">
               <span class="var-path">{{ selectedVariableData.path }}</span>
               <n-tag :type="getTypeTagType(selectedVariableData.type)" size="small">
@@ -107,7 +107,7 @@
               </n-tag>
             </div>
             
-            <n-form ref="formRef" :model="selectedVariableData" size="small" label-placement="top">
+            <n-form ref="formRef" :model="selectedVariableData" size="small" label-placement="top" :key="selectedVariableData.path + '_form'">
               <n-grid :cols="2" :x-gap="16" :y-gap="12">
                 <!-- 基础信息 -->
                 <n-grid-item :span="2">
@@ -268,19 +268,6 @@
                   </n-form-item>
                 </n-grid-item>
 
-                <!-- 命名策略 -->
-                <n-grid-item :span="2">
-                  <div class="form-section-title">高级配置</div>
-                </n-grid-item>
-                
-                <n-grid-item>
-                  <n-form-item label="命名策略 (naming_policy)">
-                    <n-select 
-                      v-model:value="selectedVariableData.naming_policy"
-                      :options="namingPolicyOptions"
-                    />
-                  </n-form-item>
-                </n-grid-item>
               </n-grid>
             </n-form>
           </div>
@@ -300,22 +287,61 @@
 
         <!-- 右侧：预览 -->
         <div class="right-panel" :style="{ width: rightPanelWidth + 'px' }">
-          <div class="panel-title">
-            预览
-            <n-button-group size="small">
-              <n-button 
-                :type="previewFormat === 'json' ? 'primary' : 'default'"
-                @click="previewFormat = 'json'"
-              >
-                JSON
+          <div class="panel-header">
+            <div class="panel-title">Schema预览</div>
+            <div class="panel-actions">
+              <!-- 格式切换 -->
+              <n-button-group size="small">
+                <n-button 
+                  :type="previewFormat === 'json' ? 'primary' : 'default'"
+                  @click="previewFormat = 'json'"
+                >
+                  JSON
+                </n-button>
+                <n-button 
+                  :type="previewFormat === 'yaml' ? 'primary' : 'default'"
+                  @click="previewFormat = 'yaml'"
+                >
+                  YAML
+                </n-button>
+              </n-button-group>
+              
+              <!-- 操作按钮 -->
+              <n-button size="small" @click="importFromFile" quaternary>
+                <template #icon>
+                  <n-icon><CloudUploadOutline /></n-icon>
+                </template>
+                导入
               </n-button>
-              <n-button 
-                :type="previewFormat === 'yaml' ? 'primary' : 'default'"
-                @click="previewFormat = 'yaml'"
-              >
-                YAML
+              
+              <n-button size="small" @click="showExportDialog" quaternary>
+                <template #icon>
+                  <n-icon><DownloadOutline /></n-icon>
+                </template>
+                导出
               </n-button>
-            </n-button-group>
+              
+              <n-button size="small" @click="copyToClipboard" quaternary>
+                <template #icon>
+                  <n-icon><CopyOutline /></n-icon>
+                </template>
+                复制
+              </n-button>
+              
+              <n-button size="small" @click="formatContent" quaternary>
+                <template #icon>
+                  <n-icon><RefreshOutline /></n-icon>
+                </template>
+                格式化
+              </n-button>
+              
+              <n-button size="small" @click="syncToTree" quaternary>
+                <template #icon>
+                  <n-icon><SyncOutline /></n-icon>
+                </template>
+                同步到树
+              </n-button>
+            </div>
           </div>
           <div class="preview-content">
             <div ref="schemaEditorRef" class="code-preview"></div>
@@ -324,6 +350,94 @@
       </div>
     </n-drawer-content>
   </n-drawer>
+
+  <!-- 导出格式选择对话框 -->
+  <n-modal v-model:show="showExportModalFlag" :mask-closable="false">
+    <n-card style="width: 400px" title="选择导出格式" :bordered="false" size="huge">
+      <template #header-extra>
+        <n-button quaternary circle @click="showExportModalFlag = false">
+          <template #icon>
+            <n-icon><CloseOutline /></n-icon>
+          </template>
+        </n-button>
+      </template>
+      
+      <n-space vertical>
+        <div>请选择要导出的文件格式：</div>
+        <n-button-group size="large" vertical>
+          <n-button @click="exportFile('json')" style="justify-content: flex-start;">
+            <template #icon>
+              <n-icon><CodeOutline /></n-icon>
+            </template>
+            JSON 格式 (.json)
+          </n-button>
+          <n-button @click="exportFile('yaml')" style="justify-content: flex-start;">
+            <template #icon>
+              <n-icon><DocumentOutline /></n-icon>
+            </template>
+            YAML 格式 (.yaml)
+          </n-button>
+        </n-button-group>
+      </n-space>
+    </n-card>
+  </n-modal>
+
+  <!-- 导入确认对话框 -->
+  <n-modal v-model:show="showImportConfirmModal" :mask-closable="false">
+    <n-card style="width: 500px" title="导入确认" :bordered="false" size="huge">
+      <template #header-extra>
+        <n-button quaternary circle @click="showImportConfirmModal = false">
+          <template #icon>
+            <n-icon><CloseOutline /></n-icon>
+          </template>
+        </n-button>
+      </template>
+      
+      <div>
+        <p>确定要导入此schema吗？这将替换当前的所有变量定义。</p>
+      </div>
+      
+      <template #footer>
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <n-button @click="showImportConfirmModal = false">取消</n-button>
+          <n-button type="primary" @click="confirmImport">确定导入</n-button>
+        </div>
+      </template>
+    </n-card>
+  </n-modal>
+
+  <!-- 同步确认对话框 -->
+  <n-modal v-model:show="showSyncConfirmModal" :mask-closable="false">
+    <n-card style="width: 500px" title="同步确认" :bordered="false" size="huge">
+      <template #header-extra>
+        <n-button quaternary circle @click="showSyncConfirmModal = false">
+          <template #icon>
+            <n-icon><CloseOutline /></n-icon>
+          </template>
+        </n-button>
+      </template>
+      
+      <div>
+        <p>确定要将预览内容同步到变量树吗？这将替换当前的变量定义。</p>
+      </div>
+      
+      <template #footer>
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <n-button @click="showSyncConfirmModal = false">取消</n-button>
+          <n-button type="warning" @click="confirmSync">确定同步</n-button>
+        </div>
+      </template>
+    </n-card>
+  </n-modal>
+
+  <!-- 隐藏的文件输入框 -->
+  <input
+    ref="fileInputRef"
+    type="file"
+    accept=".json,.yaml,.yml"
+    style="display: none"
+    @change="handleFileImport"
+  />
 </template>
 
 <script setup>
@@ -331,7 +445,8 @@ import { ref, computed, watch, h, nextTick, onMounted, onUnmounted } from 'vue'
 import { 
   NDrawer, NDrawerContent, NButton, NIcon, NSpace, NForm, NFormItem, 
   NGrid, NGridItem, NInput, NSelect, NSwitch, NTabs, NTabPane, NInputNumber,
-  NTree, NTag, NDropdown, NDynamicTags, NEmpty, NButtonGroup, useMessage 
+  NTree, NTag, NDropdown, NDynamicTags, NEmpty, NButtonGroup, NModal, NCard,
+  useMessage 
 } from 'naive-ui'
 import { 
   SaveOutline, CloseOutline, DocumentOutline, AddOutline, TrashOutline,
@@ -339,7 +454,8 @@ import {
   TextOutline, Calculator, ToggleOutline, ListOutline, ArchiveOutline,
   KeyOutline, LockClosedOutline, Folder, FolderOpenOutline, 
   EllipsisVerticalOutline, CheckboxOutline, CodeOutline, ChevronForward,
-  CreateOutline
+  CreateOutline, DownloadOutline, CloudUploadOutline, CopyOutline, 
+  RefreshOutline, SyncOutline
 } from '@vicons/ionicons5'
 // import request from '@/utils/request' // 暂时禁用API调用
 import { EditorView, basicSetup } from 'codemirror'
@@ -372,6 +488,14 @@ const visible = computed({
   get: () => props.show,
   set: (value) => emit('update:show', value)
 })
+
+// 预览面板操作相关
+const showExportModalFlag = ref(false)
+const showImportConfirmModal = ref(false)
+const showSyncConfirmModal = ref(false)
+const fileInputRef = ref(null)
+const pendingImportData = ref(null)
+const pendingSyncData = ref(null)
 
 // 数据状态
 const saving = ref(false)
@@ -474,7 +598,10 @@ const handleContextMenuAction = (key) => {
 const handleEmptyAreaAction = (key) => {
   switch (key) {
     case 'add-string':
-      addRootVariable() // 直接使用现有的添加根变量函数
+      addRootVariable() // 添加普通变量（默认string类型）
+      break
+    case 'add-object':
+      addRootObjectVariable() // 添加对象变量
       break
   }
 }
@@ -494,6 +621,11 @@ const onTreeAreaContextMenu = (event) => {
       label: '添加变量',
       key: 'add-string',
       icon: () => h(NIcon, null, { default: () => h(AddOutline) })
+    },
+    {
+      label: '添加对象变量',
+      key: 'add-object',
+      icon: () => h(NIcon, null, { default: () => h(ArchiveOutline) })
     }
   ]
   
@@ -530,16 +662,17 @@ const componentOptions = [
   { label: '文本域 (textarea)', value: 'textarea' }
 ]
 
-const namingPolicyOptions = [
-  { label: 'Go蛇形 (go_snake)', value: 'go_snake' },
-  { label: 'TS驼峰 (ts_camel)', value: 'ts_camel' },
-  { label: '短横线 (kebab)', value: 'kebab' }
-]
 
-// 转换为变量树数据 - 简化版本
+// 转换为变量树数据 - 支持编辑节点
 const variableTreeData = computed(() => {
   try {
     const treeData = convertToTreeData(varsSchema.value)
+    
+    // 如果有编辑节点，插入到正确位置
+    if (editingNode.value) {
+      insertEditingNodeToTree(treeData, editingNode.value)
+    }
+    
     console.log('生成的树数据:', treeData)
     return treeData
   } catch (error) {
@@ -550,20 +683,36 @@ const variableTreeData = computed(() => {
 
 // 将编辑节点插入到树的正确位置
 const insertEditingNodeToTree = (treeData, editingNode) => {
-  if (!editingNode.parentPath) return false
+  // 创建编辑节点
+  const createEditingNode = () => {
+    const nodeType = editingNode.type || 'string'
+    return {
+      key: editingNode.key,
+      title: newVariableName.value || '',
+      type: nodeType,
+      path: editingNode.key,
+      data: null,
+      isLeaf: nodeType !== 'object',
+      isEditing: true,
+      children: [],
+      prefix: () => h(NIcon, { class: `var-icon var-${nodeType}` }, {
+        default: () => h(getVariableIconComponent(nodeType, false))
+      })
+    }
+  }
   
+  // 如果是根节点编辑
+  if (editingNode.isRoot || !editingNode.parentPath) {
+    treeData.unshift(createEditingNode())
+    return true
+  }
+  
+  // 否则查找父节点并插入
   const findAndInsert = (nodes) => {
     for (const node of nodes) {
       if (node.path === editingNode.parentPath) {
         if (!node.children) node.children = []
-        // 确保编辑节点具有完整的属性
-        const completeEditingNode = {
-          ...editingNode,
-          isEditing: true, // 强制标记为编辑状态
-          children: [],
-          isLeaf: true
-        }
-        node.children.unshift(completeEditingNode)
+        node.children.unshift(createEditingNode())
         return true
       }
       if (node.children && node.children.length > 0 && findAndInsert(node.children)) {
@@ -575,7 +724,7 @@ const insertEditingNodeToTree = (treeData, editingNode) => {
   
   const result = findAndInsert(treeData)
   if (!result) {
-    console.error('Failed to find parent node for editing node:', editingNode.parentPath) // 调试日志
+    console.error('Failed to find parent node for editing node:', editingNode.parentPath)
   }
   return result
 }
@@ -676,8 +825,47 @@ const getVariableIconComponent = (type, hasChildren = false) => {
 const renderSwitcherIcon = () => h(NIcon, null, { default: () => h(ChevronForward) })
 
 // 渲染标签（支持内联编辑）
-// 简化标签渲染 - 不再需要复杂的内联编辑
 const renderLabel = ({ option }) => {
+  if (option.isEditing === true) {
+    const isRenaming = renamingNode.value && String(option.key) === String(renamingNode.value.key)
+    const placeholder = isRenaming ? '重命名变量' : '输入变量名'
+    
+    return h('input', {
+      class: 'vscode-tree-input',
+      value: newVariableName.value,
+      autofocus: true,
+      placeholder: placeholder,
+      onInput: e => (newVariableName.value = e.target.value),
+      onKeydown: e => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          confirmAddVariable()
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          cancelAddVariable()
+        }
+      },
+      onMousedown: e => {
+        // 防止输入框点击时失去焦点
+        e.stopPropagation()
+      },
+      onBlur: (e) => {
+        // 延迟执行，避免与点击事件冲突
+        setTimeout(() => {
+          // 检查焦点是否还在输入框内，如果是则不处理
+          if (document.activeElement && document.activeElement.classList.contains('vscode-tree-input')) {
+            return
+          }
+          
+          if (editingNode.value || renamingNode.value) {
+            confirmAddVariable()
+          }
+        }, 150)
+      }
+    })
+  }
+  
   return option.title
 }
 
@@ -845,12 +1033,11 @@ const createDefaultVariable = (name = '', type = 'string') => {
     required: false,
     default: getDefaultValue(type),
     ui: {
-      panel: true,
+      panel: false,
       order: 10,
       group: '基础信息',
       component: getDefaultComponent(type)
-    },
-    naming_policy: 'go_snake'
+    }
   }
 
   // 只为特定类型添加相应的字段
@@ -965,7 +1152,7 @@ const onSelectVariable = (selectedKeys) => {
           ...safeVariable,
           // 确保必要的嵌套对象存在
           ui: variable.ui || {
-            panel: true,
+            panel: false,
             order: 10,
             group: '基础信息',
             component: getDefaultComponent(variable.type || 'string')
@@ -991,54 +1178,36 @@ const onExpandKeys = (keys) => {
   expandedKeys.value = keys
 }
 
-// 添加根变量 - 简化版本
+// 添加根变量 - 恢复内联编辑
 const addRootVariable = () => {
-  // 1. 直接弹窗获取变量名
-  const variableName = prompt('请输入变量名称:')
-  if (!variableName || !variableName.trim()) {
-    return
+  // 创建临时编辑节点
+  const tempKey = `__new__${Date.now()}`
+  editingNode.value = {
+    key: tempKey,
+    parentPath: '',
+    isRoot: true,
+    type: 'string' // 默认string类型
   }
+  newVariableName.value = ''
   
-  // 2. 验证变量名
-  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(variableName)) {
-    message.error('变量名只能包含字母、数字和下划线，且不能以数字开头')
-    return
+  // 强制更新树数据以显示编辑节点
+  varsSchema.value = { ...varsSchema.value }
+}
+
+// 添加根对象变量 - 直接创建object类型
+const addRootObjectVariable = () => {
+  // 创建临时编辑节点
+  const tempKey = `__new__object_${Date.now()}`
+  editingNode.value = {
+    key: tempKey,
+    parentPath: '',
+    isRoot: true,
+    type: 'object' // 直接创建object类型
   }
+  newVariableName.value = ''
   
-  // 3. 检查重复
-  if (varsSchema.value[variableName]) {
-    message.error('变量名已存在')
-    return
-  }
-  
-  // 4. 创建新变量 - 就这么简单！
-  varsSchema.value[variableName] = {
-    type: 'string',
-    title: variableName,
-    description: '',
-    required: false,
-    default: '',
-    ui: {
-      panel: true,
-      order: 10,
-      group: '基础信息',
-      component: 'input'
-    },
-    naming_policy: 'go_snake'
-  }
-  
-  console.log('创建新变量:', variableName, varsSchema.value)
-  
-  // 5. 选中新变量
-  selectedKeys.value = [variableName]
-  console.log('设置selectedKeys:', selectedKeys.value)
-  
-  // 6. 手动触发选择事件
-  nextTick(() => {
-    onSelectVariable([variableName])
-  })
-  
-  message.success(`已添加变量: ${variableName}`)
+  // 强制更新树数据以显示编辑节点
+  varsSchema.value = { ...varsSchema.value }
 }
 
 
@@ -1123,78 +1292,57 @@ const renameVariable = (path) => {
   // 预填充当前名称
   newVariableName.value = currentName
   
-  // 强制更新树数据
-  varsSchema.value = { ...varsSchema.value }
+  // 强制更新树数据，确保重命名状态生效
+  nextTick(() => {
+    varsSchema.value = { ...varsSchema.value }
+    
+    // 再次确保输入框获得焦点
+    nextTick(() => {
+      const input = document.querySelector('.vscode-tree-input')
+      if (input) {
+        input.focus()
+        input.select()  // 选中所有文本便于重新输入
+      }
+    })
+  })
 }
 
-// 添加子变量 - 简化版本
+// 添加子变量 - 恢复内联编辑
 const addChildVariable = (parentPath) => {
-  // 1. 获取父级变量
+  // 1. 确保父级变量存在
   const parent = getVariableByPath(parentPath)
   if (!parent) {
     message.error('父级变量不存在')
     return
   }
   
-  // 2. 直接弹窗获取变量名
-  const variableName = prompt('请输入子变量名称:')
-  if (!variableName || !variableName.trim()) {
-    return
-  }
-  
-  // 3. 验证变量名
-  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(variableName)) {
-    message.error('变量名只能包含字母、数字和下划线，且不能以数字开头')
-    return
-  }
-  
-  // 4. 检查父级是否可以包含子变量
+  // 2. 检查父级是否可以包含子变量
   if (parent.type !== 'object') {
     message.error('只有对象类型的变量才能添加子变量，请先将父级变量类型改为object')
     return
   }
   
-  // 5. 确保有properties对象
+  // 3. 确保有properties对象
   if (!parent.properties) {
     parent.properties = {}
   }
   
-  // 6. 检查重复
-  if (parent.properties[variableName]) {
-    message.error('变量名已存在')
-    return
+  // 4. 创建临时编辑节点
+  const tempKey = `__new__${parentPath}_${Date.now()}`
+  editingNode.value = {
+    key: tempKey,
+    parentPath: parentPath,
+    isRoot: false
   }
+  newVariableName.value = ''
   
-  // 7. 创建新变量 - 就这么简单！
-  parent.properties[variableName] = {
-    type: 'string',
-    title: variableName,
-    description: '',
-    required: false,
-    default: '',
-    ui: {
-      panel: true,
-      order: 10,
-      group: '基础信息',
-      component: 'input'
-    },
-    naming_policy: 'go_snake'
-  }
-  
-  // 8. 展开父级并选中新变量
+  // 5. 展开父级
   if (!expandedKeys.value.includes(parentPath)) {
     expandedKeys.value = [...expandedKeys.value, parentPath]
   }
   
-  const newPath = `${parentPath}.${variableName}`
-  selectedKeys.value = [newPath]
-  
-  // 9. 手动触发选择事件
-  nextTick(() => {
-    onSelectVariable([newPath])
-  })
-  
-  message.success(`已添加子变量: ${variableName}`)
+  // 6. 强制更新树数据以显示编辑节点
+  varsSchema.value = { ...varsSchema.value }
 }
 
 
@@ -1383,8 +1531,9 @@ const confirmAddVariable = () => {
         return
       }
       
-      // 创建根级变量
-      varsSchema.value[variableName] = createDefaultVariable(variableName, addVariableType.value)
+      // 创建根级变量 - 使用编辑节点指定的类型
+      const variableType = editingNode.value.type || 'string'
+      varsSchema.value[variableName] = createDefaultVariable(variableName, variableType)
       
       message.success(`已添加变量: ${variableName}`)
       
@@ -1703,10 +1852,8 @@ watch(selectedVariableData, (newData) => {
     console.log('变量数据更新:', selectedKeys.value[0], newData.type)
     updateVariableInSchema(selectedKeys.value[0], newData)
     
-    // 强制触发schema变化检测，确保预览更新
-    nextTick(() => {
-      varsSchema.value = { ...varsSchema.value }
-    })
+    // 注意：不需要强制更新varsSchema，因为updateVariableInSchema已经直接修改了对象
+    // 过度的强制更新可能导致表单重复渲染
   }
 }, { deep: true })
 
@@ -1867,6 +2014,184 @@ watch(varsSchema, (newSchema) => {
   }
 }, { deep: true })
 
+// 预览面板操作函数
+// 1. 导入文件
+const importFromFile = () => {
+  fileInputRef.value?.click()
+}
+
+// 2. 处理文件导入
+const handleFileImport = async (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+  
+  try {
+    const text = await file.text()
+    let importedData = null
+    
+    // 根据文件扩展名或内容判断格式
+    if (file.name.endsWith('.json') || text.trim().startsWith('{')) {
+      importedData = JSON.parse(text)
+    } else if (file.name.endsWith('.yaml') || file.name.endsWith('.yml')) {
+      importedData = YAML.load(text)
+    } else {
+      // 尝试两种格式
+      try {
+        importedData = JSON.parse(text)
+      } catch {
+        importedData = YAML.load(text)
+      }
+    }
+    
+    // 验证数据结构
+    if (importedData && typeof importedData === 'object') {
+      // 如果有vars_schema字段，使用它；否则直接使用整个对象
+      const schemaData = importedData.vars_schema || importedData
+      
+      // 保存待导入的数据并显示确认对话框
+      pendingImportData.value = schemaData
+      showImportConfirmModal.value = true
+    } else {
+      message.error('文件格式不正确，请确保是有效的JSON或YAML格式')
+    }
+  } catch (error) {
+    console.error('导入文件时出错:', error)
+    message.error('文件解析失败，请检查文件格式')
+  }
+  
+  // 清空input值以便重新选择同一文件
+  event.target.value = ''
+}
+
+// 3. 显示导出对话框
+const showExportDialog = () => {
+  showExportModalFlag.value = true
+}
+
+// 4. 导出文件
+const exportFile = (format) => {
+  try {
+    const schema = { vars_schema: varsSchema.value }
+    let content = ''
+    let filename = ''
+    let mimeType = ''
+    
+    if (format === 'json') {
+      content = JSON.stringify(schema, null, 2)
+      filename = `template_vars_schema_${Date.now()}.json`
+      mimeType = 'application/json'
+    } else if (format === 'yaml') {
+      content = YAML.dump(schema, {
+        indent: 2,
+        lineWidth: -1,
+        noRefs: true,
+        sortKeys: false
+      })
+      filename = `template_vars_schema_${Date.now()}.yaml`
+      mimeType = 'application/x-yaml'
+    }
+    
+    // 创建下载链接
+    const blob = new Blob([content], { type: mimeType })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    
+    showExportModalFlag.value = false
+    message.success(`已导出为 ${format.toUpperCase()} 格式`)
+  } catch (error) {
+    console.error('导出文件时出错:', error)
+    message.error('导出失败')
+  }
+}
+
+// 5. 复制到剪贴板
+const copyToClipboard = async () => {
+  try {
+    const content = schemaContent.value
+    await navigator.clipboard.writeText(content)
+    message.success('已复制到剪贴板')
+  } catch (error) {
+    console.error('复制失败:', error)
+    message.error('复制失败')
+  }
+}
+
+// 6. 格式化内容
+const formatContent = () => {
+  try {
+    updateSchemaEditor()
+    message.success('内容已格式化')
+  } catch (error) {
+    console.error('格式化失败:', error)
+    message.error('格式化失败')
+  }
+}
+
+// 7. 同步到树
+const syncToTree = () => {
+  try {
+    // 获取编辑器内容
+    if (!schemaEditor) {
+      message.warning('预览编辑器未初始化')
+      return
+    }
+    
+    const editorContent = schemaEditor.state.doc.toString()
+    let parsedData = null
+    
+    // 根据当前格式解析
+    if (previewFormat.value === 'json') {
+      parsedData = JSON.parse(editorContent)
+    } else {
+      parsedData = YAML.load(editorContent)
+    }
+    
+    // 验证并应用
+    if (parsedData && typeof parsedData === 'object') {
+      const schemaData = parsedData.vars_schema || parsedData
+      
+      // 保存待同步的数据并显示确认对话框
+      pendingSyncData.value = schemaData
+      showSyncConfirmModal.value = true
+    } else {
+      message.error('预览内容格式不正确')
+    }
+  } catch (error) {
+    console.error('同步失败:', error)
+    message.error('内容解析失败，请检查格式')
+  }
+}
+
+// 确认导入
+const confirmImport = () => {
+  if (pendingImportData.value) {
+    varsSchema.value = pendingImportData.value
+    selectedVariableData.value = null
+    selectedKeys.value = []
+    message.success('Schema导入成功')
+    showImportConfirmModal.value = false
+    pendingImportData.value = null
+  }
+}
+
+// 确认同步
+const confirmSync = () => {
+  if (pendingSyncData.value) {
+    varsSchema.value = pendingSyncData.value
+    selectedVariableData.value = null
+    selectedKeys.value = []
+    message.success('已同步到变量树')
+    showSyncConfirmModal.value = false
+    pendingSyncData.value = null
+  }
+}
+
 // 组件挂载时添加全局事件监听
 onMounted(() => {
   document.addEventListener('click', handleGlobalClick, true)
@@ -1924,6 +2249,33 @@ onUnmounted(() => {
   padding: 16px;
   overflow-y: auto;
   flex-shrink: 0;
+}
+
+/* 预览面板头部样式 */
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.panel-header .panel-title {
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.panel-actions .n-button-group {
+  margin-right: 8px;
 }
 
 .left-panel {
