@@ -238,6 +238,8 @@
                 :key="variable.id"
                 :class="['variable-tag', getVariableTagClass(variable.variableType)]"
                 @click="handleInsertVariableDefinition(variable)"
+                @mouseenter="handleShowVariableDefinitionDetail(variable, $event)"
+                @mouseleave="handleHideFunctionDetail"
                 :title="`${variable.displayName || variable.name} (${getVariableTypeLabel(variable.variableType)})${variable.description ? ' - ' + variable.description : ''}`"
               >
                 {{ variable.displayName || variable.name }}
@@ -690,9 +692,9 @@ const parseVariableDefinitions = (fieldSchemaJson) => {
     const parseSchema = (schemaObj, parentPath = '') => {
       if (!schemaObj || typeof schemaObj !== 'object') return
       
-      // 如果是根对象，解析其properties
-      if (schemaObj.properties) {
-        for (const [key, value] of Object.entries(schemaObj.properties)) {
+      // 直接遍历schema对象的键值对
+      for (const [key, value] of Object.entries(schemaObj)) {
+        if (value && typeof value === 'object') {
           const currentPath = parentPath ? `${parentPath}.${key}` : key
           
           // 创建变量对象
@@ -714,7 +716,7 @@ const parseVariableDefinitions = (fieldSchemaJson) => {
           
           // 如果是对象类型且有子属性，递归处理
           if (value.type === 'object' && value.properties) {
-            parseSchema(value, currentPath)
+            parseSchema(value.properties, currentPath)
           }
         }
       }
@@ -735,10 +737,15 @@ const loadVariableDefinitions = async () => {
   loadingVariableDefinitions.value = true
   try {
     const response = await getTemplateExpose({ templateId: props.templateId })
-    if (response.data && response.data.data && response.data.data.fieldSchemaJson) {
-      const parsedVariables = parseVariableDefinitions(response.data.data.fieldSchemaJson)
+    console.log('API响应:', response) // 调试日志
+    
+    // 修正数据路径：data.templateExpose.fieldSchemaJson
+    if (response.data && response.data.data && response.data.data.templateExpose && response.data.data.templateExpose.fieldSchemaJson) {
+      const parsedVariables = parseVariableDefinitions(response.data.data.templateExpose.fieldSchemaJson)
+      console.log('解析后的变量:', parsedVariables) // 调试日志
       variableDefinitions.value = parsedVariables
     } else {
+      console.log('未找到fieldSchemaJson数据') // 调试日志
       variableDefinitions.value = []
     }
   } catch (error) {
@@ -876,6 +883,27 @@ const handleShowSprigFunctionDetail = (func, event) => {
 
 const handleShowVariableDetail = (variable, event) => {
   showFunctionDetail(variable, event)
+}
+
+const handleShowVariableDefinitionDetail = (variable, event) => {
+  // 为变量定义构造详情对象，格式化为函数详情面板可以理解的格式
+  const detailObj = {
+    name: variable.path || variable.name,
+    displayName: variable.displayName || variable.name,
+    display_name: variable.displayName || variable.name,
+    description: variable.description || '变量定义字段',
+    type: variable.variableType,
+    return_type: variable.variableType,
+    insertText: variable.insertText,
+    insert_text: variable.insertText,
+    isRequired: variable.isRequired,
+    defaultValue: variable.defaultValue,
+    level: variable.level,
+    usage: `类型: ${getVariableTypeLabel(variable.variableType)}${variable.isRequired ? ' (必填)' : ' (可选)'}${variable.defaultValue !== undefined ? `\n默认值: ${variable.defaultValue}` : ''}`,
+    example: variable.insertText || `{{.${variable.path || variable.name}}}`
+  }
+  
+  showFunctionDetail(detailObj, event)
 }
 
 const showFunctionDetail = (func, event) => {
