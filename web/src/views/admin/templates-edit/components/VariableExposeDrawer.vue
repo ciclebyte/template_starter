@@ -1189,6 +1189,11 @@ const addChildVariable = (parentPath) => {
   const newPath = `${parentPath}.${variableName}`
   selectedKeys.value = [newPath]
   
+  // 9. 手动触发选择事件
+  nextTick(() => {
+    onSelectVariable([newPath])
+  })
+  
   message.success(`已添加子变量: ${variableName}`)
 }
 
@@ -1697,6 +1702,11 @@ watch(selectedVariableData, (newData) => {
   if (newData && selectedKeys.value.length > 0) {
     console.log('变量数据更新:', selectedKeys.value[0], newData.type)
     updateVariableInSchema(selectedKeys.value[0], newData)
+    
+    // 强制触发schema变化检测，确保预览更新
+    nextTick(() => {
+      varsSchema.value = { ...varsSchema.value }
+    })
   }
 }, { deep: true })
 
@@ -1841,25 +1851,21 @@ watch(previewFormat, () => {
   reinitSchemaEditor()
 })
 
-// 监听varsSchema变化 - 暂时禁用深度监听避免循环引用错误
-// watch(varsSchema, (newSchema) => {
-//   try {
-//     console.log('varsSchema变化:', newSchema)
-//     updateSchemaEditor()
-//   } catch (error) {
-//     console.error('varsSchema watcher 执行时出错:', error)
-//   }
-// }, { deep: true })
-
-// 改为浅层监听，避免深度遍历时的循环引用问题
+// 监听varsSchema变化 - 恢复深度监听，现在循环引用问题已解决
 watch(varsSchema, (newSchema) => {
   try {
-    console.log('varsSchema浅层变化')
+    console.log('varsSchema变化，更新预览')
     updateSchemaEditor()
   } catch (error) {
     console.error('varsSchema watcher 执行时出错:', error)
+    // 如果遇到错误，尝试清理循环引用后重试
+    try {
+      updateSchemaEditor()
+    } catch (retryError) {
+      console.error('重试更新预览失败:', retryError)
+    }
   }
-})
+}, { deep: true })
 
 // 组件挂载时添加全局事件监听
 onMounted(() => {
