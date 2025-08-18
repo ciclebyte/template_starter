@@ -541,14 +541,31 @@
             </template>
             复制数据
           </n-button>
+          <n-button size="small" @click="saveTestDataToStorage" type="primary">
+            <template #icon>
+              <n-icon><SaveOutline /></n-icon>
+            </template>
+            保存数据
+          </n-button>
         </div>
         
         <div class="test-data-editor" ref="testDataEditor" style="min-height: 400px; border: 1px solid #e0e0e6; border-radius: 6px;"></div>
       </n-space>
       
       <template #footer>
-        <div style="display: flex; justify-content: flex-end; gap: 12px;">
-          <n-button @click="showTestDataModalFlag = false">关闭</n-button>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <n-text depth="3" style="font-size: 12px;">
+            数据将保存到 localStorage，键名：template_studio_{{ props.templateId }}_testdata
+          </n-text>
+          <div style="display: flex; gap: 12px;">
+            <n-button @click="saveTestDataToStorage" type="primary">
+              <template #icon>
+                <n-icon><SaveOutline /></n-icon>
+              </template>
+              保存并应用
+            </n-button>
+            <n-button @click="showTestDataModalFlag = false">关闭</n-button>
+          </div>
         </div>
       </template>
     </n-card>
@@ -2385,9 +2402,9 @@ const loadVariableDefinitions = async () => {
     renamingNode.value = null
     newVariableName.value = ''
     
-    // 生成测试数据并发送给父组件
-    const testData = generateTestData(varsSchema.value)
-    emit('test-data-updated', testData)
+    // 加载或生成测试数据并发送给父组件
+    loadTestDataFromStorage()
+    emit('test-data-updated', testData.value)
     
   } catch (error) {
     console.error('加载变量定义失败:', error)
@@ -2407,9 +2424,9 @@ const loadVariableDefinitions = async () => {
       message.error('加载变量定义失败')
     }
     
-    // 无论成功还是失败，都要发送测试数据
-    const testData = generateTestData(varsSchema.value)
-    emit('test-data-updated', testData)
+    // 无论成功还是失败，都要加载并发送测试数据
+    loadTestDataFromStorage()
+    emit('test-data-updated', testData.value)
   }
 }
 
@@ -2454,9 +2471,9 @@ const saveVariables = async () => {
     
     message.success('变量定义保存成功')
     
-    // 生成最新的测试数据并发送给父组件
-    const latestTestData = generateTestData(varsSchema.value)
-    emit('test-data-updated', latestTestData)
+    // 使用已保存的测试数据（不自动重新生成，让用户控制测试数据）
+    loadTestDataFromStorage()
+    emit('test-data-updated', testData.value)
     
     // 通知父组件刷新用户变量
     emit('variables-saved')
@@ -2719,14 +2736,57 @@ const generateTestData = (schema) => {
 }
 
 const showTestDataModal = () => {
-  // 生成测试数据
-  testData.value = generateTestData(varsSchema.value)
+  // 先从localStorage加载已保存的测试数据，如果没有则生成新的
+  loadTestDataFromStorage()
   showTestDataModalFlag.value = true
   
   // 下次tick时初始化编辑器
   nextTick(() => {
     initTestDataEditor()
   })
+}
+
+// 从localStorage加载测试数据
+const loadTestDataFromStorage = () => {
+  const testDataKey = `template_studio_${props.templateId}_testdata`
+  const savedTestData = localStorage.getItem(testDataKey)
+  
+  if (savedTestData) {
+    try {
+      testData.value = JSON.parse(savedTestData)
+      console.log('从localStorage加载测试数据:', testData.value)
+    } catch (e) {
+      console.error('解析保存的测试数据失败:', e)
+      // 解析失败则重新生成
+      testData.value = generateTestData(varsSchema.value)
+    }
+  } else {
+    // 没有保存的数据，生成新的测试数据
+    testData.value = generateTestData(varsSchema.value)
+  }
+}
+
+// 保存测试数据到localStorage
+const saveTestDataToStorage = () => {
+  try {
+    // 从编辑器获取当前数据
+    if (testDataEditor.value?.codemirror) {
+      const editorContent = testDataEditor.value.codemirror.state.doc.toString()
+      const parsedData = JSON.parse(editorContent)
+      testData.value = parsedData
+    }
+    
+    const testDataKey = `template_studio_${props.templateId}_testdata`
+    localStorage.setItem(testDataKey, JSON.stringify(testData.value))
+    
+    // 同时更新模板预览的数据
+    emit('test-data-updated', testData.value)
+    
+    message.success('测试数据已保存')
+  } catch (error) {
+    console.error('保存测试数据失败:', error)
+    message.error('保存失败: ' + error.message)
+  }
 }
 
 const initTestDataEditor = () => {
@@ -2802,7 +2862,7 @@ const regenerateTestData = () => {
       }
     })
   }
-  message.success('测试数据已重新生成')
+  message.success('测试数据已重新生成，请点击"保存数据"以应用更改')
 }
 
 // 变量分析相关函数
@@ -3312,6 +3372,11 @@ onUnmounted(() => {
     schemaEditor = null
   }
   document.removeEventListener('click', handleGlobalClick, true)
+})
+
+// 暴露方法给父组件
+defineExpose({
+  showTestDataModal
 })
 </script>
 

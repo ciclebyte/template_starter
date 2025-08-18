@@ -8,6 +8,7 @@
       @toggle-variable-panel="toggleVariablePanel" 
  
       @show-variable-expose="goToVariableExpose"
+      @show-test-data="showTestDataFromHeader"
       @close-edit="closeEdit" 
       @toggle-file-tree="toggleFileTree" 
       @show-settings="showSettings = true"
@@ -82,6 +83,7 @@
     
     <!-- 变量定义抽屉 -->
     <VariableExposeDrawer
+      ref="variableExposeDrawerRef"
       v-model:show="showVariableExposeDrawer"
       :template-id="route.params.id"
       :template-variables="templateVariables"
@@ -122,9 +124,21 @@ const closeEdit = () => {
 }
 
 const showVariableExposeDrawer = ref(false)
+const variableExposeDrawerRef = ref(null)
 
 const goToVariableExpose = () => {
   showVariableExposeDrawer.value = true
+}
+
+const showTestDataFromHeader = () => {
+  // 首先打开变量定义抽屉
+  showVariableExposeDrawer.value = true
+  // 然后通过引用调用测试数据模态框
+  nextTick(() => {
+    if (variableExposeDrawerRef.value) {
+      variableExposeDrawerRef.value.showTestDataModal()
+    }
+  })
 }
 
 // 刷新用户变量（在变量定义保存后调用）
@@ -137,9 +151,9 @@ const updateVariableValues = (testData) => {
   console.log('更新预览变量数据:', testData)
   variableValues.value = testData || {}
   
-  // 保存到本地存储，保持原有的持久化逻辑
+  // 保存到本地存储，使用新的key格式
   const templateId = route.params.id
-  const testDataKey = `template_test_data_${templateId}`
+  const testDataKey = `template_studio_${templateId}_testdata`
   localStorage.setItem(testDataKey, JSON.stringify(variableValues.value))
   
   // 如果当前有预览的文件，触发重新渲染
@@ -556,7 +570,7 @@ async function loadSprigFunctions() {
 // 加载测试数据
 function loadTestData() {
   const templateId = route.params.id
-  const testDataKey = `template_test_data_${templateId}`
+  const testDataKey = `template_studio_${templateId}_testdata`
   const savedTestData = localStorage.getItem(testDataKey)
   if (savedTestData) {
     try {
@@ -865,7 +879,7 @@ function onPreview({ fileId, fileName }) {
 
   // 从 localStorage 获取测试数据
   const templateId = route.params.id
-  const testDataKey = `template_test_data_${templateId}`
+  const testDataKey = `template_studio_${templateId}_testdata`
   const savedTestData = localStorage.getItem(testDataKey)
   if (savedTestData) {
     try {

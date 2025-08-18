@@ -26,13 +26,23 @@
       </div>
     </div>
     <div class="header-actions">
-      <n-button size="small" @click="$emit('show-variable-expose')">
+      <n-button size="small" @click="$emit('show-variable-expose')" quaternary>
         <template #icon>
           <n-icon>
             <CodeSlash />
           </n-icon>
         </template>
         变量定义
+      </n-button>
+      <n-button size="small" @click="$emit('show-test-data')" quaternary>
+        <template #icon>
+          <n-icon>
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path fill="currentColor" d="M9 2v2H7v16h10V4h-2V2h-1v2h-4V2H9zm2 4v2h2V6h-2zm0 4v2h2v-2h-2zm0 4v2h2v-2h-2z"/>
+            </svg>
+          </n-icon>
+        </template>
+        测试数据
       </n-button>
       <n-button size="small" @click="$emit('show-settings')" title="编辑器设置">
         <template #icon>
@@ -80,7 +90,7 @@ defineProps({
   }
 })
 
-defineEmits(['toggle-variable-panel', 'show-variable-expose', 'close-edit', 'toggle-file-tree', 'show-settings'])
+defineEmits(['toggle-variable-panel', 'show-variable-expose', 'show-test-data', 'close-edit', 'toggle-file-tree', 'show-settings'])
 </script>
 
 <style scoped>
