@@ -742,7 +742,7 @@ const variableTreeData = computed(() => {
       insertEditingNodeToTree(treeData, editingNode.value)
     }
     
-    console.log('生成的树数据:', treeData)
+    // console.log('生成的树数据:', treeData) // 调试用，已注释
     return treeData
   } catch (error) {
     console.error('生成变量树数据时出错:', error)
