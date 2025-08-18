@@ -29,9 +29,13 @@
               class="variable-item"
             >
               <label>
-                {{ variable.description || variable.name }}
+                <span class="variable-name">{{ variable.name }}</span>
+                <span v-if="variable.description && variable.description !== '模板变量'" class="variable-desc-inline">- {{ variable.description }}</span>
                 <span v-if="variable.isRequired" class="required-mark">*</span>
                 <span class="variable-type-badge">{{ getVariableTypeLabel(variable.variableType) }}</span>
+                <span v-if="variable.fileCount > 0" class="usage-indicator">
+                  在{{ variable.fileCount }}个文件中使用
+                </span>
               </label>
               
               <!-- 根据变量类型渲染不同的输入组件 -->
@@ -93,7 +97,12 @@
                 :type="getInputType(variable.variableType)"
               />
               
-              <div class="variable-desc">{{ variable.description }}</div>
+              <div class="variable-desc">
+                {{ variable.description }}
+                <div v-if="variable.files && variable.files.length > 0" class="usage-files">
+                  使用文件: {{ variable.files.join(', ') }}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -198,7 +207,8 @@ import {
   ArrowBack, 
   ArrowForward 
 } from '@vicons/ionicons5'
-import { getTemplateVariables } from '@/api/templates'
+import { getTemplateExpose } from '@/api/templateExpose'
+import { analyzeTemplateVariables } from '@/api/templates'
 
 const props = defineProps({
   templateInfo: {
@@ -409,36 +419,182 @@ const loadTemplateVariables = async () => {
   }
   loading.value = true
   try {
-    const res = await getTemplateVariables(props.templateInfo.id)
-    if (res.data && res.data.data) {
-      customVariables.value = res.data.data.customVariables || []
-      builtinVariables.value = res.data.data.builtinVariables || []
-      templateFunctions.value = res.data.data.templateFunctions || []
-      variableStatistics.value = res.data.data.statistics
-       
-      // 初始化内置变量到表单数据，避免触发不必要的更新
-      const newFormData = { ...formData.value }
-      builtinVariables.value.forEach(variable => {
-        const fieldName = variable.name.toLowerCase()
-        if (!newFormData[fieldName]) {
-          newFormData[fieldName] = ''
+    // 并行调用两个接口获取更全面的数据
+    const [exposeRes, analyzeRes] = await Promise.all([
+      getTemplateExpose({ templateId: props.templateInfo.id }),
+      analyzeTemplateVariables(props.templateInfo.id)
+    ])
+    
+    // 解析用户定义的变量结构
+    let userDefinedVariables = []
+    if (exposeRes.data?.code === 0 && exposeRes.data?.data?.templateExpose) {
+      const fieldSchemaJson = exposeRes.data.data.templateExpose.fieldSchemaJson
+      if (fieldSchemaJson) {
+        try {
+          const parsedSchema = JSON.parse(fieldSchemaJson)
+          userDefinedVariables = convertSchemaToCustomVariables(parsedSchema)
+        } catch (parseError) {
+          console.error('解析变量定义失败:', parseError)
         }
-      })
-      
-      // 初始化自定义变量到表单数据
-      customVariables.value.forEach(variable => {
-        if (!(variable.name in newFormData)) {
-          newFormData[variable.name] = getDefaultValue(variable)
-        }
-      })
-      
-      // 一次性更新表单数据
-      formData.value = newFormData
+      }
     }
+    
+    // 解析模板分析结果
+    let detectedVariables = []
+    let builtinVars = []
+    let templateFuncs = []
+    let stats = null
+    
+    if (analyzeRes.data?.code === 0 && analyzeRes.data?.data) {
+      detectedVariables = analyzeRes.data.data.detectedVariables || []
+      builtinVars = analyzeRes.data.data.builtinVariables || []
+      templateFuncs = analyzeRes.data.data.templateFunctions || []
+      stats = analyzeRes.data.data.statistics || null
+    }
+    
+    // 合并用户定义的变量和检测到的变量
+    const mergedVariables = mergeVariables(userDefinedVariables, detectedVariables)
+    
+    customVariables.value = mergedVariables
+    builtinVariables.value = builtinVars
+    templateFunctions.value = templateFuncs
+    variableStatistics.value = stats
+    
+    // 初始化表单数据
+    const newFormData = { ...formData.value }
+    
+    // 初始化自定义变量
+    customVariables.value.forEach(variable => {
+      if (!(variable.name in newFormData)) {
+        newFormData[variable.name] = getDefaultValue(variable)
+      }
+    })
+    
+    // 初始化内置变量
+    builtinVariables.value.forEach(variable => {
+      const fieldName = variable.name.toLowerCase()
+      if (!newFormData[fieldName]) {
+        newFormData[fieldName] = ''
+      }
+    })
+    
+    // 一次性更新表单数据
+    formData.value = newFormData
+    
   } catch (error) {
     console.error('加载模板变量失败:', error)
+    customVariables.value = []
+    builtinVariables.value = []
+    templateFunctions.value = []
+    variableStatistics.value = null
   } finally {
     loading.value = false
+  }
+}
+
+// 合并用户定义的变量和检测到的变量
+const mergeVariables = (userDefined, detected) => {
+  const mergedMap = new Map()
+  
+  // 首先添加用户定义的变量（有完整的类型和验证信息）
+  userDefined.forEach(variable => {
+    mergedMap.set(variable.name, {
+      ...variable,
+      isUserDefined: true,
+      files: [],
+      contexts: [],
+      fileCount: 0
+    })
+  })
+  
+  // 然后添加或更新检测到的变量信息
+  detected.forEach(detectedVar => {
+    if (mergedMap.has(detectedVar.name)) {
+      // 如果用户已定义该变量，更新使用信息
+      const existing = mergedMap.get(detectedVar.name)
+      existing.files = detectedVar.files || []
+      existing.contexts = detectedVar.contexts || []
+      existing.fileCount = (detectedVar.files || []).length
+      existing.isDetected = true
+    } else {
+      // 如果用户未定义该变量，添加为新变量
+      mergedMap.set(detectedVar.name, {
+        name: detectedVar.name,
+        variableType: convertTypeToOldFormat(detectedVar.type),
+        description: detectedVar.suggestions || `模板中使用的 ${detectedVar.name} 变量`,
+        defaultValue: getDefaultValueByType(detectedVar.type),
+        isRequired: false,
+        isUserDefined: false,
+        isDetected: true,
+        files: detectedVar.files || [],
+        contexts: detectedVar.contexts || [],
+        fileCount: (detectedVar.files || []).length
+      })
+    }
+  })
+  
+  return Array.from(mergedMap.values())
+}
+
+// 根据类型获取默认值
+const getDefaultValueByType = (type) => {
+  switch (type) {
+    case 'boolean':
+      return false
+    case 'number':
+    case 'integer':
+      return 0
+    case 'array':
+      return []
+    case 'object':
+      return '{}'
+    default:
+      return ''
+  }
+}
+
+// 将schema格式转换为自定义变量列表格式
+const convertSchemaToCustomVariables = (schema) => {
+  const variablesList = []
+  
+  if (!schema || typeof schema !== 'object') {
+    return variablesList
+  }
+  
+  Object.entries(schema).forEach(([key, variable]) => {
+    if (variable && typeof variable === 'object') {
+      variablesList.push({
+        name: key,
+        variableType: convertTypeToOldFormat(variable.type),
+        description: variable.description || variable.title || key,
+        defaultValue: variable.default,
+        isRequired: variable.required || false,
+        validationRegex: variable.pattern
+      })
+    }
+  })
+  
+  return variablesList
+}
+
+
+// 将新的类型格式转换为旧的格式
+const convertTypeToOldFormat = (newType) => {
+  switch (newType) {
+    case 'string':
+      return 'string'
+    case 'integer':
+    case 'number':
+      return 'number'
+    case 'boolean':
+      return 'boolean'
+    case 'array':
+      return 'list'
+    case 'object':
+    case 'object_arr':
+      return 'object'
+    default:
+      return 'string'
   }
 }
 
@@ -581,6 +737,22 @@ const handleNext = () => {
   font-weight: bold;
   color: #333;
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.variable-name {
+  font-weight: bold;
+  color: #333;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.variable-desc-inline {
+  font-weight: normal;
+  color: #666;
+  font-size: 13px;
 }
 
 .variable-desc {
@@ -601,6 +773,14 @@ const handleNext = () => {
   margin-top: 4px;
   font-style: italic;
 }
+
+.usage-info {
+  font-size: 11px;
+  color: #18a058;
+  margin-top: 4px;
+  font-style: italic;
+}
+
 
 .required-mark {
   color: #d03050;
@@ -706,6 +886,16 @@ const handleNext = () => {
 .variable-item:has([data-variable-type="object"]) .variable-type-badge {
   background: #e6fffb;
   color: #13c2c2;
+}
+
+.usage-indicator {
+  font-size: 11px;
+  color: #18a058;
+  font-weight: normal;
+  margin-left: 8px;
+  background: #f0f9f0;
+  padding: 2px 6px;
+  border-radius: 3px;
 }
 
 .step-actions {

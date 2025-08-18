@@ -2680,7 +2680,7 @@ watch(varsSchema, (newSchema) => {
 }, { deep: true })
 
 // 测试数据生成和管理函数
-const generateTestData = (schema) => {
+const generateTestData = (schema, existingData = {}) => {
   const data = {}
   
   if (!schema || typeof schema !== 'object') {
@@ -2690,6 +2690,39 @@ const generateTestData = (schema) => {
   Object.entries(schema).forEach(([key, variable]) => {
     if (!variable || typeof variable !== 'object') return
     
+    // 如果现有数据中已有该字段，优先使用现有数据
+    if (existingData && existingData.hasOwnProperty(key)) {
+      switch (variable.type) {
+        case 'object':
+          if (variable.properties && typeof existingData[key] === 'object' && existingData[key] !== null) {
+            // 对象类型递归合并
+            data[key] = generateTestData(variable.properties, existingData[key])
+          } else {
+            data[key] = existingData[key]
+          }
+          break
+        case 'object_arr':
+          if (Array.isArray(existingData[key])) {
+            // 对象数组保留现有数据
+            data[key] = existingData[key]
+          } else {
+            // 如果现有数据类型不匹配，重新生成
+            if (variable.items && variable.items.properties) {
+              const itemData = generateTestData(variable.items.properties)
+              data[key] = [itemData, { ...itemData }]
+            } else {
+              data[key] = []
+            }
+          }
+          break
+        default:
+          // 其他类型直接使用现有数据
+          data[key] = existingData[key]
+      }
+      return
+    }
+    
+    // 如果现有数据中没有该字段，生成新的默认值
     switch (variable.type) {
       case 'string':
         data[key] = variable.default || `示例${key}`
@@ -2851,7 +2884,22 @@ const copyTestData = () => {
 }
 
 const regenerateTestData = () => {
-  testData.value = generateTestData(varsSchema.value)
+  let existingData = {}
+  
+  // 尝试获取当前编辑器中的数据作为现有数据
+  if (testDataEditor.value?.codemirror) {
+    try {
+      const editorContent = testDataEditor.value.codemirror.state.doc.toString()
+      existingData = JSON.parse(editorContent)
+    } catch (e) {
+      console.warn('解析当前编辑器数据失败，将使用空数据重新生成:', e)
+      existingData = {}
+    }
+  }
+  
+  // 重新生成时保留现有字段的数据
+  testData.value = generateTestData(varsSchema.value, existingData)
+  
   if (testDataEditor.value?.codemirror) {
     const newDoc = JSON.stringify(testData.value, null, 2)
     testDataEditor.value.codemirror.dispatch({
@@ -2862,7 +2910,7 @@ const regenerateTestData = () => {
       }
     })
   }
-  message.success('测试数据已重新生成，请点击"保存数据"以应用更改')
+  message.success('测试数据已重新生成，现有字段的数据已保留')
 }
 
 // 变量分析相关函数

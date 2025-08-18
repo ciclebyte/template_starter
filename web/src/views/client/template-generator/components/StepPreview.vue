@@ -95,7 +95,7 @@ import {
   ChevronForward
 } from '@vicons/ionicons5'
 import { renderFileTree, downloadZip } from '@/api/templateFiles'
-import { listTemplateVariables } from '@/api/templateVariables'
+import { getTemplateExpose } from '@/api/templateExpose'
 
 // CodeMirror 核心模块
 import { EditorView, lineNumbers, highlightActiveLineGutter } from '@codemirror/view'
@@ -249,16 +249,55 @@ const loadTemplateVariables = async () => {
   }
   
   try {
-    const res = await listTemplateVariables({
-      templateId: props.templateInfo.id,
-      pageNum: 1,
-      pageSize: 1000 // 获取所有变量
+    const res = await getTemplateExpose({
+      templateId: props.templateInfo.id
     })
-    templateVariables.value = res.data?.data?.templateVariablesList || []
+    
+    if (res.data?.code === 0 && res.data?.data?.templateExpose) {
+      const fieldSchemaJson = res.data.data.templateExpose.fieldSchemaJson
+      if (fieldSchemaJson) {
+        try {
+          const parsedSchema = JSON.parse(fieldSchemaJson)
+          // 将schema转换为变量列表格式，兼容原有的使用方式
+          templateVariables.value = convertSchemaToVariablesList(parsedSchema)
+        } catch (parseError) {
+          console.error('解析变量定义失败:', parseError)
+          templateVariables.value = []
+        }
+      } else {
+        templateVariables.value = []
+      }
+    } else {
+      templateVariables.value = []
+    }
   } catch (error) {
     console.error('获取模板变量失败:', error)
     templateVariables.value = []
   }
+}
+
+// 将schema格式转换为变量列表格式
+const convertSchemaToVariablesList = (schema) => {
+  const variablesList = []
+  
+  if (!schema || typeof schema !== 'object') {
+    return variablesList
+  }
+  
+  Object.entries(schema).forEach(([key, variable]) => {
+    if (variable && typeof variable === 'object') {
+      variablesList.push({
+        name: key,
+        variableType: variable.type || 'string',
+        label: variable.title || key,
+        description: variable.description || '',
+        defaultValue: variable.default,
+        required: variable.required || false
+      })
+    }
+  })
+  
+  return variablesList
 }
 
 // 根据变量类型转换变量值
