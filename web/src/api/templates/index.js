@@ -61,3 +61,11 @@ export function getTemplateVariables(templateId) {
     method: 'get'
   })
 }
+
+// 模板-分析变量
+export function analyzeTemplateVariables(templateId) {
+  return request({
+    url: `/api/v1/templates/${templateId}/analyze-variables`,
+    method: 'post'
+  })
+}

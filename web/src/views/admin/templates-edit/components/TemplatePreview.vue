@@ -250,11 +250,6 @@ function expandPanel() {
   }
 }
 
-// 暴露方法给父组件
-defineExpose({
-  toggleCollapse,
-  expandPanel
-})
 
 // 开始拖动调整
 function startResize(e) {
@@ -399,6 +394,13 @@ onMounted(() => {
       updatePreviewContent()
     }
   }
+})
+
+// 暴露方法给父组件
+defineExpose({
+  toggleCollapse,
+  expandPanel,
+  renderTemplateContent
 })
 </script>
 

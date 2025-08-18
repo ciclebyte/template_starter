@@ -15,6 +15,12 @@
           </template>
           测试数据
         </n-button>
+        <n-button size="small" @click="showVariableAnalysisModal" type="success" quaternary>
+          <template #icon>
+            <n-icon><SearchOutline /></n-icon>
+          </template>
+          分析变量
+        </n-button>
         <n-button size="small" @click="emergencyCleanup" type="warning" quaternary>
           <template #icon>
             <n-icon><TrashOutline /></n-icon>
@@ -548,6 +554,185 @@
     </n-card>
   </n-modal>
 
+  <!-- 变量分析模态框 -->
+  <n-modal v-model:show="showVariableAnalysisModalFlag" :mask-closable="false">
+    <n-card style="width: 1000px; max-height: 80vh;" title="模板变量分析" :bordered="false" size="huge">
+      <template #header-extra>
+        <n-button quaternary circle @click="showVariableAnalysisModalFlag = false">
+          <template #icon>
+            <n-icon><CloseOutline /></n-icon>
+          </template>
+        </n-button>
+      </template>
+      
+      <n-spin :show="analyzingVariables">
+        <div v-if="analysisResult">
+          <!-- 调试信息 -->
+          <n-alert v-if="true" type="info" style="margin-bottom: 16px;" :show-icon="false">
+            调试信息: 缺失变量{{ analysisResult.missingVariables?.length || 0 }}个, 
+            检测变量{{ analysisResult.detectedVariables?.length || 0 }}个, 
+            未使用变量{{ analysisResult.unusedVariables?.length || 0 }}个
+          </n-alert>
+          <n-tabs type="line" animated>
+            <!-- 缺失变量 -->
+            <n-tab-pane name="missing" :tab="`缺失变量 (${analysisResult.missingVariables?.length || 0})`">
+              <div v-if="analysisResult.missingVariables && analysisResult.missingVariables.length > 0">
+                <div style="margin-bottom: 16px;">
+                  <n-text depth="3">模板中使用但未定义的变量：</n-text>
+                  <n-button 
+                    size="small" 
+                    type="primary" 
+                    style="margin-left: 12px;"
+                    @click="addAllDetectedVariables(analysisResult.missingVariables)"
+                  >
+                    添加全部到变量树
+                  </n-button>
+                </div>
+                <n-data-table
+                  :columns="missingVariablesColumns"
+                  :data="analysisResult.missingVariables"
+                  :pagination="false"
+                  size="small"
+                />
+              </div>
+              <n-empty v-else description="没有缺失的变量" />
+            </n-tab-pane>
+            
+            <!-- 检测到的变量 -->
+            <n-tab-pane name="detected" :tab="`检测变量 (${analysisResult.detectedVariables?.length || 0})`">
+              <div v-if="analysisResult.detectedVariables && analysisResult.detectedVariables.length > 0">
+                <div style="margin-bottom: 16px;">
+                  <n-text depth="3">模板中检测到的所有变量：</n-text>
+                </div>
+                <n-data-table
+                  :columns="detectedVariablesColumns"
+                  :data="analysisResult.detectedVariables"
+                  :pagination="false"
+                  size="small"
+                />
+              </div>
+              <n-empty v-else description="没有检测到变量" />
+            </n-tab-pane>
+            
+            <!-- 冲突变量 -->
+            <n-tab-pane name="conflict" :tab="`类型冲突 (${analysisResult.conflictVariables?.length || 0})`">
+              <div v-if="analysisResult.conflictVariables?.length > 0">
+                <div style="margin-bottom: 16px;">
+                  <n-text depth="3">已定义但类型可能不匹配的变量：</n-text>
+                </div>
+                <n-data-table
+                  :columns="[
+                    { title: '变量名', key: 'name', width: 120 },
+                    { title: '推测类型', key: 'type', width: 100 },
+                    { title: '出现文件', key: 'files', render: (row) => row.files?.join(', ') },
+                    { title: '冲突说明', key: 'suggestions' }
+                  ]"
+                  :data="analysisResult.conflictVariables"
+                  :pagination="false"
+                  size="small"
+                />
+              </div>
+              <n-empty v-else description="没有类型冲突" />
+            </n-tab-pane>
+            
+            <!-- 未使用变量 -->
+            <n-tab-pane name="unused" :tab="`未使用 (${analysisResult.unusedVariables?.length || 0})`">
+              <div v-if="analysisResult.unusedVariables && analysisResult.unusedVariables.length > 0">
+                <div style="margin-bottom: 16px;">
+                  <n-text depth="3">已定义但模板中未使用的变量：</n-text>
+                  <n-button 
+                    size="small" 
+                    type="warning" 
+                    style="margin-left: 12px;"
+                    @click="deleteAllUnusedVariables(analysisResult.unusedVariables)"
+                  >
+                    删除全部未使用变量
+                  </n-button>
+                </div>
+                <n-data-table
+                  :columns="unusedVariablesColumns"
+                  :data="analysisResult.unusedVariables.map(name => ({ name }))"
+                  :pagination="false"
+                  size="small"
+                />
+              </div>
+              <n-empty v-else description="所有变量都已使用" />
+            </n-tab-pane>
+            
+            <!-- 统计信息 -->
+            <n-tab-pane name="stats" tab="统计信息">
+              <n-descriptions label-placement="left" :column="2">
+                <n-descriptions-item label="总变量数">
+                  <n-tag type="info" size="small">{{ analysisResult.totalVariableCount || 0 }}</n-tag>
+                </n-descriptions-item>
+                <n-descriptions-item label="分析文件数">
+                  <n-tag type="default" size="small">{{ analysisResult.analyzedFileCount || 0 }}</n-tag>
+                </n-descriptions-item>
+                <n-descriptions-item label="缺失变量">
+                  <n-tag :type="(analysisResult.missingVariables?.length || 0) > 0 ? 'warning' : 'success'" size="small">
+                    {{ analysisResult.missingVariables?.length || 0 }}
+                  </n-tag>
+                </n-descriptions-item>
+                <n-descriptions-item label="类型冲突">
+                  <n-tag :type="(analysisResult.conflictVariables?.length || 0) > 0 ? 'error' : 'success'" size="small">
+                    {{ analysisResult.conflictVariables?.length || 0 }}
+                  </n-tag>
+                </n-descriptions-item>
+                <n-descriptions-item label="未使用变量">
+                  <n-tag :type="(analysisResult.unusedVariables?.length || 0) > 0 ? 'warning' : 'success'" size="small">
+                    {{ analysisResult.unusedVariables?.length || 0 }}
+                  </n-tag>
+                </n-descriptions-item>
+              </n-descriptions>
+              
+              <!-- 快速操作 -->
+              <div style="margin-top: 24px;">
+                <n-text depth="3" style="margin-bottom: 12px; display: block;">快速操作：</n-text>
+                <n-space>
+                  <n-button 
+                    size="small" 
+                    type="primary" 
+                    :disabled="!analysisResult.missingVariables || analysisResult.missingVariables.length === 0"
+                    @click="addAllDetectedVariables(analysisResult.missingVariables)"
+                  >
+                    添加所有缺失变量 ({{ analysisResult.missingVariables?.length || 0 }})
+                  </n-button>
+                  <n-button 
+                    size="small" 
+                    type="warning" 
+                    :disabled="!analysisResult.unusedVariables || analysisResult.unusedVariables.length === 0"
+                    @click="cleanupUnusedVariables"
+                  >
+                    删除未使用变量 ({{ analysisResult.unusedVariables?.length || 0 }})
+                  </n-button>
+                  <n-button 
+                    size="small" 
+                    type="info" 
+                    @click="optimizeAllVariableTypes"
+                    :disabled="!analysisResult.detectedVariables || analysisResult.detectedVariables.length === 0"
+                  >
+                    优化所有变量类型
+                  </n-button>
+                </n-space>
+              </div>
+            </n-tab-pane>
+          </n-tabs>
+        </div>
+        
+        <template #description>
+          正在分析模板变量...
+        </template>
+      </n-spin>
+      
+      <template #footer>
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <n-button @click="showVariableAnalysisModal" :loading="analyzingVariables">重新分析</n-button>
+          <n-button @click="showVariableAnalysisModalFlag = false">关闭</n-button>
+        </div>
+      </template>
+    </n-card>
+  </n-modal>
+
   <!-- 隐藏的文件输入框 -->
   <input
     ref="fileInputRef"
@@ -564,7 +749,8 @@ import {
   NDrawer, NDrawerContent, NButton, NIcon, NSpace, NForm, NFormItem, 
   NGrid, NGridItem, NInput, NSelect, NSwitch, NTabs, NTabPane, NInputNumber,
   NTree, NTag, NDropdown, NDynamicTags, NEmpty, NButtonGroup, NModal, NCard,
-  NText, useMessage 
+  NText, NSpin, NDataTable, NList, NListItem, NDescriptions, NDescriptionsItem, 
+  NAlert, useMessage 
 } from 'naive-ui'
 import { 
   SaveOutline, CloseOutline, DocumentOutline, AddOutline, TrashOutline,
@@ -573,7 +759,7 @@ import {
   KeyOutline, LockClosedOutline, Folder, FolderOpenOutline, 
   EllipsisVerticalOutline, CheckboxOutline, CodeOutline, ChevronForward,
   CreateOutline, DownloadOutline, CloudUploadOutline, CopyOutline, 
-  RefreshOutline, SyncOutline, FlaskOutline
+  RefreshOutline, SyncOutline, FlaskOutline, SearchOutline
 } from '@vicons/ionicons5'
 import { EditorView, basicSetup } from 'codemirror'
 import { EditorState } from '@codemirror/state'
@@ -581,6 +767,7 @@ import { json } from '@codemirror/lang-json'
 import { yaml } from '@codemirror/lang-yaml'
 import * as YAML from 'js-yaml'
 import { getTemplateExpose, setTemplateExpose } from '@/api/templateExpose'
+import { analyzeTemplateVariables } from '@/api/templates'
 
 const props = defineProps({
   show: {
@@ -597,7 +784,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:show', 'variables-saved'])
+const emit = defineEmits(['update:show', 'variables-saved', 'test-data-updated'])
 
 const message = useMessage()
 
@@ -622,6 +809,7 @@ const selectedKeys = ref([])
 const expandedKeys = ref([])
 const selectedVariableData = ref(null)
 const previewFormat = ref('json')
+// 预览面板显示Schema结构定义
 const schemaEditorRef = ref(null)
 let schemaEditor = null
 
@@ -646,8 +834,126 @@ const isResizing = ref(false)
 const showTestDataModalFlag = ref(false)
 const testData = ref({})
 const testDataEditor = ref(null)
+
+// 变量分析相关状态
+const showVariableAnalysisModalFlag = ref(false)
+const analysisResult = ref(null)
+const analyzingVariables = ref(false)
 const minHeight = 300
 const maxHeight = window.innerHeight - 100
+
+// 变量分析表格列定义
+const missingVariablesColumns = [
+  { title: '变量名', key: 'name', width: 120 },
+  { 
+    title: '推测类型', 
+    key: 'type', 
+    width: 100,
+    render(row) {
+      return h(NTag, { 
+        type: getTypeTagType(row.type),
+        size: 'small'
+      }, { default: () => row.type })
+    }
+  },
+  { 
+    title: '出现文件', 
+    key: 'files', 
+    render(row) {
+      if (!row.files || row.files.length === 0) return '-'
+      return row.files.slice(0, 3).join(', ') + (row.files.length > 3 ? `等${row.files.length}个文件` : '')
+    }
+  },
+  { 
+    title: '使用上下文', 
+    key: 'contexts', 
+    render(row) {
+      if (!row.contexts || row.contexts.length === 0) return '-'
+      return row.contexts.slice(0, 2).join(', ') + (row.contexts.length > 2 ? '...' : '')
+    }
+  },
+  { title: '建议', key: 'suggestions', width: 200 },
+  { 
+    title: '操作', 
+    key: 'actions',
+    width: 80,
+    render(row) {
+      return h(NButton, { 
+        size: 'small',
+        type: 'primary',
+        onClick: () => addDetectedVariable(row) 
+      }, { default: () => '添加' })
+    }
+  }
+]
+
+const detectedVariablesColumns = [
+  { title: '变量名', key: 'name', width: 120 },
+  { 
+    title: '推测类型', 
+    key: 'type', 
+    width: 100,
+    render(row) {
+      return h(NTag, { 
+        type: getTypeTagType(row.type),
+        size: 'small'
+      }, { default: () => row.type })
+    }
+  },
+  { 
+    title: '出现文件', 
+    key: 'files', 
+    render(row) {
+      if (!row.files || row.files.length === 0) return '-'
+      return row.files.slice(0, 3).join(', ') + (row.files.length > 3 ? `等${row.files.length}个文件` : '')
+    }
+  },
+  { 
+    title: '使用上下文', 
+    key: 'contexts', 
+    render(row) {
+      if (!row.contexts || row.contexts.length === 0) return '-'
+      return row.contexts.slice(0, 2).join(', ') + (row.contexts.length > 2 ? '...' : '')
+    }
+  },
+  { title: '建议', key: 'suggestions', width: 200 }
+]
+
+const unusedVariablesColumns = [
+  { title: '变量名', key: 'name', width: 200 },
+  { 
+    title: '当前定义',
+    key: 'definition',
+    render(row) {
+      const currentVar = varsSchema.value[row.name]
+      if (!currentVar) return '-'
+      return h(NTag, { 
+        type: getTypeTagType(currentVar.type),
+        size: 'small'
+      }, { default: () => currentVar.type })
+    }
+  },
+  { 
+    title: '描述',
+    key: 'description',
+    render(row) {
+      const currentVar = varsSchema.value[row.name]
+      return currentVar?.description || '-'
+    }
+  },
+  { 
+    title: '操作', 
+    key: 'actions',
+    width: 80,
+    render(row) {
+      return h(NButton, { 
+        size: 'small',
+        type: 'error',
+        onClick: () => deleteUnusedVariable(row.name) 
+      }, { default: () => '删除' })
+    }
+  }
+]
 
 // 面板宽度状态
 const leftPanelWidth = ref(250)
@@ -1142,8 +1448,10 @@ const getTypeTagType = (type) => {
     boolean: 'warning',
     array: 'error',
     object: 'default',
+    object_arr: 'primary',
     enum: 'info',
-    secret: 'error'
+    secret: 'error',
+    unknown: 'warning'
   }
   return tagMap[type] || 'default'
 }
@@ -1927,7 +2235,7 @@ const cleanCircularReferences = (obj, visited = new WeakSet()) => {
   return cleaned
 }
 
-// Schema 预览内容
+// Schema 预览内容 - 显示变量结构定义
 const schemaContent = computed(() => {
   try {
     // 先清理循环引用
@@ -2077,6 +2385,10 @@ const loadVariableDefinitions = async () => {
     renamingNode.value = null
     newVariableName.value = ''
     
+    // 生成测试数据并发送给父组件
+    const testData = generateTestData(varsSchema.value)
+    emit('test-data-updated', testData)
+    
   } catch (error) {
     console.error('加载变量定义失败:', error)
     // 如果API加载失败，尝试从localStorage加载作为备用
@@ -2094,6 +2406,10 @@ const loadVariableDefinitions = async () => {
       varsSchema.value = {}
       message.error('加载变量定义失败')
     }
+    
+    // 无论成功还是失败，都要发送测试数据
+    const testData = generateTestData(varsSchema.value)
+    emit('test-data-updated', testData)
   }
 }
 
@@ -2137,6 +2453,10 @@ const saveVariables = async () => {
     localStorage.setItem(`template_${props.templateId}_vars_schema`, JSON.stringify(cleanedSchema))
     
     message.success('变量定义保存成功')
+    
+    // 生成最新的测试数据并发送给父组件
+    const latestTestData = generateTestData(varsSchema.value)
+    emit('test-data-updated', latestTestData)
     
     // 通知父组件刷新用户变量
     emit('variables-saved')
@@ -2324,6 +2644,8 @@ watch(previewFormat, () => {
   reinitSchemaEditor()
 })
 
+// Schema预览格式切换监听
+
 // 监听varsSchema变化 - 恢复深度监听，现在循环引用问题已解决
 watch(varsSchema, (newSchema) => {
   try {
@@ -2481,6 +2803,315 @@ const regenerateTestData = () => {
     })
   }
   message.success('测试数据已重新生成')
+}
+
+// 变量分析相关函数
+const showVariableAnalysisModal = async () => {
+  if (!props.templateId) {
+    message.error('模板ID不能为空')
+    return
+  }
+  
+  analyzingVariables.value = true
+  try {
+    const result = await analyzeTemplateVariables(props.templateId)
+    console.log('分析结果原始数据:', result)
+    console.log('分析结果data部分:', result.data)
+    // 修正：应该使用result.data.data，因为后端返回格式是{code, message, data: {实际数据}}
+    analysisResult.value = result.data.data
+    console.log('修正后的analysisResult:', analysisResult.value)
+    console.log('缺失变量数量:', analysisResult.value?.missingVariables?.length)
+    console.log('检测变量数量:', analysisResult.value?.detectedVariables?.length)
+    showVariableAnalysisModalFlag.value = true
+  } catch (error) {
+    console.error('分析变量失败:', error)
+    message.error('分析变量失败: ' + (error.message || '未知错误'))
+  } finally {
+    analyzingVariables.value = false
+  }
+}
+
+// 添加单个检测到的变量（智能类型推断）
+const addDetectedVariable = (detectedVar) => {
+  if (!detectedVar) return
+  
+  const currentSchema = toRaw(varsSchema.value)
+  const newSchema = JSON.parse(JSON.stringify(currentSchema))
+  
+  if (newSchema[detectedVar.name]) {
+    message.warning(`变量 "${detectedVar.name}" 已存在`)
+    return
+  }
+  
+  // 智能类型推断
+  const smartType = getSuggestedType(detectedVar)
+  
+  // 创建新变量
+  newSchema[detectedVar.name] = {
+    type: smartType,
+    title: detectedVar.name,
+    description: `模板变量: 在${detectedVar.files.length}个文件中使用`,
+    required: false,
+    default: getDefaultValueForType(smartType),
+    insertText: `{{.${detectedVar.name}}}`,
+    ui: {
+      panel: false,
+      order: 10,
+      group: '模板变量',
+      component: getDefaultComponent(smartType)
+    }
+  }
+  
+  // 为特定类型添加额外字段
+  if (smartType === 'object') {
+    newSchema[detectedVar.name].properties = {}
+  } else if (smartType === 'array') {
+    newSchema[detectedVar.name].items = { type: 'string' }
+  } else if (smartType === 'object_arr') {
+    newSchema[detectedVar.name].items = {
+      type: 'object',
+      properties: {}
+    }
+  }
+  
+  varsSchema.value = newSchema
+  message.success(`已添加变量 "${detectedVar.name}" (${smartType}类型)`)
+  // 自动展开新添加的变量
+  expandedKeys.value = [...expandedKeys.value, detectedVar.name]
+  
+  // 实时更新缺失变量列表
+  if (analysisResult.value?.missingVariables) {
+    analysisResult.value.missingVariables = analysisResult.value.missingVariables.filter(v => v.name !== detectedVar.name)
+  }
+}
+
+// 添加所有检测到的变量
+const addAllDetectedVariables = (variablesToAdd) => {
+  if (!variablesToAdd || variablesToAdd.length === 0) {
+    message.warning('没有可添加的变量')
+    return
+  }
+  
+  const currentSchema = toRaw(varsSchema.value)
+  const newSchema = JSON.parse(JSON.stringify(currentSchema))
+  
+  let addedCount = 0
+  const addedNames = []
+  
+  variablesToAdd.forEach(detectedVar => {
+    if (!newSchema[detectedVar.name]) {
+      // 智能类型推断
+      const smartType = getSuggestedType(detectedVar)
+      
+      // 创建新变量
+      newSchema[detectedVar.name] = {
+        type: smartType,
+        title: detectedVar.name,
+        description: `模板变量: 在${detectedVar.files.length}个文件中使用`,
+        required: false,
+        default: getDefaultValueForType(smartType),
+        insertText: `{{.${detectedVar.name}}}`,
+        ui: {
+          panel: false,
+          order: 10,
+          group: '模板变量',
+          component: getDefaultComponent(smartType)
+        }
+      }
+      
+      // 为特定类型添加额外字段
+      if (smartType === 'object') {
+        newSchema[detectedVar.name].properties = {}
+      } else if (smartType === 'array') {
+        newSchema[detectedVar.name].items = { type: 'string' }
+      } else if (smartType === 'object_arr') {
+        newSchema[detectedVar.name].items = {
+          type: 'object',
+          properties: {}
+        }
+      }
+      
+      addedCount++
+      addedNames.push(detectedVar.name)
+    }
+  })
+  
+  if (addedCount > 0) {
+    varsSchema.value = newSchema
+    message.success(`已添加 ${addedCount} 个变量到变量树`)
+    // 自动展开新添加的变量
+    expandedKeys.value = [...expandedKeys.value, ...addedNames]
+    
+    // 实时更新缺失变量列表
+    if (analysisResult.value?.missingVariables) {
+      analysisResult.value.missingVariables = analysisResult.value.missingVariables.filter(v => !addedNames.includes(v.name))
+    }
+  } else {
+    message.info('所有检测到的变量都已存在')
+  }
+}
+
+
+// 根据上下文和建议获取推荐类型
+const getSuggestedType = (detectedVar) => {
+  if (!detectedVar.contexts || detectedVar.contexts.length === 0) {
+    return detectedVar.type === 'unknown' ? 'string' : detectedVar.type
+  }
+  
+  // 分析上下文模式
+  const contexts = detectedVar.contexts
+  const hasRangeContext = contexts.some(c => c.includes('range'))
+  const hasIfContext = contexts.some(c => c.includes('if'))
+  const hasIndexContext = contexts.some(c => c.includes('['))
+  const hasNestedContext = contexts.some(c => c.includes('.') && !c.match(/\{\{\.[^.]+\}\}$/))
+  
+  if (hasRangeContext) {
+    return 'array' // range 通常用于数组遍历
+  } else if (hasIfContext) {
+    return 'boolean' // if 通常用于布尔判断
+  } else if (hasIndexContext) {
+    return 'array' // 索引访问通常是数组
+  } else if (hasNestedContext) {
+    return 'object' // 嵌套访问通常是对象
+  }
+  
+  return detectedVar.type === 'unknown' ? 'string' : detectedVar.type
+}
+
+// 删除单个未使用变量
+const deleteUnusedVariable = (varName) => {
+  if (!varName) return
+  
+  const currentSchema = toRaw(varsSchema.value)
+  const newSchema = JSON.parse(JSON.stringify(currentSchema))
+  
+  if (newSchema[varName]) {
+    delete newSchema[varName]
+    varsSchema.value = newSchema
+    message.success(`已删除未使用变量 "${varName}"`)
+    
+    // 清理选择状态
+    if (selectedKeys.value.includes(varName)) {
+      selectedKeys.value = []
+      selectedVariableData.value = null
+    }
+    
+    // 从展开的键中移除
+    expandedKeys.value = expandedKeys.value.filter(key => key !== varName)
+    
+    // 实时更新未使用变量列表
+    if (analysisResult.value?.unusedVariables) {
+      analysisResult.value.unusedVariables = analysisResult.value.unusedVariables.filter(name => name !== varName)
+    }
+  } else {
+    message.warning(`变量 "${varName}" 不存在`)
+  }
+}
+
+// 删除所有未使用变量
+const deleteAllUnusedVariables = (unusedVars) => {
+  if (!unusedVars || unusedVars.length === 0) {
+    message.warning('没有未使用的变量需要删除')
+    return
+  }
+  
+  const currentSchema = toRaw(varsSchema.value)
+  const newSchema = JSON.parse(JSON.stringify(currentSchema))
+  let deletedCount = 0
+  const deletedNames = []
+  
+  unusedVars.forEach(varName => {
+    if (newSchema[varName]) {
+      delete newSchema[varName]
+      deletedCount++
+      deletedNames.push(varName)
+    }
+  })
+  
+  if (deletedCount > 0) {
+    varsSchema.value = newSchema
+    message.success(`已删除 ${deletedCount} 个未使用的变量`)
+    
+    // 清理选择状态
+    if (selectedKeys.value.some(key => deletedNames.includes(key))) {
+      selectedKeys.value = []
+      selectedVariableData.value = null
+    }
+    
+    // 从展开的键中移除
+    expandedKeys.value = expandedKeys.value.filter(key => !deletedNames.includes(key))
+    
+    // 实时更新未使用变量列表
+    if (analysisResult.value?.unusedVariables) {
+      analysisResult.value.unusedVariables = analysisResult.value.unusedVariables.filter(name => !deletedNames.includes(name))
+    }
+  } else {
+    message.info('没有可删除的变量')
+  }
+}
+
+// 清理未使用的变量（保留原函数名以兼容统计页面）
+const cleanupUnusedVariables = () => {
+  deleteAllUnusedVariables(analysisResult.value?.unusedVariables)
+}
+
+// 优化所有变量类型
+const optimizeAllVariableTypes = () => {
+  if (!analysisResult.value?.detectedVariables || analysisResult.value.detectedVariables.length === 0) {
+    message.warning('没有检测到的变量需要优化')
+    return
+  }
+  
+  const currentSchema = toRaw(varsSchema.value)
+  const newSchema = JSON.parse(JSON.stringify(currentSchema))
+  let optimizedCount = 0
+  
+  analysisResult.value.detectedVariables.forEach(detectedVar => {
+    if (newSchema[detectedVar.name]) {
+      const suggestedType = getSuggestedType(detectedVar)
+      if (newSchema[detectedVar.name].type !== suggestedType) {
+        newSchema[detectedVar.name].type = suggestedType
+        newSchema[detectedVar.name].description = `自动优化: ${detectedVar.suggestions}`
+        newSchema[detectedVar.name].default = getDefaultValueForType(suggestedType)
+        newSchema[detectedVar.name].ui.component = getDefaultComponent(suggestedType)
+        
+        // 为特定类型添加额外字段
+        if (suggestedType === 'object' && !newSchema[detectedVar.name].properties) {
+          newSchema[detectedVar.name].properties = {}
+        } else if (suggestedType === 'array' && !newSchema[detectedVar.name].items) {
+          newSchema[detectedVar.name].items = { type: 'string' }
+        } else if (suggestedType === 'object_arr' && !newSchema[detectedVar.name].items) {
+          newSchema[detectedVar.name].items = {
+            type: 'object',
+            properties: {}
+          }
+        }
+        
+        optimizedCount++
+      }
+    }
+  })
+  
+  if (optimizedCount > 0) {
+    varsSchema.value = newSchema
+    message.success(`已优化 ${optimizedCount} 个变量的类型`)
+  } else {
+    message.info('所有变量类型都已是最优')
+  }
+}
+
+const getDefaultValueForType = (type) => {
+  const typeMap = {
+    string: '',
+    integer: 0,
+    number: 0.0,
+    boolean: false,
+    array: [],
+    object: {},
+    object_arr: [],
+    unknown: ''
+  }
+  return typeMap[type] || ''
 }
 
 // 预览面板操作函数

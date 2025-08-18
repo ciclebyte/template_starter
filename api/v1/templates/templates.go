@@ -128,3 +128,29 @@ type TemplatesVariablesRes struct {
 	TemplateFunctions []*TemplateFunctionInfo `json:"templateFunctions"`
 	Statistics        *VariableStatistics     `json:"statistics"`
 }
+
+// 变量分析请求
+type TemplatesAnalyzeVariablesReq struct {
+	g.Meta     `path:"/templates/{templateId}/analyze-variables" method:"post" tags:"模板" summary:"模板-分析变量"`
+	TemplateId interface{} `json:"templateId" v:"required#模板ID不能为空"`
+}
+
+// 检测到的变量信息
+type DetectedVariable struct {
+	Name        string   `json:"name"`        // 变量名
+	Type        string   `json:"type"`        // 推测的类型
+	Files       []string `json:"files"`       // 出现的文件
+	Contexts    []string `json:"contexts"`    // 使用上下文
+	Suggestions string   `json:"suggestions"` // 类型建议说明
+}
+
+// 变量分析响应
+type TemplatesAnalyzeVariablesRes struct {
+	g.Meta              `mime:"application/json" example:"string"`
+	DetectedVariables   []*DetectedVariable `json:"detectedVariables"`   // 检测到的变量
+	MissingVariables    []*DetectedVariable `json:"missingVariables"`    // 缺失的变量（模板中使用但未定义）
+	UnusedVariables     []string            `json:"unusedVariables"`     // 未使用的变量（已定义但模板中未使用）
+	ConflictVariables   []*DetectedVariable `json:"conflictVariables"`   // 冲突的变量（类型不匹配）
+	TotalVariableCount  int                 `json:"totalVariableCount"`  // 总变量数
+	AnalyzedFileCount   int                 `json:"analyzedFileCount"`   // 分析的文件数
+}

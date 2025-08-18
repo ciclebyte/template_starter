@@ -86,6 +86,7 @@
       :template-id="route.params.id"
       :template-variables="templateVariables"
       @variables-saved="refreshUserVariables"
+      @test-data-updated="updateVariableValues"
     />
     
   </div>
@@ -129,6 +130,26 @@ const goToVariableExpose = () => {
 // 刷新用户变量（在变量定义保存后调用）
 const refreshUserVariables = async () => {
   await loadUserVariables()
+}
+
+// 更新模板预览的变量数据（使用生成的测试数据）
+const updateVariableValues = (testData) => {
+  console.log('更新预览变量数据:', testData)
+  variableValues.value = testData || {}
+  
+  // 保存到本地存储，保持原有的持久化逻辑
+  const templateId = route.params.id
+  const testDataKey = `template_test_data_${templateId}`
+  localStorage.setItem(testDataKey, JSON.stringify(variableValues.value))
+  
+  // 如果当前有预览的文件，触发重新渲染
+  if (previewFileId.value) {
+    nextTick(() => {
+      if (templatePreviewRef.value) {
+        templatePreviewRef.value.renderTemplateContent()
+      }
+    })
+  }
 }
 
 const treeData = ref([])

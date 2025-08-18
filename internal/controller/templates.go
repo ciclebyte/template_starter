@@ -69,3 +69,8 @@ func (c *templatesController) GetVariables(ctx context.Context, req *api.Templat
 	res, err = service.Templates().GetVariables(ctx, gconv.Int64(req.TemplateId))
 	return
 }
+
+func (c *templatesController) AnalyzeVariables(ctx context.Context, req *api.TemplatesAnalyzeVariablesReq) (res *api.TemplatesAnalyzeVariablesRes, err error) {
+	res, err = service.Templates().AnalyzeVariables(ctx, gconv.Int64(req.TemplateId))
+	return
+}

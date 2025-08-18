@@ -15,6 +15,7 @@ type ITemplates interface {
 	BatchDelete(ctx context.Context, ids []int64) (err error)
 	GetById(ctx context.Context, id int64) (res *model.TemplatesInfo, err error)
 	GetVariables(ctx context.Context, templateId int64) (res *api.TemplatesVariablesRes, err error)
+	AnalyzeVariables(ctx context.Context, templateId int64) (res *api.TemplatesAnalyzeVariablesRes, err error)
 }
 
 var localTemplates ITemplates
