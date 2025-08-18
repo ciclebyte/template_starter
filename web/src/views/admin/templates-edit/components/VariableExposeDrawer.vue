@@ -9,6 +9,12 @@
           </template>
           保存定义
         </n-button>
+        <n-button size="small" @click="showTestDataModal" type="info" quaternary>
+          <template #icon>
+            <n-icon><FlaskOutline /></n-icon>
+          </template>
+          测试数据
+        </n-button>
         <n-button size="small" @click="emergencyCleanup" type="warning" quaternary>
           <template #icon>
             <n-icon><TrashOutline /></n-icon>
@@ -498,6 +504,50 @@
     </n-card>
   </n-modal>
 
+  <!-- 测试数据模态框 -->
+  <n-modal v-model:show="showTestDataModalFlag" :mask-closable="false">
+    <n-card style="width: 900px; max-height: 700px;" title="生成测试数据" :bordered="false" size="huge">
+      <template #header-extra>
+        <n-button quaternary circle @click="showTestDataModalFlag = false">
+          <template #icon>
+            <n-icon><CloseOutline /></n-icon>
+          </template>
+        </n-button>
+      </template>
+      
+      <n-space vertical>
+        <div style="margin-bottom: 12px;">
+          <n-text depth="3">
+            基于当前变量定义自动生成的测试数据，你可以直接编辑这些数据用于测试模板。
+          </n-text>
+        </div>
+        
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 12px;">
+          <n-button size="small" @click="regenerateTestData" quaternary>
+            <template #icon>
+              <n-icon><RefreshOutline /></n-icon>
+            </template>
+            重新生成
+          </n-button>
+          <n-button size="small" @click="copyTestData" quaternary>
+            <template #icon>
+              <n-icon><CopyOutline /></n-icon>
+            </template>
+            复制数据
+          </n-button>
+        </div>
+        
+        <div class="test-data-editor" ref="testDataEditor" style="min-height: 400px; border: 1px solid #e0e0e6; border-radius: 6px;"></div>
+      </n-space>
+      
+      <template #footer>
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <n-button @click="showTestDataModalFlag = false">关闭</n-button>
+        </div>
+      </template>
+    </n-card>
+  </n-modal>
+
   <!-- 隐藏的文件输入框 -->
   <input
     ref="fileInputRef"
@@ -514,7 +564,7 @@ import {
   NDrawer, NDrawerContent, NButton, NIcon, NSpace, NForm, NFormItem, 
   NGrid, NGridItem, NInput, NSelect, NSwitch, NTabs, NTabPane, NInputNumber,
   NTree, NTag, NDropdown, NDynamicTags, NEmpty, NButtonGroup, NModal, NCard,
-  useMessage 
+  NText, useMessage 
 } from 'naive-ui'
 import { 
   SaveOutline, CloseOutline, DocumentOutline, AddOutline, TrashOutline,
@@ -523,7 +573,7 @@ import {
   KeyOutline, LockClosedOutline, Folder, FolderOpenOutline, 
   EllipsisVerticalOutline, CheckboxOutline, CodeOutline, ChevronForward,
   CreateOutline, DownloadOutline, CloudUploadOutline, CopyOutline, 
-  RefreshOutline, SyncOutline
+  RefreshOutline, SyncOutline, FlaskOutline
 } from '@vicons/ionicons5'
 import { EditorView, basicSetup } from 'codemirror'
 import { EditorState } from '@codemirror/state'
@@ -591,6 +641,11 @@ const addVariableType = ref('string')
 // 拖拽相关状态
 const drawerHeight = ref(Math.floor(window.innerHeight * 0.67)) // 默认三分之二高度
 const isResizing = ref(false)
+
+// 测试数据相关状态
+const showTestDataModalFlag = ref(false)
+const testData = ref({})
+const testDataEditor = ref(null)
 const minHeight = 300
 const maxHeight = window.innerHeight - 100
 
@@ -2284,6 +2339,149 @@ watch(varsSchema, (newSchema) => {
     }
   }
 }, { deep: true })
+
+// 测试数据生成和管理函数
+const generateTestData = (schema) => {
+  const data = {}
+  
+  if (!schema || typeof schema !== 'object') {
+    return data
+  }
+  
+  Object.entries(schema).forEach(([key, variable]) => {
+    if (!variable || typeof variable !== 'object') return
+    
+    switch (variable.type) {
+      case 'string':
+        data[key] = variable.default || `示例${key}`
+        break
+      case 'integer':
+        data[key] = variable.default || 42
+        break
+      case 'number':
+        data[key] = variable.default || 3.14
+        break
+      case 'boolean':
+        data[key] = variable.default !== undefined ? variable.default : true
+        break
+      case 'array':
+        data[key] = variable.default || ['item1', 'item2']
+        break
+      case 'object':
+        if (variable.properties) {
+          data[key] = generateTestData(variable.properties)
+        } else {
+          data[key] = {}
+        }
+        break
+      case 'object_arr':
+        if (variable.items && variable.items.properties) {
+          const itemData = generateTestData(variable.items.properties)
+          data[key] = [itemData, { ...itemData }] // 生成两个示例项
+        } else {
+          data[key] = []
+        }
+        break
+      case 'enum':
+        data[key] = variable.enum && variable.enum.length > 0 ? variable.enum[0] : variable.default || ''
+        break
+      case 'secret':
+        data[key] = variable.default || '***保密信息***'
+        break
+      default:
+        data[key] = variable.default || ''
+    }
+  })
+  
+  return data
+}
+
+const showTestDataModal = () => {
+  // 生成测试数据
+  testData.value = generateTestData(varsSchema.value)
+  showTestDataModalFlag.value = true
+  
+  // 下次tick时初始化编辑器
+  nextTick(() => {
+    initTestDataEditor()
+  })
+}
+
+const initTestDataEditor = () => {
+  if (!testDataEditor.value) return
+  
+  // 清除现有编辑器
+  if (testDataEditor.value.codemirror) {
+    testDataEditor.value.codemirror.destroy()
+  }
+  
+  const state = EditorState.create({
+    doc: JSON.stringify(testData.value, null, 2),
+    extensions: [
+      basicSetup,
+      json(),
+      EditorView.theme({
+        '&': {
+          fontSize: '14px',
+          fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, monospace'
+        },
+        '.cm-content': {
+          padding: '12px',
+          minHeight: '200px'
+        },
+        '.cm-editor': {
+          borderRadius: '6px',
+          border: '1px solid #e0e0e6'
+        },
+        '.cm-focused': {
+          outline: 'none',
+          borderColor: '#18a058'
+        }
+      }),
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          try {
+            const newData = JSON.parse(update.state.doc.toString())
+            testData.value = newData
+          } catch (error) {
+            // JSON格式错误，暂不处理
+          }
+        }
+      })
+    ]
+  })
+  
+  const view = new EditorView({
+    state,
+    parent: testDataEditor.value
+  })
+  
+  testDataEditor.value.codemirror = view
+}
+
+const copyTestData = () => {
+  const dataStr = JSON.stringify(testData.value, null, 2)
+  navigator.clipboard.writeText(dataStr).then(() => {
+    message.success('测试数据已复制到剪贴板')
+  }).catch(() => {
+    message.error('复制失败')
+  })
+}
+
+const regenerateTestData = () => {
+  testData.value = generateTestData(varsSchema.value)
+  if (testDataEditor.value?.codemirror) {
+    const newDoc = JSON.stringify(testData.value, null, 2)
+    testDataEditor.value.codemirror.dispatch({
+      changes: {
+        from: 0,
+        to: testDataEditor.value.codemirror.state.doc.length,
+        insert: newDoc
+      }
+    })
+  }
+  message.success('测试数据已重新生成')
+}
 
 // 预览面板操作函数
 // 1. 导入文件
