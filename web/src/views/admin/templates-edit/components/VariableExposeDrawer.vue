@@ -161,9 +161,9 @@
                 
                 <n-grid-item>
                   <n-form-item label="默认值 (default)">
-                    <!-- 对象和数组类型显示JSON字符串 -->
+                    <!-- 对象、数组和对象数组类型显示JSON字符串 -->
                     <n-input 
-                      v-if="selectedVariableData.type === 'object' || selectedVariableData.type === 'array'"
+                      v-if="selectedVariableData.type === 'object' || selectedVariableData.type === 'array' || selectedVariableData.type === 'object_arr'"
                       :value="JSON.stringify(selectedVariableData.default)"
                       :placeholder="`默认${getTypeLabel(selectedVariableData.type)}值`"
                       readonly
@@ -238,6 +238,61 @@
                   <n-grid-item :span="2">
                     <n-form-item label="正则表达式 (pattern)">
                       <n-input v-model:value="selectedVariableData.pattern" placeholder="^[a-zA-Z0-9]+$" />
+                    </n-form-item>
+                  </n-grid-item>
+                </template>
+
+                <!-- 对象数组配置 -->
+                <template v-if="selectedVariableData.type === 'object_arr'">
+                  <n-grid-item :span="2">
+                    <div class="form-section-title">对象数组配置</div>
+                  </n-grid-item>
+                  <n-grid-item :span="2">
+                    <n-form-item label="对象结构定义">
+                      <div class="object-structure-hint">
+                        <n-text depth="3" style="font-size: 12px;">
+                          对象数组中每个对象的结构定义。右键点击下方空白区域添加字段。
+                        </n-text>
+                      </div>
+                      <div class="object-properties-editor">
+                        <div v-if="!selectedVariableData.items || !selectedVariableData.items.properties || Object.keys(selectedVariableData.items.properties).length === 0" 
+                             class="empty-properties-hint"
+                             @contextmenu="onObjectPropertiesContextMenu">
+                          暂无字段定义（右键添加）
+                        </div>
+                        <div v-else class="properties-list">
+                          <div v-for="(prop, propName) in selectedVariableData.items.properties" 
+                               :key="propName" 
+                               class="property-item">
+                            <div class="property-header">
+                              <span class="property-name">{{ propName }}</span>
+                              <n-tag :type="getTypeTagType(prop.type)" size="small">
+                                {{ getTypeLabel(prop.type) }}
+                              </n-tag>
+                              <n-button 
+                                size="tiny" 
+                                quaternary 
+                                type="error"
+                                @click="removeObjectProperty(propName)">
+                                删除
+                              </n-button>
+                            </div>
+                            <div class="property-description" v-if="prop.description">
+                              {{ prop.description }}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </n-form-item>
+                  </n-grid-item>
+                  <n-grid-item>
+                    <n-form-item label="最小项数 (minItems)">
+                      <n-input-number v-model:value="selectedVariableData.minItems" :min="0" />
+                    </n-form-item>
+                  </n-grid-item>
+                  <n-grid-item>
+                    <n-form-item label="最大项数 (maxItems)">
+                      <n-input-number v-model:value="selectedVariableData.maxItems" :min="0" />
                     </n-form-item>
                   </n-grid-item>
                 </template>
@@ -454,7 +509,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, h, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, h, nextTick, onMounted, onUnmounted, markRaw, toRaw } from 'vue'
 import { 
   NDrawer, NDrawerContent, NButton, NIcon, NSpace, NForm, NFormItem, 
   NGrid, NGridItem, NInput, NSelect, NSwitch, NTabs, NTabPane, NInputNumber,
@@ -657,6 +712,7 @@ const typeOptions = [
   { label: '布尔值 (boolean)', value: 'boolean' },
   { label: '数组 (array)', value: 'array' },
   { label: '对象 (object)', value: 'object' },
+  { label: '对象数组 (object_arr)', value: 'object_arr' },
   { label: '枚举 (enum)', value: 'enum' },
   { label: '密码 (secret)', value: 'secret' }
 ]
@@ -766,6 +822,18 @@ const convertToTreeData = (schema, parentPath = '', visited = new Set(), depth =
         return
       }
       
+      // 额外检查：避免同名属性造成的递归路径问题
+      const pathParts = currentPath.split('.')
+      if (pathParts.length > 2) {
+        // 检查是否存在重复的相邻路径段
+        for (let i = 1; i < pathParts.length - 1; i++) {
+          if (pathParts[i] === pathParts[i + 1]) {
+            console.warn('检测到重复的相邻路径段，跳过节点:', currentPath)
+            return
+          }
+        }
+      }
+      
       // 检查值是否有效
       if (!value || typeof value !== 'object') {
         console.warn('无效的变量值，跳过:', key, value)
@@ -774,10 +842,13 @@ const convertToTreeData = (schema, parentPath = '', visited = new Set(), depth =
       
       const varType = value.type || 'string'
       
-      // 检查对象类型是否有子变量
-      const hasChildren = varType === 'object' && value.properties && 
-                         typeof value.properties === 'object' && 
-                         Object.keys(value.properties).length > 0
+      // 检查对象类型和对象数组类型是否有子变量
+      const hasChildren = (varType === 'object' && value.properties && 
+                          typeof value.properties === 'object' && 
+                          Object.keys(value.properties).length > 0) ||
+                         (varType === 'object_arr' && value.items && value.items.properties &&
+                          typeof value.items.properties === 'object' &&
+                          Object.keys(value.items.properties).length > 0)
       
       const node = {
         key: currentPath,
@@ -785,7 +856,7 @@ const convertToTreeData = (schema, parentPath = '', visited = new Set(), depth =
         type: varType,
         path: currentPath,
         data: value,
-        isLeaf: varType !== 'object',
+        isLeaf: varType !== 'object' && varType !== 'object_arr',
         isEditing: Boolean(renamingNode.value && renamingNode.value.path === currentPath),
         children: [],
         prefix: () => h(NIcon, { class: `var-icon var-${varType}` }, {
@@ -793,12 +864,21 @@ const convertToTreeData = (schema, parentPath = '', visited = new Set(), depth =
         })
       }
       
-      // 如果是对象类型且有properties，递归生成子节点
+      // 如果是对象类型或对象数组类型且有properties，递归生成子节点
       if (hasChildren) {
         try {
           const newVisited = new Set(visited)
           newVisited.add(currentPath)
-          node.children = convertToTreeData(value.properties, currentPath, newVisited, depth + 1)
+          
+          // 根据类型选择正确的properties路径
+          let childProperties
+          if (varType === 'object') {
+            childProperties = value.properties
+          } else if (varType === 'object_arr') {
+            childProperties = value.items.properties
+          }
+          
+          node.children = convertToTreeData(childProperties, currentPath, newVisited, depth + 1)
         } catch (childError) {
           console.error('处理子节点时出错:', currentPath, childError)
           node.children = []
@@ -819,6 +899,11 @@ const getVariableIconComponent = (type, hasChildren = false) => {
   // 对象类型根据是否有子变量显示不同图标
   if (type === 'object') {
     return hasChildren ? FolderOpenOutline : Folder
+  }
+  
+  // 对象数组类型使用特殊图标
+  if (type === 'object_arr') {
+    return hasChildren ? FolderOpenOutline : ListOutline
   }
   
   // 其他类型使用标准图标
@@ -900,9 +985,12 @@ const getVariableByPath = (path) => {
         return null
       }
     } else {
-      // 后续层需要通过properties访问
+      // 后续层需要通过properties或items.properties访问
       if (current.properties && current.properties[part]) {
         current = current.properties[part]
+      } else if (current.items && current.items.properties && current.items.properties[part]) {
+        // 处理object_arr类型的子变量
+        current = current.items.properties[part]
       } else {
         return null
       }
@@ -1014,6 +1102,7 @@ const getTypeLabel = (type) => {
     boolean: '布尔值',
     array: '数组',
     object: '对象',
+    object_arr: '对象数组',
     enum: '枚举',
     secret: '密码'
   }
@@ -1067,6 +1156,13 @@ const createDefaultVariable = (name = '', type = 'string') => {
     variable.properties = {}
   }
   
+  if (type === 'object_arr') {
+    variable.items = {
+      type: 'object',
+      properties: {}
+    }
+  }
+  
   if (['integer', 'number'].includes(type)) {
     // 为数值类型预留min/max字段，但不设置默认值
   }
@@ -1087,6 +1183,7 @@ const getDefaultValue = (type) => {
     boolean: false,
     array: [],
     object: {},
+    object_arr: [],
     enum: '',
     secret: ''
   }
@@ -1102,10 +1199,40 @@ const getDefaultComponent = (type) => {
     boolean: 'switch',
     array: 'input',
     object: 'input',
+    object_arr: 'object_array_editor',
     enum: 'select',
     secret: 'input'
   }
   return components[type] || 'input'
+}
+
+// 对象数组属性管理
+const onObjectPropertiesContextMenu = (e) => {
+  e.preventDefault()
+  addObjectProperty()
+}
+
+const addObjectProperty = () => {
+  const propertyName = window.prompt('请输入属性名称:')
+  if (propertyName && propertyName.trim()) {
+    const trimmedName = propertyName.trim()
+    
+    // 确保items对象存在
+    if (!selectedVariableData.value.items) {
+      selectedVariableData.value.items = { type: 'object', properties: {} }
+    }
+    if (!selectedVariableData.value.items.properties) {
+      selectedVariableData.value.items.properties = {}
+    }
+    
+    selectedVariableData.value.items.properties[trimmedName] = createDefaultVariable(trimmedName, 'string')
+  }
+}
+
+const removeObjectProperty = (propertyName) => {
+  if (selectedVariableData.value.items && selectedVariableData.value.items.properties) {
+    delete selectedVariableData.value.items.properties[propertyName]
+  }
 }
 
 // 树选择处理
@@ -1138,7 +1265,6 @@ const onSelectVariable = (selectedKeys) => {
       }
       
       const variable = getVariableByPath(selectedKey)
-      console.log('找到的变量:', variable)
       
       if (variable) {
         // 创建编辑数据的安全副本，避免循环引用
@@ -1231,8 +1357,8 @@ const addRootObjectVariable = () => {
 const getNodeMenuOptions = (option) => {
   const menuOptions = []
   
-  // 只有真正的对象类型变量才可以添加子属性
-  if (option.type === 'object') {
+  // 对象类型和对象数组类型都可以添加子属性
+  if (option.type === 'object' || option.type === 'object_arr') {
     menuOptions.push({
       label: '新增子变量',
       key: 'add-child',
@@ -1333,14 +1459,26 @@ const addChildVariable = (parentPath) => {
   }
   
   // 2. 检查父级是否可以包含子变量
-  if (parent.type !== 'object') {
-    message.error('只有对象类型的变量才能添加子变量，请先将父级变量类型改为object')
+  if (parent.type !== 'object' && parent.type !== 'object_arr') {
+    message.error('只有对象类型或对象数组类型的变量才能添加子变量')
     return
   }
   
   // 3. 确保有properties对象
-  if (!parent.properties) {
-    parent.properties = {}
+  let targetProperties
+  if (parent.type === 'object') {
+    if (!parent.properties) {
+      parent.properties = {}
+    }
+    targetProperties = parent.properties
+  } else if (parent.type === 'object_arr') {
+    if (!parent.items) {
+      parent.items = { type: 'object', properties: {} }
+    }
+    if (!parent.items.properties) {
+      parent.items.properties = {}
+    }
+    targetProperties = parent.items.properties
   }
   
   // 4. 创建临时编辑节点
@@ -1351,14 +1489,14 @@ const addChildVariable = (parentPath) => {
     isRoot: false
   }
   newVariableName.value = ''
+  addVariableType.value = 'string' // 子变量默认为字符串类型
   
   // 5. 展开父级
   if (!expandedKeys.value.includes(parentPath)) {
     expandedKeys.value = [...expandedKeys.value, parentPath]
   }
   
-  // 6. 强制更新树数据以显示编辑节点
-  varsSchema.value = { ...varsSchema.value }
+  // 6. 不需要强制更新，Vue会自动检测到数据变化
 }
 
 
@@ -1454,9 +1592,14 @@ const onTypeChange = (newType) => {
   if (newType === 'array') {
     selectedVariableData.value.items = { type: 'string' }
     selectedVariableData.value.minItems = undefined
+  } else if (newType === 'object_arr') {
+    selectedVariableData.value.items = { type: 'object', properties: {} }
+    selectedVariableData.value.minItems = undefined
+    selectedVariableData.value.maxItems = undefined
   } else {
     delete selectedVariableData.value.items
     delete selectedVariableData.value.minItems
+    delete selectedVariableData.value.maxItems
   }
   
   if (newType === 'object') {
@@ -1596,19 +1739,71 @@ const confirmAddVariable = () => {
         return
       }
       
-      if (!parent.properties) {
-        parent.properties = {}
+      // 根据父级类型确定子属性的存储位置
+      let targetProperties
+      if (parent.type === 'object') {
+        if (!parent.properties) {
+          parent.properties = {}
+        }
+        targetProperties = parent.properties
+      } else if (parent.type === 'object_arr') {
+        if (!parent.items) {
+          parent.items = { type: 'object', properties: {} }
+        }
+        if (!parent.items.properties) {
+          parent.items.properties = {}
+        }
+        targetProperties = parent.items.properties
+      } else {
+        message.error('父级变量类型不支持子变量')
+        return
       }
       
       // 检查子变量名是否重复
-      if (parent.properties[variableName]) {
+      if (targetProperties[variableName]) {
         message.error('变量名已存在')
         return
       }
       
-      // 创建子变量
-      const newVariable = createDefaultVariable(variableName, addVariableType.value)
-      parent.properties[variableName] = newVariable
+      // 创建子变量 - 子变量默认为字符串类型
+      // 使用完全独立的对象创建，避免任何引用问题
+      const newVariable = {
+        type: 'string',
+        title: variableName,
+        description: '',
+        required: false,
+        default: '',
+        insertText: `{{.${variableName}}}`,
+        ui: {
+          panel: false,
+          order: 10,
+          group: '基础信息',
+          component: 'input'
+        }
+      }
+      
+      // 重建整个 schema 以避免循环引用
+      const rawSchema = toRaw(varsSchema.value)
+      const newSchema = JSON.parse(JSON.stringify(rawSchema))
+      
+      // 在新schema中添加变量
+      if (parent.type === 'object') {
+        if (!newSchema[editingNode.value.parentPath].properties) {
+          newSchema[editingNode.value.parentPath].properties = {}
+        }
+        newSchema[editingNode.value.parentPath].properties[variableName] = newVariable
+      } else if (parent.type === 'object_arr') {
+        if (!newSchema[editingNode.value.parentPath].items) {
+          newSchema[editingNode.value.parentPath].items = { type: 'object', properties: {} }
+        }
+        if (!newSchema[editingNode.value.parentPath].items.properties) {
+          newSchema[editingNode.value.parentPath].items.properties = {}
+        }
+        newSchema[editingNode.value.parentPath].items.properties[variableName] = newVariable
+      }
+      
+      // 替换整个schema
+      varsSchema.value = newSchema
       
       // 选中新创建的子变量
       const newPath = `${editingNode.value.parentPath}.${variableName}`
@@ -1642,8 +1837,7 @@ const cancelAddVariable = () => {
     renamingNode.value = null
     newVariableName.value = ''
     
-    // 强制更新树数据
-    varsSchema.value = { ...varsSchema.value }
+    // 不需要强制更新，Vue会自动检测到数据变化
   }
 }
 
@@ -2751,5 +2945,73 @@ onUnmounted(() => {
 :deep(.vscode-tree-input::placeholder) {
   color: #999999;
   font-style: italic;
+}
+
+/* 对象数组编辑器样式 */
+.object-structure-hint {
+  margin-bottom: 8px;
+}
+
+.object-properties-editor {
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fafafa;
+  min-height: 120px;
+}
+
+.empty-properties-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100px;
+  color: #999;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.empty-properties-hint:hover {
+  background: #f0f0f0;
+  color: #666;
+}
+
+.properties-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.property-item {
+  padding: 8px 12px;
+  background: white;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.property-item:hover {
+  border-color: #d4edda;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.property-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.property-name {
+  font-weight: 600;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  color: #333;
+  flex: 1;
+}
+
+.property-description {
+  font-size: 12px;
+  color: #666;
+  padding-left: 4px;
 }
 </style>

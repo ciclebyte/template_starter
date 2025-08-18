@@ -714,6 +714,11 @@ const parseVariableDefinitions = (fieldSchemaJson) => {
           if (value.type === 'object' && value.properties) {
             parseSchema(value.properties, currentPath)
           }
+          
+          // 如果是对象数组类型且有子属性，递归处理
+          if (value.type === 'object_arr' && value.items && value.items.properties) {
+            parseSchema(value.items.properties, currentPath)
+          }
         }
       }
     }
@@ -769,6 +774,8 @@ const textVariables = computed(() => {
     v.variableType === '列表' ||
     v.variableType === 'object' || 
     v.variableType === '对象' ||
+    v.variableType === 'object_arr' ||
+    v.variableType === '对象数组' ||
     !v.variableType
   )
 })
@@ -795,6 +802,8 @@ const getVariableTypeLabel = (type) => {
     '列表': '列表',
     'object': '对象',
     '对象': '对象',
+    'object_arr': '对象数组',
+    '对象数组': '对象数组',
     'conditional': '条件'
   }
   return typeLabels[type] || type || '文本'
@@ -817,6 +826,8 @@ const getVariableTagClass = (type) => {
     '列表': 'list',
     'object': 'object',
     '对象': 'object',
+    'object_arr': 'object',
+    '对象数组': 'object',
     'conditional': 'conditional'
   }
   return classMap[type] || 'string'
@@ -883,6 +894,21 @@ const handleShowVariableDetail = (variable, event) => {
 
 const handleShowVariableDefinitionDetail = (variable, event) => {
   // 为变量定义构造详情对象，格式化为函数详情面板可以理解的格式
+  let usage = `类型: ${getVariableTypeLabel(variable.variableType)}${variable.isRequired ? ' (必填)' : ' (可选)'}`
+  
+  // 为对象数组类型添加特殊说明
+  if (variable.variableType === 'object_arr') {
+    usage += `\n对象数组: 每个元素都是一个对象结构`
+  }
+  
+  if (variable.defaultValue !== undefined) {
+    if (variable.variableType === 'object_arr') {
+      usage += `\n默认值: ${JSON.stringify(variable.defaultValue)}`
+    } else {
+      usage += `\n默认值: ${variable.defaultValue}`
+    }
+  }
+  
   const detailObj = {
     name: variable.path || variable.name,
     displayName: variable.displayName || variable.name,
@@ -895,7 +921,7 @@ const handleShowVariableDefinitionDetail = (variable, event) => {
     isRequired: variable.isRequired,
     defaultValue: variable.defaultValue,
     level: variable.level,
-    usage: `类型: ${getVariableTypeLabel(variable.variableType)}${variable.isRequired ? ' (必填)' : ' (可选)'}${variable.defaultValue !== undefined ? `\n默认值: ${variable.defaultValue}` : ''}`,
+    usage: usage,
     example: variable.insertText || `{{.${variable.path || variable.name}}}`
   }
   
