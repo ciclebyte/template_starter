@@ -12,11 +12,27 @@
       
       <!-- 变量配置表单 -->
       <div v-else class="variables-form">
-        <h2 class="form-title">配置项目变量</h2>
-        <p class="form-desc">请填写以下信息来配置您的项目</p>
+        <div class="form-header">
+          <div class="form-title-section">
+            <h2 class="form-title">配置项目变量</h2>
+            <p class="form-desc">请填写以下信息来配置您的项目</p>
+          </div>
+          
+          <!-- 模式切换 -->
+          <div class="mode-tabs">
+            <n-tabs v-model:value="currentMode" type="segment" size="small">
+              <n-tab-pane name="normal" tab="普通模式">
+              </n-tab-pane>
+              <n-tab-pane name="advanced" tab="高级模式">
+              </n-tab-pane>
+            </n-tabs>
+          </div>
+        </div>
         
-        <!-- 自定义变量 -->
-        <div class="variable-section" v-if="customVariables.length > 0">
+        <!-- 普通模式 -->
+        <div v-if="currentMode === 'normal'" class="normal-mode">
+          <!-- 自定义变量 -->
+          <div class="variable-section" v-if="customVariables.length > 0">
           <h3 class="section-title">
             <n-icon><CodeSlash /></n-icon>
             自定义变量
@@ -170,6 +186,50 @@
             </n-collapse-item>
           </n-collapse>
         </div>
+        </div>
+        
+        <!-- 高级模式 -->
+        <div v-else-if="currentMode === 'advanced'" class="advanced-mode">
+          <div class="advanced-editor-container">
+            <div class="editor-header">
+              <div class="editor-info">
+                <span class="editor-title">JSON 变量编辑器</span>
+                <span class="editor-desc">直接编辑 JSON 格式的变量数据</span>
+              </div>
+              <div class="editor-actions">
+                <n-button size="small" @click="formatJSON" quaternary>
+                  <template #icon>
+                    <n-icon><CodeSlash /></n-icon>
+                  </template>
+                  格式化
+                </n-button>
+                <n-button size="small" @click="generateFromNormal" type="info" quaternary>
+                  <template #icon>
+                    <n-icon><RefreshOutline /></n-icon>
+                  </template>
+                  从普通模式生成
+                </n-button>
+              </div>
+            </div>
+            
+            <div class="json-editor-wrapper">
+              <div ref="jsonEditorContainer" class="json-editor"></div>
+            </div>
+            
+            <div class="editor-footer">
+              <div class="editor-status">
+                <span v-if="jsonValid" class="status-valid">
+                  <n-icon><CheckmarkCircleOutline /></n-icon>
+                  JSON 格式正确
+                </span>
+                <span v-else class="status-invalid">
+                  <n-icon><AlertCircleOutline /></n-icon>
+                  JSON 格式错误: {{ jsonError }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       
 
@@ -199,16 +259,25 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { 
   Person, 
   Settings, 
   CodeSlash, 
   ArrowBack, 
-  ArrowForward 
+  ArrowForward,
+  RefreshOutline,
+  CheckmarkCircleOutline,
+  AlertCircleOutline
 } from '@vicons/ionicons5'
 import { getTemplateExpose } from '@/api/templateExpose'
 import { analyzeTemplateVariables } from '@/api/templates'
+
+// CodeMirror 相关导入
+import { EditorView } from '@codemirror/view'
+import { EditorState } from '@codemirror/state'
+import { json } from '@codemirror/lang-json'
+import { dracula } from '@uiw/codemirror-theme-dracula'
 
 const props = defineProps({
   templateInfo: {
@@ -232,6 +301,15 @@ const builtinVariables = ref([])
 const templateFunctions = ref([])
 const variableStatistics = ref(null)
 const loading = ref(false)
+
+// 模式切换相关
+const currentMode = ref('normal')
+
+// 高级模式相关
+const jsonEditorContainer = ref(null)
+let jsonEditor = null
+const jsonValid = ref(true)
+const jsonError = ref('')
 
 // 动态验证规则
 const getValidationRules = () => {
@@ -291,6 +369,12 @@ const getValidationStatus = (fieldName) => {
 
 // 表单是否有效
 const isFormValid = computed(() => {
+  // 高级模式下，只需要验证 JSON 格式是否正确
+  if (currentMode.value === 'advanced') {
+    return jsonValid.value
+  }
+  
+  // 普通模式下的验证逻辑
   const rules = getValidationRules()
   
   for (const [fieldName, rule] of Object.entries(rules)) {
@@ -643,11 +727,399 @@ onMounted(() => {
 
 // 下一步
 const handleNext = () => {
-  if (isFormValid.value) {
-    emit('update-variables', formData.value)
-    emit('next')
+  if (currentMode.value === 'normal') {
+    if (isFormValid.value) {
+      emit('update-variables', formData.value)
+      emit('next')
+    }
+  } else {
+    // 高级模式下，从编辑器获取数据并验证
+    if (jsonValid.value && jsonEditor) {
+      try {
+        const editorContent = jsonEditor.state.doc.toString()
+        const jsonData = JSON.parse(editorContent)
+        emit('update-variables', jsonData)
+        emit('next')
+      } catch (error) {
+        // JSON 解析错误已经在 validateJSON 中处理
+      }
+    }
   }
 }
+
+// 初始化 JSON 编辑器
+const initJsonEditor = async () => {
+  if (!jsonEditorContainer.value) return
+  
+  // 尝试生成完整的测试数据作为初始内容
+  let initialData = formData.value
+  try {
+    const exposeRes = await getTemplateExpose({ templateId: props.templateInfo.id })
+    if (exposeRes.data?.code === 0 && exposeRes.data?.data?.templateExpose) {
+      const fieldSchemaJson = exposeRes.data.data.templateExpose.fieldSchemaJson
+      if (fieldSchemaJson) {
+        const originalSchema = JSON.parse(fieldSchemaJson)
+        // 使用增强的生成函数，传入现有表单数据以保留用户输入
+        initialData = generateTestDataFromSchema(originalSchema, formData.value)
+      }
+    }
+  } catch (error) {
+    console.error('获取 schema 失败，使用表单数据:', error)
+  }
+  
+  const initialContent = JSON.stringify(initialData, null, 2)
+  
+  const state = EditorState.create({
+    doc: initialContent,
+    extensions: [
+      dracula,
+      json(),
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          validateJSON()
+        }
+      }),
+      EditorView.theme({
+        "&": { height: "400px" },
+        ".cm-scroller": { 
+          overflow: "auto !important",
+          height: "100% !important"
+        }
+      })
+    ]
+  })
+  
+  jsonEditor = new EditorView({
+    state,
+    parent: jsonEditorContainer.value
+  })
+  
+  validateJSON()
+}
+
+// 验证 JSON 格式
+const validateJSON = () => {
+  if (!jsonEditor) return
+  
+  try {
+    const content = jsonEditor.state.doc.toString()
+    JSON.parse(content)
+    jsonValid.value = true
+    jsonError.value = ''
+  } catch (error) {
+    jsonValid.value = false
+    jsonError.value = error.message
+  }
+}
+
+// 格式化 JSON
+const formatJSON = () => {
+  if (!jsonEditor) return
+  
+  try {
+    const content = jsonEditor.state.doc.toString()
+    const parsed = JSON.parse(content)
+    const formatted = JSON.stringify(parsed, null, 2)
+    
+    jsonEditor.dispatch({
+      changes: {
+        from: 0,
+        to: jsonEditor.state.doc.length,
+        insert: formatted
+      }
+    })
+  } catch (error) {
+    // JSON 格式错误，不执行格式化
+  }
+}
+
+// 从普通模式生成 JSON（支持嵌套结构）
+const generateFromNormal = async () => {
+  if (!jsonEditor) return
+  
+  try {
+    // 获取当前编辑器中的数据作为现有数据
+    let existingData = {}
+    try {
+      const editorContent = jsonEditor.state.doc.toString()
+      existingData = JSON.parse(editorContent)
+    } catch (e) {
+      existingData = formData.value // 如果编辑器内容无效，使用表单数据
+    }
+    
+    // 重新获取原始 schema 定义
+    const exposeRes = await getTemplateExpose({ templateId: props.templateInfo.id })
+    let originalSchema = null
+    
+    if (exposeRes.data?.code === 0 && exposeRes.data?.data?.templateExpose) {
+      const fieldSchemaJson = exposeRes.data.data.templateExpose.fieldSchemaJson
+      if (fieldSchemaJson) {
+        originalSchema = JSON.parse(fieldSchemaJson)
+        console.log('原始 Schema:', originalSchema) // 调试日志
+      }
+    }
+    
+    // 生成包含嵌套结构的完整测试数据，保留现有数据
+    const testData = originalSchema ? 
+      generateTestDataFromSchema(originalSchema, existingData) : 
+      generateTestDataFromVariables()
+    
+    console.log('生成的测试数据:', testData) // 调试日志
+    
+    const jsonContent = JSON.stringify(testData, null, 2)
+    
+    jsonEditor.dispatch({
+      changes: {
+        from: 0,
+        to: jsonEditor.state.doc.length,
+        insert: jsonContent
+      }
+    })
+  } catch (error) {
+    console.error('生成测试数据失败:', error)
+    // 回退到简单生成
+    const testData = generateTestDataFromVariables()
+    const jsonContent = JSON.stringify(testData, null, 2)
+    
+    jsonEditor.dispatch({
+      changes: {
+        from: 0,
+        to: jsonEditor.state.doc.length,
+        insert: jsonContent
+      }
+    })
+  }
+}
+
+// 从原始 schema 生成测试数据（参考模板编辑页面）
+const generateTestDataFromSchema = (schema, existingData = {}) => {
+  const data = {}
+  
+  if (!schema || typeof schema !== 'object') {
+    console.log('Schema 无效或不是对象:', schema)
+    return data
+  }
+  
+  console.log('处理 Schema:', schema)
+  console.log('现有数据:', existingData)
+  
+  Object.entries(schema).forEach(([key, variable]) => {
+    if (!variable || typeof variable !== 'object') {
+      console.log(`跳过无效变量 ${key}:`, variable)
+      return
+    }
+    
+    console.log(`处理变量 ${key}:`, variable)
+    
+    // 如果现有数据中有该字段，根据类型进行合并
+    if (existingData && existingData.hasOwnProperty(key)) {
+      switch (variable.type) {
+        case 'object':
+          if (variable.properties && typeof existingData[key] === 'object' && existingData[key] !== null) {
+            // 对象类型递归合并
+            data[key] = generateTestDataFromSchema(variable.properties, existingData[key])
+          } else {
+            data[key] = existingData[key]
+          }
+          break
+        case 'object_arr':
+          console.log(`合并 object_arr ${key}，现有数据:`, existingData[key])
+          if (Array.isArray(existingData[key]) && existingData[key].length > 0) {
+            // 对象数组有内容时保留现有数据
+            data[key] = existingData[key]
+            console.log(`${key} 保留现有数组数据:`, data[key])
+          } else {
+            // 如果现有数据类型不匹配或为空数组，重新生成
+            console.log(`${key} 现有数据为空或类型不匹配，重新生成`)
+            if (variable.items && variable.items.properties) {
+              const itemData = generateTestDataFromSchema(variable.items.properties)
+              data[key] = [itemData, { ...itemData }]
+              console.log(`${key} 重新生成的数组:`, data[key])
+            } else {
+              data[key] = []
+            }
+          }
+          break
+        default:
+          // 其他类型直接使用现有数据
+          data[key] = existingData[key]
+      }
+    } else {
+      // 没有现有数据，生成新的默认数据
+      switch (variable.type) {
+        case 'string':
+          // 使用更有意义的默认值
+          if (variable.default !== undefined && variable.default !== '') {
+            data[key] = variable.default
+          } else {
+            // 根据字段名生成更合理的默认值
+            if (key === 'name') {
+              data[key] = '示例name'
+            } else if (key === 'type') {
+              data[key] = '示例type'
+            } else if (key === 'dbName') {
+              data[key] = 'test'
+            } else if (key === 'Author') {
+              data[key] = 'zhyj'
+            } else if (key === 'module') {
+              data[key] = 'github.com/ciclebyte/test'
+            } else if (key === 'ip') {
+              data[key] = '127.0.0.1'
+            } else {
+              data[key] = `示例${key}`
+            }
+          }
+          break
+        case 'integer':
+          data[key] = variable.default !== undefined ? variable.default : 42
+          break
+        case 'number':
+          data[key] = variable.default !== undefined ? variable.default : 3.14
+          break
+        case 'boolean':
+          data[key] = variable.default !== undefined ? variable.default : true
+          break
+        case 'array':
+          data[key] = variable.default || ['item1', 'item2']
+          break
+        case 'object':
+          if (variable.properties) {
+            data[key] = generateTestDataFromSchema(variable.properties)
+          } else {
+            data[key] = {}
+          }
+          break
+        case 'object_arr':
+          console.log(`生成 object_arr ${key}:`, variable)
+          if (variable.items && variable.items.properties) {
+            console.log(`${key} 的 items.properties:`, variable.items.properties)
+            const itemData = generateTestDataFromSchema(variable.items.properties)
+            console.log(`${key} 生成的单项数据:`, itemData)
+            data[key] = [itemData, { ...itemData }] // 生成两个示例项
+            console.log(`${key} 最终数组:`, data[key])
+          } else {
+            console.log(`${key} 缺少 items.properties，生成空数组`)
+            data[key] = []
+          }
+          break
+        case 'enum':
+          data[key] = variable.enum && variable.enum.length > 0 ? variable.enum[0] : variable.default || ''
+          break
+        case 'secret':
+          data[key] = variable.default !== undefined ? variable.default : '***保密信息***'
+          break
+        default:
+          data[key] = variable.default !== undefined ? variable.default : ''
+      }
+    }
+  })
+  
+  console.log('最终生成的数据:', data)
+  return data
+}
+
+// 基于变量定义生成测试数据
+const generateTestDataFromVariables = () => {
+  const testData = {}
+  
+  // 首先从表单数据开始
+  Object.assign(testData, formData.value)
+  
+  // 然后为每个定义的变量生成适当的测试数据
+  customVariables.value.forEach(variable => {
+    if (!testData.hasOwnProperty(variable.name)) {
+      testData[variable.name] = generateValueByType(variable)
+    }
+  })
+  
+  return testData
+}
+
+// 根据变量类型生成对应的测试值
+const generateValueByType = (variable) => {
+  // 如果有默认值，优先使用
+  if (variable.defaultValue !== undefined && variable.defaultValue !== null) {
+    return variable.defaultValue
+  }
+  
+  switch (variable.variableType) {
+    case 'string':
+      return `示例${variable.name}`
+    case 'integer':
+    case 'number':
+      return 42
+    case 'boolean':
+      return true
+    case 'list':
+    case 'array':
+      return ['item1', 'item2']
+    case 'object':
+      return generateNestedObject(variable)
+    case 'object_arr':
+      return generateObjectArray(variable)
+    default:
+      return ''
+  }
+}
+
+// 生成嵌套对象结构（参考模板编辑页面的逻辑）
+const generateNestedObject = (variable) => {
+  // 检查是否有嵌套属性定义
+  if (variable.properties) {
+    const obj = {}
+    Object.entries(variable.properties).forEach(([key, prop]) => {
+      obj[key] = generateValueByType(prop)
+    })
+    return obj
+  }
+  
+  // 如果没有具体的属性定义，返回一个示例对象
+  return {
+    "示例属性": "示例值",
+    "数字属性": 123,
+    "布尔属性": true
+  }
+}
+
+// 处理对象数组类型的生成
+const generateObjectArray = (variable) => {
+  if (variable.items && variable.items.properties) {
+    const itemData = generateNestedObject(variable.items)
+    return [itemData, { ...itemData }] // 生成两个示例项
+  }
+  
+  return [
+    {
+      "id": 1,
+      "name": "示例项目1",
+      "value": "值1"
+    },
+    {
+      "id": 2,
+      "name": "示例项目2", 
+      "value": "值2"
+    }
+  ]
+}
+
+// 监听模式切换
+watch(currentMode, (newMode) => {
+  if (newMode === 'advanced') {
+    // 切换到高级模式时，初始化编辑器
+    nextTick(() => {
+      initJsonEditor()
+    })
+  } else if (newMode === 'normal' && jsonEditor) {
+    // 切换到普通模式时，同步数据
+    try {
+      const content = jsonEditor.state.doc.toString()
+      const jsonData = JSON.parse(content)
+      formData.value = { ...formData.value, ...jsonData }
+    } catch (error) {
+      // JSON 格式错误，不同步数据
+    }
+  }
+})
 </script>
 
 <style scoped>
@@ -896,6 +1368,133 @@ const handleNext = () => {
   background: #f0f9f0;
   padding: 2px 6px;
   border-radius: 3px;
+}
+
+/* 表单头部样式 */
+.form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+  gap: 20px;
+}
+
+.form-title-section {
+  flex: 1;
+}
+
+.mode-tabs {
+  flex-shrink: 0;
+}
+
+.mode-tabs :deep(.n-tabs-nav) {
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 4px;
+}
+
+.mode-tabs :deep(.n-tabs-tab) {
+  border-radius: 4px !important;
+  margin: 0 2px;
+  min-width: 80px;
+  justify-content: center;
+}
+
+.mode-tabs :deep(.n-tabs-tab:not(.n-tabs-tab--active)) {
+  background: transparent;
+  color: #666;
+}
+
+.mode-tabs :deep(.n-tabs-tab.n-tabs-tab--active) {
+  background: #fff;
+  color: #18a058;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.mode-tabs :deep(.n-tabs-tab:hover) {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+/* 高级模式样式 */
+.advanced-mode {
+  width: 100%;
+}
+
+.advanced-editor-container {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.editor-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.editor-title {
+  font-weight: 600;
+  font-size: 16px;
+  color: #333;
+}
+
+.editor-desc {
+  font-size: 13px;
+  color: #666;
+}
+
+.editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.json-editor-wrapper {
+  height: 400px;
+  overflow: hidden;
+}
+
+.json-editor {
+  height: 100%;
+  border: none;
+}
+
+.editor-footer {
+  padding: 12px 20px;
+  background: #f8f9fa;
+  border-top: 1px solid #e0e0e0;
+}
+
+.editor-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-valid {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #18a058;
+  font-size: 13px;
+}
+
+.status-invalid {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #d03050;
+  font-size: 13px;
 }
 
 .step-actions {
