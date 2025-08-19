@@ -239,6 +239,12 @@ function toggleCollapse() {
   } else {
     // 展开时使用保存的宽度或默认宽度
     loadPanelWidth()
+    
+    // 如果有预览文件ID，自动渲染当前文件
+    if (props.fileId) {
+      console.log('预览面板展开，自动渲染当前文件')
+      renderTemplateContent()
+    }
   }
 }
 
@@ -247,6 +253,12 @@ function expandPanel() {
   if (isCollapsed.value) {
     isCollapsed.value = false
     loadPanelWidth()
+    
+    // 如果有预览文件ID，自动渲染当前文件
+    if (props.fileId) {
+      console.log('预览面板展开，自动渲染当前文件')
+      renderTemplateContent()
+    }
   }
 }
 
@@ -343,12 +355,15 @@ watch(() => props.currentFile, () => {
   })
 })
 
-// 监听文件ID和测试变量变化，自动渲染
+// 监听文件ID和测试变量变化，仅在面板展开时自动渲染
 watch([() => props.fileId, () => props.variables], async () => {
   
-  if (props.fileId) {
+  if (props.fileId && !isCollapsed.value) {
+    console.log('文件ID或变量变化，面板已展开，执行渲染')
     await renderTemplateContent()
     // 渲染成功后会自动调用 updatePreviewContent
+  } else if (props.fileId && isCollapsed.value) {
+    console.log('文件ID或变量变化，但面板已折叠，跳过渲染')
   }
 }, { deep: true, immediate: false })
 

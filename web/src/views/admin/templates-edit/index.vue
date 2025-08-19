@@ -651,9 +651,9 @@ async function onSelectFile(key) {
       currentFileContent.value = content
       templateFileStore.setCurrentFileContent(content)
 
-      // 如果预览面板之前已有预览文件，自动预览新切换的文件
+      // 如果之前有预览过，自动更新预览文件ID（TemplatePreview组件内部会根据折叠状态决定是否渲染）
       if (previewFileId.value) {
-        console.log('预览面板已激活，自动触发当前文件预览')
+        console.log('更新预览文件ID为当前选中文件')
         previewFileId.value = String(key)
         
         // 确保测试数据已加载
