@@ -74,3 +74,14 @@ func (c *templatesController) AnalyzeVariables(ctx context.Context, req *api.Tem
 	res, err = service.Templates().AnalyzeVariables(ctx, gconv.Int64(req.TemplateId))
 	return
 }
+
+func (c *templatesController) GetTypes(ctx context.Context, req *api.TemplateTypesReq) (res *api.TemplateTypesRes, err error) {
+	res = &api.TemplateTypesRes{
+		TemplateTypes: []*api.TemplateTypeInfo{
+			{Value: "basic", Label: "基础模板", Description: "适合简单的代码生成场景"},
+			{Value: "scaffold", Label: "脚手架模板", Description: "适合项目初始化和架构搭建"},
+			{Value: "data_driven", Label: "数据驱动模板", Description: "基于数据源动态生成代码"},
+		},
+	}
+	return
+}

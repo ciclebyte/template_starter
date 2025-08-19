@@ -43,6 +43,9 @@ func (s sTemplates) List(ctx context.Context, req *api.TemplatesListReq) (total 
 		if req.IsFeatured != 0 {
 			m = m.Where(columns.IsFeatured+" = ?", req.IsFeatured)
 		}
+		if req.TemplateType != "" {
+			m = m.Where(columns.TemplateType+" = ?", req.TemplateType)
+		}
 
 		total, err = m.Count()
 		liberr.ErrIsNil(ctx, err, "获取模板列表失败")
@@ -80,6 +83,7 @@ func (s sTemplates) Add(ctx context.Context, req *api.TemplatesAddReq) (err erro
 			Description:  req.Description,  // 模板详细描述
 			Introduction: req.Introduction, // 模板详细介绍，支持Markdown格式
 			CategoryId:   req.CategoryId,   // 所属分类ID
+			TemplateType: req.TemplateType, // 模板类型
 			IsFeatured:   req.IsFeatured,   // 是否推荐模板
 			Logo:         req.Logo,         // 模板logo图片URL
 			Icon:         req.Icon,         // 模板图标名称
@@ -120,6 +124,7 @@ func (s sTemplates) Edit(ctx context.Context, req *api.TemplatesEditReq) (err er
 			Description:  req.Description,  // 模板详细描述
 			Introduction: req.Introduction, // 模板详细介绍，支持Markdown格式
 			CategoryId:   req.CategoryId,   // 所属分类ID
+			TemplateType: req.TemplateType, // 模板类型
 			IsFeatured:   req.IsFeatured,   // 是否推荐模板
 			Logo:         req.Logo,         // 模板logo图片URL
 			Icon:         req.Icon,         // 模板图标名称

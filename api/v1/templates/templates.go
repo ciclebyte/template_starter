@@ -18,6 +18,8 @@ type TemplatesAddReq struct {
 	Introduction string                `json:"introduction"` // 模板详细介绍，支持Markdown格式
 	CategoryId   int                   `json:"categoryId" v:"required#所属分类ID不能为空"`
 	IsFeatured   int                   `json:"isFeatured" v:"required#是否推荐模板不能为空"`
+	TemplateType string                `json:"templateType" v:"required|in:basic,scaffold,data_driven#模板类型不能为空且必须为basic,scaffold,data_driven之一"`
+	TypeConfig   string                `json:"typeConfig"` // 类型配置，JSON格式
 	Logo         string                `json:"logo"`
 	Icon         string                `json:"icon"`
 	Languages    []TemplateLanguageReq `json:"languages"`
@@ -53,6 +55,8 @@ type TemplatesEditReq struct {
 	Introduction string                `json:"introduction"` // 模板详细介绍，支持Markdown格式
 	CategoryId   int                   `json:"categoryId" v:"required#所属分类ID不能为空"`
 	IsFeatured   int                   `json:"isFeatured" v:"required#是否推荐模板不能为空"`
+	TemplateType string                `json:"templateType" v:"required|in:basic,scaffold,data_driven#模板类型不能为空且必须为basic,scaffold,data_driven之一"`
+	TypeConfig   string                `json:"typeConfig"` // 类型配置，JSON格式
 	Logo         string                `json:"logo"`
 	Icon         string                `json:"icon"`
 	Languages    []TemplateLanguageReq `json:"languages"`
@@ -65,11 +69,12 @@ type TemplatesEditRes struct {
 type TemplatesListReq struct {
 	g.Meta `path:"/templates/list" method:"get" tags:"模板" summary:"模板-列表"`
 	commonApi.PageReq
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	CategoryId  int    `json:"categoryId"`
-	IsFeatured  int    `json:"isFeatured"`
-	Logo        string `json:"logo"`
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	CategoryId   int    `json:"categoryId"`
+	IsFeatured   int    `json:"isFeatured"`
+	TemplateType string `json:"templateType" v:"in:basic,scaffold,data_driven#模板类型必须为basic,scaffold,data_driven之一"`
+	Logo         string `json:"logo"`
 }
 
 type TemplatesListRes struct {
@@ -153,4 +158,22 @@ type TemplatesAnalyzeVariablesRes struct {
 	ConflictVariables   []*DetectedVariable `json:"conflictVariables"`   // 冲突的变量（类型不匹配）
 	TotalVariableCount  int                 `json:"totalVariableCount"`  // 总变量数
 	AnalyzedFileCount   int                 `json:"analyzedFileCount"`   // 分析的文件数
+}
+
+// 模板类型信息
+type TemplateTypeInfo struct {
+	Value       string `json:"value"`       // 类型值
+	Label       string `json:"label"`       // 显示标签
+	Description string `json:"description"` // 类型描述
+}
+
+// 获取模板类型列表请求
+type TemplateTypesReq struct {
+	g.Meta `path:"/templates/types" method:"get" tags:"模板" summary:"获取模板类型列表"`
+}
+
+// 获取模板类型列表响应
+type TemplateTypesRes struct {
+	g.Meta        `mime:"application/json" example:"string"`
+	TemplateTypes []*TemplateTypeInfo `json:"templateTypes"`
 }

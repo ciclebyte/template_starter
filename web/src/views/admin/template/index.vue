@@ -97,6 +97,11 @@
                             :options="categorySelectOptions" style="width: 100%" />
                     </n-form-item>
 
+                    <n-form-item label="模板类型" path="templateType">
+                        <n-select v-model:value="formData.templateType" placeholder="请选择模板类型"
+                            :options="templateTypeSelectOptions" style="width: 100%" />
+                    </n-form-item>
+
                     <n-form-item label="支持语言" path="languages">
                         <n-select v-model:value="formData.languages" placeholder="请选择支持的语言"
                             :options="languageSelectOptions" multiple style="width: 100%"
@@ -179,7 +184,7 @@ import {
     AddOutline, SearchOutline, RefreshOutline, CloseOutline,
     TrashOutline, CreateOutline, EyeOutline, Star, CodeOutline
 } from '@vicons/ionicons5'
-import { listTemplates, addTemplate, editTemplate, deleteTemplate } from '@/api/templates'
+import { listTemplates, addTemplate, editTemplate, deleteTemplate, getTemplateTypes } from '@/api/templates'
 import { getAllTags, getTemplateTags, setTemplateTags } from '@/api/tags'
 import { useCategoryStore } from '@/stores/categoryStore'
 import { useLanguageStore } from '@/stores/languageStore'
@@ -218,6 +223,7 @@ const formData = reactive({
     description: '',
     introduction: '',
     categoryId: null,
+    templateType: 'basic',
     languages: [],
     primaryLanguage: null,
     icon: '',
@@ -241,6 +247,11 @@ const formRules = {
         required: true,
         type: 'number',
         message: '请选择分类',
+        trigger: 'change'
+    },
+    templateType: {
+        required: true,
+        message: '请选择模板类型',
         trigger: 'change'
     },
     languages: {
@@ -300,6 +311,12 @@ const tagSelectOptions = computed(() =>
     allTags.value.map(tag => ({ label: tag.name, value: Number(tag.id) }))
 )
 
+// 模板类型数据
+const templateTypes = ref([])
+const templateTypeSelectOptions = computed(() =>
+    templateTypes.value.map(type => ({ label: type.label, value: type.value }))
+)
+
 // 表格列配置
 const columns = [
     {
@@ -335,6 +352,26 @@ const columns = [
         render: (row) => {
             const categoryName = getCategoryName(row.categoryId)
             return categoryName ? h(NTag, { type: 'info', size: 'small' }, { default: () => categoryName }) : '-'
+        }
+    },
+    {
+        title: '类型',
+        key: 'templateType',
+        width: 120,
+        render: (row) => {
+            const typeLabel = getTemplateTypeLabel(row.templateType)
+            const typeColor = getTemplateTypeColor(row.templateType)
+            return typeLabel ? h(NTag, { 
+                type: typeColor, 
+                size: 'small' 
+            }, { 
+                default: () => typeLabel 
+            }) : h(NTag, { 
+                type: 'default', 
+                size: 'small' 
+            }, { 
+                default: () => '基础' 
+            })
         }
     },
     {
@@ -574,6 +611,7 @@ const handleEdit = (template) => {
     formData.description = template.description
     formData.introduction = template.introduction || ''
     formData.categoryId = template.categoryId || template.category_id
+    formData.templateType = template.templateType || 'basic'
     formData.isFeatured = template.isFeatured || 0
     formData.icon = template.icon || ''
 
@@ -613,6 +651,7 @@ const resetForm = () => {
     formData.description = ''
     formData.introduction = ''
     formData.categoryId = null
+    formData.templateType = 'basic'
     formData.languages = []
     formData.primaryLanguage = null
     formData.icon = ''
@@ -642,6 +681,7 @@ const handleSubmit = async () => {
             description: formData.description,
             introduction: formData.introduction,
             categoryId: formData.categoryId,
+            templateType: formData.templateType,
             isFeatured: formData.isFeatured,
             icon: formData.icon,
             languages: languagesArr
@@ -746,6 +786,19 @@ const getLanguageColor = (languageId) => {
     return language ? language.color : '#999'
 }
 
+const getTemplateTypeLabel = (templateType) => {
+    if (!templateType) return '基础模板'
+    const type = templateTypes.value.find(t => t.value === templateType)
+    return type ? type.label : '基础模板'
+}
+
+const getTemplateTypeColor = (templateType) => {
+    if (!templateType || templateType === 'basic') return 'default'
+    if (templateType === 'scaffold') return 'warning'
+    if (templateType === 'data_driven') return 'success'
+    return 'default'
+}
+
 const formatDate = (dateString) => {
     if (!dateString) return '-'
     const date = new Date(dateString)
@@ -778,14 +831,31 @@ const loadTags = async () => {
     }
 }
 
+// 加载模板类型
+const loadTemplateTypes = async () => {
+    try {
+        const res = await getTemplateTypes()
+        templateTypes.value = res.data.data.templateTypes || []
+    } catch (error) {
+        console.error('获取模板类型失败:', error)
+        // 设置默认模板类型
+        templateTypes.value = [
+            { value: 'basic', label: '基础模板' },
+            { value: 'scaffold', label: '脚手架模板' },
+            { value: 'data_driven', label: '数据驱动模板' }
+        ]
+    }
+}
+
 // 生命周期
 onMounted(async () => {
     try {
-        // 确保分类、语言和标签数据先加载完成
+        // 确保分类、语言、标签和模板类型数据先加载完成
         await Promise.all([
             categoryStore.getCategories(),
             languageStore.getLanguages(),
-            loadTags()
+            loadTags(),
+            loadTemplateTypes()
         ])
         // 然后加载模板数据
         await loadTemplates()

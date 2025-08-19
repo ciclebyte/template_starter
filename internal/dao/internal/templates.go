@@ -23,12 +23,15 @@ type TemplatesColumns struct {
 	Id           string // 模板ID，自增主键
 	Name         string // 模板名称
 	Description  string // 模板详细描述
-	Introduction string // 模板详细介绍，支持Markdown格式
 	CategoryId   string // 所属分类ID
 	IsFeatured   string // 是否推荐模板
 	Logo         string // 模板logo图片URL
 	CreatedAt    string // 记录创建时间
 	UpdatedAt    string // 记录最后更新时间
+	Introduction string // 模板详细介绍，支持Markdown格式
+	Icon         string // 模板图标名称
+	TemplateType string // 模板类型：basic=基础模板，scaffold=脚手架模板，data_driven=数据驱动模板
+	TypeConfig   string // 类型相关配置，JSON格式
 }
 
 // templatesColumns holds the columns for table templates.
@@ -36,12 +39,15 @@ var templatesColumns = TemplatesColumns{
 	Id:           "id",
 	Name:         "name",
 	Description:  "description",
-	Introduction: "introduction",
 	CategoryId:   "category_id",
 	IsFeatured:   "is_featured",
 	Logo:         "logo",
 	CreatedAt:    "created_at",
 	UpdatedAt:    "updated_at",
+	Introduction: "introduction",
+	Icon:         "icon",
+	TemplateType: "template_type",
+	TypeConfig:   "type_config",
 }
 
 // NewTemplatesDao creates and returns a new DAO object for table data access.

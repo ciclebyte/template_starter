@@ -69,3 +69,11 @@ export function analyzeTemplateVariables(templateId) {
     method: 'post'
   })
 }
+
+// 获取模板类型列表
+export function getTemplateTypes() {
+  return request({
+    url: '/api/v1/templates/types',
+    method: 'get'
+  })
+}

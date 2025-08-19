@@ -44,6 +44,28 @@
       </div>
     </div>
 
+    <!-- 模板类型列表 -->
+    <div class="template-types-section">
+      <div class="container">
+        <div class="template-types-title">
+          <span class="template-types-icon">🏗️</span>
+          <span class="template-types-label">类型</span>
+        </div>
+        <div class="template-types-list">
+          <n-tag
+            v-for="type in templateTypes"
+            :key="type.value"
+            :type="selectedTemplateType === type.value ? 'primary' : 'default'"
+            size="large"
+            class="template-type-item"
+            @click="selectTemplateType(type.value)"
+          >
+            {{ type.label }}
+          </n-tag>
+        </div>
+      </div>
+    </div>
+
     <!-- 模板列表 -->
     <div class="templates-section">
       <div class="container">
@@ -242,7 +264,7 @@ import { GridOutline, ListOutline, StarOutline, EyeOutline, HeartOutline, Downlo
 import { useLanguageStore } from '@/stores/languageStore'
 import { storeToRefs } from 'pinia'
 import { useCategoryStore } from '@/stores/categoryStore'
-import { listTemplates } from '@/api/templates'
+import { listTemplates, getTemplateTypes } from '@/api/templates'
 import TemplatePreview from '@/components/TemplatePreview.vue'
 
 const router = useRouter()
@@ -263,6 +285,7 @@ const selectedCategory = ref('all')
 
 // 状态管理
 const selectedTag = ref('all')
+const selectedTemplateType = ref('all')
 const currentPage = ref(1)
 const pageSize = ref(20)
 const loading = ref(false)
@@ -282,6 +305,15 @@ const tags = computed(() => {
 
 // 模板数据
 const allTemplates = ref([])
+
+// 模板类型数据
+const allTemplateTypes = ref([])
+const templateTypes = computed(() => {
+  return [
+    { value: 'all', label: '全部' },
+    ...allTemplateTypes.value
+  ]
+})
 
 // 计算属性
 const filteredTemplates = computed(() => {
@@ -306,6 +338,11 @@ const filteredTemplates = computed(() => {
     })
   }
 
+  // 按模板类型筛选
+  if (selectedTemplateType.value !== 'all') {
+    filtered = filtered.filter(t => t.templateType === selectedTemplateType.value)
+  }
+
   return filtered
 })
 
@@ -326,6 +363,11 @@ const selectCategory = (catId) => {
 
 const selectTag = (tagId) => {
   selectedTag.value = tagId
+  currentPage.value = 1
+}
+
+const selectTemplateType = (typeValue) => {
+  selectedTemplateType.value = typeValue
   currentPage.value = 1
 }
 
@@ -452,10 +494,22 @@ const loadTemplates = async () => {
   }
 }
 
+// 加载模板类型数据
+const loadTemplateTypes = async () => {
+  try {
+    const res = await getTemplateTypes()
+    allTemplateTypes.value = res.data.data.templateTypes || []
+  } catch (error) {
+    console.error('获取模板类型失败:', error)
+    // 静默失败，使用默认的空数组
+  }
+}
+
 // 初始化
 onMounted(async () => {
   await languageStore.getLanguages()
   await categoryStore.getCategories()
+  await loadTemplateTypes()
   await loadTemplates()
 })
 </script>
@@ -611,6 +665,77 @@ onMounted(async () => {
 }
 
 .tag-item:active {
+  transform: translateY(0);
+  transition: all 0.1s;
+}
+
+/* 模板类型区域样式 */
+.template-types-section {
+  background: #f0f2f5;
+  padding: 20px 0;
+}
+
+.template-types-title {
+  display: flex;
+  align-items: center;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.template-types-icon {
+  font-size: 1.4rem;
+  margin-right: 8px;
+  color: #18a058;
+}
+
+.template-types-label {
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.template-types-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.template-type-item {
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 18px;
+  font-weight: 500;
+  font-size: 14px;
+  padding: 6px 16px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  background: #fff;
+}
+
+.template-type-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(24, 160, 88, 0.1), transparent);
+  transition: left 0.4s;
+}
+
+.template-type-item:hover::before {
+  left: 100%;
+}
+
+.template-type-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+
+.template-type-item:active {
   transform: translateY(0);
   transition: all 0.1s;
 }
