@@ -43,6 +43,7 @@
               v-for="variable in customVariables" 
               :key="variable.name"
               class="variable-item"
+              :class="{ 'full-width': variable.variableType === 'object' || variable.variableType === 'object_arr' }"
             >
               <label>
                 <span class="variable-name">{{ variable.name }}</span>
@@ -102,6 +103,18 @@
                   :autosize="{ minRows: 3, maxRows: 6 }"
                 />
                 <div class="input-hint">请输入有效的JSON格式，例如: {"key": "value"}</div>
+              </div>
+              
+              <!-- 对象数组类型 -->
+              <div v-else-if="variable.variableType === 'object_arr'" class="object-array-input">
+                <n-input 
+                  v-model:value="formData[variable.name]" 
+                  type="textarea"
+                  :placeholder="variable.description || '请输入JSON格式的对象数组'"
+                  :status="getValidationStatus(variable.name)"
+                  :autosize="{ minRows: 4, maxRows: 8 }"
+                />
+                <div class="input-hint">请输入有效的JSON格式，例如: [{"name": "字段1", "type": "string"}, {"name": "字段2", "type": "number"}]</div>
               </div>
               
               <!-- 其他类型（兼容旧版本） -->
@@ -354,9 +367,9 @@ const getValidationStatus = (fieldName) => {
     return 'error'
   }
   
-  // 对象类型的JSON格式验证
+  // 对象和对象数组类型的JSON格式验证
   const variable = customVariables.value.find(v => v.name === fieldName)
-  if (variable?.variableType === 'object' && value) {
+  if ((variable?.variableType === 'object' || variable?.variableType === 'object_arr') && value) {
     try {
       JSON.parse(value)
     } catch {
@@ -399,8 +412,8 @@ const isFormValid = computed(() => {
       return false
     }
     
-    // 对象类型的JSON格式验证
-    if (variable?.variableType === 'object' && value) {
+    // 对象和对象数组类型的JSON格式验证
+    if ((variable?.variableType === 'object' || variable?.variableType === 'object_arr') && value) {
       try {
         JSON.parse(value)
       } catch {
@@ -441,6 +454,8 @@ const getVariableTypeLabel = (variableType) => {
       return '列表'
     case 'object':
       return '对象'
+    case 'object_arr':
+      return '对象数组'
     default:
       return '文本'
   }
@@ -675,12 +690,129 @@ const convertTypeToOldFormat = (newType) => {
     case 'array':
       return 'list'
     case 'object':
-    case 'object_arr':
       return 'object'
+    case 'object_arr':
+      return 'object_arr'  // 保持 object_arr 类型，不转换为 object
     default:
       return 'string'
   }
 }
+
+// 将对象/数组类型的数据转换为普通模式下的字符串显示
+const convertForNormalMode = (data) => {
+  const converted = { ...data }
+  
+  customVariables.value.forEach(variable => {
+    const value = converted[variable.name]
+    
+    if (value !== undefined && value !== null) {
+      switch (variable.variableType) {
+        case 'object':
+          // 对象类型转换为JSON字符串
+          if (typeof value === 'object' && !Array.isArray(value)) {
+            converted[variable.name] = JSON.stringify(value, null, 2)
+          }
+          break
+        case 'object_arr':
+          // 对象数组类型转换为JSON字符串
+          if (typeof value === 'object') {
+            converted[variable.name] = JSON.stringify(value, null, 2)
+          }
+          break
+        case 'list':
+          // 列表类型保持为数组（naive-ui的n-dynamic-tags组件需要数组）
+          if (Array.isArray(value)) {
+            converted[variable.name] = value
+          } else if (typeof value === 'string') {
+            try {
+              const parsed = JSON.parse(value)
+              converted[variable.name] = Array.isArray(parsed) ? parsed : [value]
+            } catch {
+              converted[variable.name] = [value]
+            }
+          }
+          break
+      }
+    }
+  })
+  
+  return converted
+}
+
+// 将普通模式的数据转换为适合高级模式的格式
+const convertForAdvancedMode = (data) => {
+  const converted = { ...data }
+  
+  customVariables.value.forEach(variable => {
+    const value = converted[variable.name]
+    if (value !== undefined && value !== null) {
+      switch (variable.variableType) {
+        case 'object':
+          // 字符串转换为对象
+          if (typeof value === 'string') {
+            try {
+              converted[variable.name] = JSON.parse(value)
+            } catch {
+              converted[variable.name] = {}
+            }
+          }
+          break
+        case 'object_arr':
+          // 字符串转换为对象数组
+          if (typeof value === 'string') {
+            try {
+              converted[variable.name] = JSON.parse(value)
+            } catch {
+              converted[variable.name] = []
+            }
+          }
+          break
+      }
+    }
+  })
+  
+  return converted
+}
+
+// 监听模式切换，转换数据格式
+watch(currentMode, (newMode, oldMode) => {
+  if (oldMode && newMode !== oldMode) {
+    if (newMode === 'normal') {
+      // 切换到普通模式时，需要从JSON编辑器获取最新数据
+      let dataToConvert = formData.value
+      
+      // 如果从高级模式切换过来，优先使用编辑器中的数据
+      if (oldMode === 'advanced' && jsonEditor) {
+        try {
+          const editorContent = jsonEditor.state.doc.toString()
+          const jsonData = JSON.parse(editorContent)
+          dataToConvert = jsonData
+        } catch (error) {
+          console.warn('JSON编辑器内容解析失败，使用formData:', error)
+        }
+      }
+      
+      const converted = convertForNormalMode(dataToConvert)
+      
+      // 使用 nextTick 确保在下一个事件循环中更新，避免响应式问题
+      nextTick(() => {
+        // 逐个更新字段，确保响应式更新
+        Object.keys(converted).forEach(key => {
+          formData.value[key] = converted[key]
+        })
+      })
+    } else if (newMode === 'advanced') {
+      // 切换到高级模式，将字符串转换为对象
+      const converted = convertForAdvancedMode(formData.value)
+      
+      nextTick(() => {
+        Object.keys(converted).forEach(key => {
+          formData.value[key] = converted[key]
+        })
+      })
+    }
+  }
+})
 
 // 监听表单变化，使用防抖避免频繁触发
 let updateTimeout = null
@@ -729,7 +861,9 @@ onMounted(() => {
 const handleNext = () => {
   if (currentMode.value === 'normal') {
     if (isFormValid.value) {
-      emit('update-variables', formData.value)
+      // 普通模式下，将字符串类型的对象转换回对象格式
+      const convertedData = convertForAdvancedMode(formData.value)
+      emit('update-variables', convertedData)
       emit('next')
     }
   } else {
@@ -855,7 +989,6 @@ const generateFromNormal = async () => {
       const fieldSchemaJson = exposeRes.data.data.templateExpose.fieldSchemaJson
       if (fieldSchemaJson) {
         originalSchema = JSON.parse(fieldSchemaJson)
-        console.log('原始 Schema:', originalSchema) // 调试日志
       }
     }
     
@@ -864,7 +997,6 @@ const generateFromNormal = async () => {
       generateTestDataFromSchema(originalSchema, existingData) : 
       generateTestDataFromVariables()
     
-    console.log('生成的测试数据:', testData) // 调试日志
     
     const jsonContent = JSON.stringify(testData, null, 2)
     
@@ -896,20 +1028,13 @@ const generateTestDataFromSchema = (schema, existingData = {}) => {
   const data = {}
   
   if (!schema || typeof schema !== 'object') {
-    console.log('Schema 无效或不是对象:', schema)
     return data
   }
   
-  console.log('处理 Schema:', schema)
-  console.log('现有数据:', existingData)
-  
   Object.entries(schema).forEach(([key, variable]) => {
     if (!variable || typeof variable !== 'object') {
-      console.log(`跳过无效变量 ${key}:`, variable)
       return
     }
-    
-    console.log(`处理变量 ${key}:`, variable)
     
     // 如果现有数据中有该字段，根据类型进行合并
     if (existingData && existingData.hasOwnProperty(key)) {
@@ -923,18 +1048,14 @@ const generateTestDataFromSchema = (schema, existingData = {}) => {
           }
           break
         case 'object_arr':
-          console.log(`合并 object_arr ${key}，现有数据:`, existingData[key])
           if (Array.isArray(existingData[key]) && existingData[key].length > 0) {
             // 对象数组有内容时保留现有数据
             data[key] = existingData[key]
-            console.log(`${key} 保留现有数组数据:`, data[key])
           } else {
             // 如果现有数据类型不匹配或为空数组，重新生成
-            console.log(`${key} 现有数据为空或类型不匹配，重新生成`)
             if (variable.items && variable.items.properties) {
               const itemData = generateTestDataFromSchema(variable.items.properties)
               data[key] = [itemData, { ...itemData }]
-              console.log(`${key} 重新生成的数组:`, data[key])
             } else {
               data[key] = []
             }
@@ -990,15 +1111,10 @@ const generateTestDataFromSchema = (schema, existingData = {}) => {
           }
           break
         case 'object_arr':
-          console.log(`生成 object_arr ${key}:`, variable)
           if (variable.items && variable.items.properties) {
-            console.log(`${key} 的 items.properties:`, variable.items.properties)
             const itemData = generateTestDataFromSchema(variable.items.properties)
-            console.log(`${key} 生成的单项数据:`, itemData)
             data[key] = [itemData, { ...itemData }] // 生成两个示例项
-            console.log(`${key} 最终数组:`, data[key])
           } else {
-            console.log(`${key} 缺少 items.properties，生成空数组`)
             data[key] = []
           }
           break
@@ -1014,7 +1130,6 @@ const generateTestDataFromSchema = (schema, existingData = {}) => {
     }
   })
   
-  console.log('最终生成的数据:', data)
   return data
 }
 
@@ -1196,6 +1311,33 @@ watch(currentMode, (newMode) => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* 对象和对象数组类型占据完整一行 */
+.variable-item:has(.object-input),
+.variable-item:has(.object-array-input) {
+  grid-column: 1 / -1;
+}
+
+/* 如果浏览器不支持 :has 选择器，使用类名方式 */
+.variable-item.full-width {
+  grid-column: 1 / -1;
+}
+
+/* 对象输入框样式 */
+.object-input, .object-array-input {
+  width: 100%;
+}
+
+.object-input .n-input, .object-array-input .n-input {
+  width: 100%;
+}
+
+.input-hint {
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
+  font-style: italic;
 }
 
 .builtin-variable {
