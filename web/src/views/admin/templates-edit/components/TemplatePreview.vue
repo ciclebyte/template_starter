@@ -396,11 +396,12 @@ onMounted(() => {
   }
 })
 
-// 暴露方法给父组件
+// 暴露方法和状态给父组件
 defineExpose({
   toggleCollapse,
   expandPanel,
-  renderTemplateContent
+  renderTemplateContent,
+  isCollapsed
 })
 </script>
 
