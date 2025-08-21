@@ -353,7 +353,7 @@ const columns = computed(() => [
     {
         title: '描述',
         key: 'description',
-        minWidth: 200,
+        width: 180,
         ellipsis: {
             tooltip: true
         },
@@ -391,7 +391,7 @@ const columns = computed(() => [
     {
         title: '操作',
         key: 'actions',
-        width: 320,
+        width: 380,
         render: (row) => {
             return h('div', { class: 'action-buttons' }, [
                 h(

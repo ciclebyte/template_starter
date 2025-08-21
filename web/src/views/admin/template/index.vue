@@ -170,6 +170,59 @@
                 </template>
             </n-card>
         </n-modal>
+
+        <!-- Fork模板对话框 -->
+        <n-modal v-model:show="showForkModal" :mask-closable="false">
+            <n-card style="width: 600px" title="Fork模板" :bordered="false" size="huge" role="dialog" aria-modal="true">
+                <template #header-extra>
+                    <n-button quaternary circle @click="closeForkModal">
+                        <template #icon>
+                            <n-icon>
+                                <CloseOutline />
+                            </n-icon>
+                        </template>
+                    </n-button>
+                </template>
+
+                <n-form ref="forkFormRef" :model="forkFormData" :rules="forkFormRules" label-placement="left" :label-width="100" require-mark-placement="right-hanging">
+                    <n-form-item label="源模板" path="">
+                        <div style="padding: 8px 12px; background: #f5f5f5; border-radius: 4px; color: #666; width: 100%;">
+                            {{ forkingTemplate?.name }}
+                        </div>
+                    </n-form-item>
+                    
+                    <n-form-item label="新模板名称" path="name">
+                        <n-input v-model:value="forkFormData.name" placeholder="请输入新模板名称" />
+                    </n-form-item>
+
+                    <n-form-item label="新模板描述" path="description">
+                        <n-input v-model:value="forkFormData.description" type="textarea" :rows="3" placeholder="请输入新模板描述" />
+                    </n-form-item>
+
+                    <n-form-item label="详细介绍" path="introduction">
+                        <n-input v-model:value="forkFormData.introduction" type="textarea" :rows="5" placeholder="请输入新模板的详细介绍（可选）" />
+                    </n-form-item>
+
+                    <n-form-item label="分类" path="categoryId">
+                        <n-select 
+                            v-model:value="forkFormData.categoryId" 
+                            :options="categoryOptions" 
+                            placeholder="选择分类（默认使用源模板分类）"
+                            clearable
+                        />
+                    </n-form-item>
+                </n-form>
+
+                <template #footer>
+                    <div class="modal-footer">
+                        <n-button @click="closeForkModal">取消</n-button>
+                        <n-button type="primary" @click="handleForkSubmit" :loading="submitting">
+                            确认Fork
+                        </n-button>
+                    </div>
+                </template>
+            </n-card>
+        </n-modal>
     </div>
 </template>
 
@@ -182,9 +235,9 @@ import {
 } from 'naive-ui'
 import {
     AddOutline, SearchOutline, RefreshOutline, CloseOutline,
-    TrashOutline, CreateOutline, EyeOutline, Star, CodeOutline
+    TrashOutline, CreateOutline, EyeOutline, Star, CodeOutline, GitBranch
 } from '@vicons/ionicons5'
-import { listTemplates, addTemplate, editTemplate, deleteTemplate, getTemplateTypes } from '@/api/templates'
+import { listTemplates, addTemplate, editTemplate, deleteTemplate, getTemplateTypes, forkTemplate } from '@/api/templates'
 import { getAllTags, getTemplateTags, setTemplateTags } from '@/api/tags'
 import { useCategoryStore } from '@/stores/categoryStore'
 import { useLanguageStore } from '@/stores/languageStore'
@@ -213,8 +266,10 @@ const allTags = ref([])
 // 弹窗状态
 const showAddModal = ref(false)
 const showDeleteModal = ref(false)
+const showForkModal = ref(false)
 const editingTemplate = ref(null)
 const deletingTemplate = ref(null)
+const forkingTemplate = ref(null)
 
 // 表单数据
 const formRef = ref(null)
@@ -229,6 +284,15 @@ const formData = reactive({
     icon: '',
     isFeatured: 0,
     tags: []
+})
+
+// Fork表单数据
+const forkFormRef = ref(null)
+const forkFormData = reactive({
+    name: '',
+    description: '',
+    introduction: '',
+    categoryId: null
 })
 
 // 表单验证规则
@@ -266,6 +330,20 @@ const formRules = {
         type: 'number',
         message: '请选择主语言',
         trigger: 'change'
+    }
+}
+
+// Fork表单验证规则
+const forkFormRules = {
+    name: {
+        required: true,
+        message: '请输入新模板名称',
+        trigger: ['input', 'blur']
+    },
+    description: {
+        required: true,
+        message: '请输入新模板描述',
+        trigger: ['input', 'blur']
     }
 }
 
@@ -339,7 +417,7 @@ const columns = [
     {
         title: '描述',
         key: 'description',
-        minWidth: 200,
+        width: 180,
         ellipsis: {
             tooltip: true
         },
@@ -454,7 +532,7 @@ const columns = [
     {
         title: '操作',
         key: 'actions',
-        width: 400,
+        width: 480,
         render: (row) => {
             return h('div', { class: 'action-buttons' }, [
                 h(
@@ -496,6 +574,20 @@ const columns = [
                     {
                         icon: () => h(NIcon, null, { default: () => h(CreateOutline) }),
                         default: () => '编辑'
+                    }
+                ),
+                h(
+                    NButton,
+                    {
+                        size: 'small',
+                        type: 'info',
+                        secondary: true,
+                        style: { marginLeft: '8px' },
+                        onClick: () => handleFork(row)
+                    },
+                    {
+                        icon: () => h(NIcon, null, { default: () => h(GitBranch) }),
+                        default: () => 'Fork'
                     }
                 ),
                 h(
@@ -638,6 +730,61 @@ const handleEdit = (template) => {
 const handleDelete = (template) => {
     deletingTemplate.value = template
     showDeleteModal.value = true
+}
+
+// Fork相关方法
+const handleFork = (template) => {
+    forkingTemplate.value = template
+    // 预填充Fork表单
+    forkFormData.name = `${template.name} - Fork`
+    forkFormData.description = template.description
+    forkFormData.introduction = template.introduction
+    forkFormData.categoryId = template.categoryId
+    showForkModal.value = true
+}
+
+const closeForkModal = () => {
+    showForkModal.value = false
+    forkingTemplate.value = null
+    resetForkForm()
+}
+
+const resetForkForm = () => {
+    forkFormData.name = ''
+    forkFormData.description = ''
+    forkFormData.introduction = ''
+    forkFormData.categoryId = null
+    forkFormRef.value?.restoreValidation()
+}
+
+const handleForkSubmit = async () => {
+    try {
+        await forkFormRef.value?.validate()
+        submitting.value = true
+        
+        const data = {
+            sourceId: forkingTemplate.value.id,
+            name: forkFormData.name,
+            description: forkFormData.description,
+            introduction: forkFormData.introduction,
+            categoryId: forkFormData.categoryId
+        }
+        
+        const response = await forkTemplate(data)
+        
+        if (response.data.code === 0) {
+            message.success(`模板Fork成功！新模板ID: ${response.data.data.templateId}`)
+            closeForkModal()
+            await refreshData()
+        } else {
+            message.error(response.data.message || 'Fork失败')
+        }
+    } catch (error) {
+        console.error('Fork模板失败:', error)
+        message.error('Fork模板失败: ' + (error.message || '未知错误'))
+    } finally {
+        submitting.value = false
+    }
 }
 
 const closeModal = () => {

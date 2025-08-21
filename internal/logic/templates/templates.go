@@ -593,3 +593,153 @@ func (s sTemplates) generateTypeSuggestion(patternType, context string) string {
 		return "建议使用 string 类型，或根据实际用途选择其他类型"
 	}
 }
+
+// Fork 复制模板
+func (s sTemplates) Fork(ctx context.Context, req *api.TemplatesForkReq) (res *api.TemplatesForkRes, err error) {
+	err = g.Try(ctx, func(ctx context.Context) {
+		sourceId := gconv.Int64(req.SourceId)
+		
+		// 1. 获取源模板信息
+		sourceTemplate, err := s.GetById(ctx, sourceId)
+		liberr.ErrIsNil(ctx, err, "获取源模板失败")
+		
+		// 2. 检查模板名称是否重复
+		count, err := dao.Templates.Ctx(ctx).Where("name = ?", req.Name).Count()
+		liberr.ErrIsNil(ctx, err, "检查模板名称失败")
+		if count > 0 {
+			liberr.ErrIsNil(ctx, gerror.New("模板名称已存在"), "模板名称已存在")
+		}
+		
+		// 3. 确定新模板的分类
+		categoryId := req.CategoryId
+		if categoryId == 0 {
+			categoryId = sourceTemplate.CategoryId
+		}
+		
+		// 4. 开始事务
+		err = dao.Templates.Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+			// 4.1 创建新模板
+			// 处理TypeConfig，确保JSON字段不为空
+			typeConfig := sourceTemplate.TypeConfig
+			if typeConfig == "" {
+				typeConfig = "{}" // 设置为空JSON对象
+			}
+			
+			newTemplateData := &do.Templates{
+				Name:         req.Name,
+				Description:  req.Description,
+				Introduction: req.Introduction,
+				CategoryId:   categoryId,
+				IsFeatured:   0, // Fork的模板默认不推荐
+				TemplateType: sourceTemplate.TemplateType,
+				TypeConfig:   typeConfig,
+				Logo:         sourceTemplate.Logo,
+				Icon:         sourceTemplate.Icon,
+			}
+			
+			newTemplateId, err := dao.Templates.Ctx(ctx).Data(newTemplateData).InsertAndGetId()
+			if err != nil {
+				return gerror.Wrap(err, "创建新模板失败")
+			}
+			
+			// 4.2 复制模板语言关联
+			sourceLanguages, err := dao.TemplateLanguages.Ctx(ctx).Where("template_id = ?", sourceId).All()
+			if err != nil {
+				return gerror.Wrap(err, "获取源模板语言失败")
+			}
+			
+			for _, lang := range sourceLanguages {
+				_, err = dao.TemplateLanguages.Ctx(ctx).Data(&do.TemplateLanguages{
+					TemplateId: newTemplateId,
+					LanguageId: lang["language_id"].Int(),
+					IsPrimary:  lang["is_primary"].Int(),
+				}).Insert()
+				if err != nil {
+					return gerror.Wrap(err, "复制模板语言失败")
+				}
+			}
+			
+			// 4.3 复制模板暴露字段（变量）
+			sourceExposeFields, err := dao.TemplateExposeFields.Ctx(ctx).Where("template_id = ?", sourceId).All()
+			if err != nil {
+				return gerror.Wrap(err, "获取源模板暴露字段失败")
+			}
+			
+			for _, field := range sourceExposeFields {
+				_, err = dao.TemplateExposeFields.Ctx(ctx).Data(&do.TemplateExposeFields{
+					TemplateId:      newTemplateId,
+					FieldSchemaJson: field["field_schema_json"].String(),
+					Version:         field["version"].String(),
+					Description:     field["description"].String(),
+				}).Insert()
+				if err != nil {
+					return gerror.Wrap(err, "复制模板暴露字段失败")
+				}
+			}
+			
+			// 4.4 复制模板文件
+			err = s.copyTemplateFiles(ctx, sourceId, newTemplateId, 0, 0)
+			if err != nil {
+				return gerror.Wrap(err, "复制模板文件失败")
+			}
+			
+			// 4.5 设置返回结果
+			res = &api.TemplatesForkRes{
+				TemplateId: newTemplateId,
+				Name:       req.Name,
+				Message:    "模板复制成功",
+			}
+			
+			return nil
+		})
+		
+		liberr.ErrIsNil(ctx, err, "Fork模板失败")
+	})
+	return
+}
+
+// copyTemplateFiles 递归复制模板文件
+func (s sTemplates) copyTemplateFiles(ctx context.Context, sourceTemplateId, newTemplateId int64, sourceParentId, newParentId int64) error {
+	// 获取源模板文件列表
+	sourceFiles, err := dao.TemplateFiles.Ctx(ctx).Where("template_id = ? AND parent_id = ?", sourceTemplateId, sourceParentId).All()
+	if err != nil {
+		return gerror.Wrap(err, "获取源模板文件失败")
+	}
+	
+	for _, file := range sourceFiles {
+		// 处理GenerateCondition，确保JSON字段不为空
+		generateCondition := file["generate_condition"].String()
+		if generateCondition == "" {
+			generateCondition = "{}" // 设置为空JSON对象
+		}
+		
+		// 创建新文件记录
+		newFileData := &do.TemplateFiles{
+			TemplateId:        newTemplateId,
+			FilePath:          file["file_path"].String(),
+			FileName:          file["file_name"].String(),
+			FileContent:       file["file_content"].String(),
+			FileSize:          file["file_size"].Int(),
+			IsDirectory:       file["is_directory"].Int(),
+			Md5:               file["md5"].String(),
+			Sort:              file["sort"].Int(),
+			ParentId:          newParentId,
+			GenerateCondition: generateCondition,
+		}
+		
+		newFileId, err := dao.TemplateFiles.Ctx(ctx).Data(newFileData).InsertAndGetId()
+		if err != nil {
+			return gerror.Wrap(err, "创建新模板文件失败")
+		}
+		
+		// 如果是目录，递归复制子文件
+		if file["is_directory"].Int() == 1 {
+			err = s.copyTemplateFiles(ctx, sourceTemplateId, newTemplateId, file["id"].Int64(), newFileId)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	
+	return nil
+}

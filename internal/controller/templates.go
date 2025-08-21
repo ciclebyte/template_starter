@@ -85,3 +85,9 @@ func (c *templatesController) GetTypes(ctx context.Context, req *api.TemplateTyp
 	}
 	return
 }
+
+// Fork 复制模板
+func (c *templatesController) Fork(ctx context.Context, req *api.TemplatesForkReq) (res *api.TemplatesForkRes, err error) {
+	res, err = service.Templates().Fork(ctx, req)
+	return
+}

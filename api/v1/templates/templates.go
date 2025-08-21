@@ -177,3 +177,21 @@ type TemplateTypesRes struct {
 	g.Meta        `mime:"application/json" example:"string"`
 	TemplateTypes []*TemplateTypeInfo `json:"templateTypes"`
 }
+
+// Fork模板请求
+type TemplatesForkReq struct {
+	g.Meta       `path:"/templates/fork" method:"post" tags:"模板" summary:"模板-Fork"`
+	SourceId     interface{} `json:"sourceId" v:"required#源模板ID不能为空"`
+	Name         string      `json:"name" v:"required#新模板名称不能为空"`
+	Description  string      `json:"description" v:"required#新模板描述不能为空"`
+	Introduction string      `json:"introduction"` // 新模板详细介绍
+	CategoryId   int         `json:"categoryId"`   // 可选：指定新的分类，默认使用源模板分类
+}
+
+// Fork模板响应
+type TemplatesForkRes struct {
+	g.Meta     `mime:"application/json" example:"string"`
+	TemplateId int64  `json:"templateId"` // 新创建的模板ID
+	Name       string `json:"name"`       // 新模板名称
+	Message    string `json:"message"`    // 操作结果消息
+}

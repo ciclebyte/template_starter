@@ -62,7 +62,7 @@
       </div>
       
       <!-- 正常内容显示区域 -->
-      <div v-else class="file-content" ref="previewEditorRef"></div>
+      <div v-else class="file-content" ref="previewEditorRef" :key="contentKey"></div>
     </div>
     
     <!-- 拖动调整器 -->
@@ -125,6 +125,7 @@ const loading = ref(false)
 const renderedContent = ref('')
 const fileName = ref('')
 const renderError = ref(null)
+const contentKey = ref(0) // 用于强制重新渲染内容区域
 
 // 语言映射
 const languageMap = {
@@ -176,6 +177,42 @@ function getErrorTypeText(type) {
     'unknown_error': '未知错误'
   }
   return typeMap[type] || '未知错误'
+}
+
+// 初始化预览编辑器
+function initializePreviewEditor() {
+  if (!previewEditorRef.value) return
+  
+  const state = EditorState.create({
+    doc: '',
+    extensions: [
+      // Dracula 主题（与主编辑器一致）
+      dracula,
+      // 语法高亮
+      syntaxHighlighting(defaultHighlightStyle),
+      // 行号
+      lineNumbers(),
+      // 当前行高亮
+      highlightActiveLine(),
+      // 当前行行号高亮
+      highlightActiveLineGutter(),
+      // 确保滚动正常工作
+      EditorView.scrollMargins.of(() => ({ top: 10, bottom: 10 })),
+      // 强制启用滚动
+      EditorView.theme({
+        "&": { height: "100%" },
+        ".cm-scroller": { 
+          overflow: "auto !important",
+          height: "100% !important"
+        }
+      })
+    ]
+  })
+  
+  previewEditor = new EditorView({
+    state,
+    parent: previewEditorRef.value
+  })
 }
 
 // 折叠状态
@@ -385,17 +422,37 @@ const renderTemplateContent = async () => {
         fileName.value = data.fileName
         renderedContent.value = ''
         
+        // 销毁预览编辑器（因为要显示错误界面）
+        if (previewEditor) {
+          previewEditor.destroy()
+          previewEditor = null
+        }
+        
         // 显示错误消息
         message.error(`模板${getErrorTypeText(data.error.type)}: ${data.error.message}`)
       } else {
         // 渲染成功或旧版本响应格式兼容
+        const wasError = renderError.value !== null
+        
         renderedContent.value = data.fileContent || ''
         fileName.value = data.fileName
         renderError.value = null
         
-        // 立即更新预览内容
+        // 如果之前是错误状态，强制重新渲染DOM
+        if (wasError) {
+          contentKey.value++
+        }
+        
+        // 确保预览编辑器重新初始化（特别是从错误状态恢复时）
         nextTick(() => {
-          updatePreviewContent()
+          // 如果预览编辑器不存在，需要重新初始化
+          if (!previewEditor && previewEditorRef.value) {
+            initializePreviewEditor()
+          }
+          // 强制等待DOM更新后再更新内容
+          setTimeout(() => {
+            updatePreviewContent()
+          }, 100)
         })
       }
     } else {
