@@ -3,7 +3,7 @@ import request from '@/utils/request'
 // 用户登录
 export function login(data) {
     return request({
-        url: '/v1/auth/login',
+        url: '/api/v1/auth/login',
         method: 'post',
         data
     })
@@ -12,7 +12,7 @@ export function login(data) {
 // 用户注册
 export function register(data) {
     return request({
-        url: '/v1/auth/register',
+        url: '/api/v1/auth/register',
         method: 'post',
         data
     })
@@ -21,7 +21,7 @@ export function register(data) {
 // 用户登出
 export function logout() {
     return request({
-        url: '/v1/auth/logout',
+        url: '/api/v1/auth/logout',
         method: 'post'
     })
 }
@@ -29,7 +29,7 @@ export function logout() {
 // 获取用户信息
 export function getUserInfo() {
     return request({
-        url: '/v1/auth/me',
+        url: '/api/v1/auth/me',
         method: 'get'
     })
 }
@@ -37,7 +37,7 @@ export function getUserInfo() {
 // 刷新Token
 export function refreshToken(data) {
     return request({
-        url: '/v1/auth/refresh',
+        url: '/api/v1/auth/refresh',
         method: 'post',
         data
     })
@@ -46,7 +46,7 @@ export function refreshToken(data) {
 // 检查权限
 export function checkPermission(data) {
     return request({
-        url: '/v1/auth/check-permission',
+        url: '/api/v1/auth/check-permission',
         method: 'post',
         data
     })
@@ -55,7 +55,7 @@ export function checkPermission(data) {
 // 检查角色
 export function checkRole(data) {
     return request({
-        url: '/v1/auth/check-role',
+        url: '/api/v1/auth/check-role',
         method: 'post',
         data
     })

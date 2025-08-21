@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"crypto/md5"
 	"errors"
 	"fmt"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/ciclebyte/template_starter/library/libPassword"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/guid"
 	"github.com/gogf/gf/v2/util/gconv"
 )
@@ -63,7 +65,8 @@ func (s *sAuth) Register(ctx context.Context, req *service.RegisterReq) (*servic
 	}
 
 	// 开始事务
-	return g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) (*service.RegisterRes, error) {
+	var result *service.RegisterRes
+	err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
 		// 创建用户
 		nickname := req.Nickname
 		if nickname == "" {
@@ -80,7 +83,7 @@ func (s *sAuth) Register(ctx context.Context, req *service.RegisterReq) (*servic
 
 		if err != nil {
 			g.Log().Error(ctx, "create user failed:", err)
-			return nil, errors.New("创建用户失败")
+			return errors.New("创建用户失败")
 		}
 
 		// 分配默认角色 (普通用户)
@@ -88,7 +91,7 @@ func (s *sAuth) Register(ctx context.Context, req *service.RegisterReq) (*servic
 		err = dao.Roles.Ctx(ctx).TX(tx).Where("code", "user").Scan(&role)
 		if err != nil {
 			g.Log().Error(ctx, "find default role failed:", err)
-			return nil, errors.New("分配默认角色失败")
+			return errors.New("分配默认角色失败")
 		}
 
 		if role != nil {
@@ -100,14 +103,14 @@ func (s *sAuth) Register(ctx context.Context, req *service.RegisterReq) (*servic
 
 			if err != nil {
 				g.Log().Error(ctx, "assign default role failed:", err)
-				return nil, errors.New("分配默认角色失败")
+				return errors.New("分配默认角色失败")
 			}
 		}
 
 		// 获取用户完整信息
 		userInfo, err := s.getUserInfoById(ctx, tx, userId)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		// 生成令牌
@@ -120,7 +123,7 @@ func (s *sAuth) Register(ctx context.Context, req *service.RegisterReq) (*servic
 		)
 		if err != nil {
 			g.Log().Error(ctx, "generate tokens failed:", err)
-			return nil, errors.New("生成令牌失败")
+			return errors.New("生成令牌失败")
 		}
 
 		// 记录会话
@@ -129,11 +132,16 @@ func (s *sAuth) Register(ctx context.Context, req *service.RegisterReq) (*servic
 			g.Log().Warning(ctx, "create user session failed:", err)
 		}
 
-		return &service.RegisterRes{
+		result = &service.RegisterRes{
 			TokenInfo: tokenInfo,
 			User:      userInfo,
-		}, nil
+		}
+		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // Login 用户登录
@@ -166,10 +174,11 @@ func (s *sAuth) Login(ctx context.Context, req *service.LoginReq) (*service.Logi
 	}
 
 	// 开始事务
-	return g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) (*service.LoginRes, error) {
+	var result *service.LoginRes
+	err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
 		// 更新登录信息
 		_, err = dao.Users.Ctx(ctx).TX(tx).Data(g.Map{
-			"last_login_at": gconv.String(time.Now()),
+			"last_login_at": gtime.Now(),
 			"last_login_ip": g.RequestFromCtx(ctx).GetClientIp(),
 			"login_count":   gdb.Raw("login_count + 1"),
 		}).Where("id", user.Id).Update()
@@ -181,7 +190,7 @@ func (s *sAuth) Login(ctx context.Context, req *service.LoginReq) (*service.Logi
 		// 获取用户完整信息
 		userInfo, err := s.getUserInfoById(ctx, tx, user.Id)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		// 生成令牌
@@ -194,7 +203,7 @@ func (s *sAuth) Login(ctx context.Context, req *service.LoginReq) (*service.Logi
 		)
 		if err != nil {
 			g.Log().Error(ctx, "generate tokens failed:", err)
-			return nil, errors.New("生成令牌失败")
+			return errors.New("生成令牌失败")
 		}
 
 		// 记录会话
@@ -203,11 +212,16 @@ func (s *sAuth) Login(ctx context.Context, req *service.LoginReq) (*service.Logi
 			g.Log().Warning(ctx, "create user session failed:", err)
 		}
 
-		return &service.LoginRes{
+		result = &service.LoginRes{
 			TokenInfo: tokenInfo,
 			User:      userInfo,
-		}, nil
+		}
+		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // Logout 用户登出
@@ -422,13 +436,17 @@ func (s *sAuth) createUserSession(ctx context.Context, tx gdb.TX, userId int64, 
 	request := g.RequestFromCtx(ctx)
 	sessionId := guid.S()
 
+	// Calculate MD5 hash of access token
+	hashBytes := md5.Sum([]byte(accessToken))
+	tokenHash := fmt.Sprintf("%x", hashBytes)
+	
 	_, err := dao.UserSessions.Ctx(ctx).TX(tx).Data(do.UserSessions{
 		Id:        sessionId,
 		UserId:    userId,
 		IpAddress: request.GetClientIp(),
 		UserAgent: request.Header.Get("User-Agent"),
-		Data:      fmt.Sprintf(`{"access_token_hash": "%s"}`, g.Crypto().Md5String(accessToken)),
-		ExpiresAt: gconv.String(time.Now().Add(2 * time.Hour)),
+		Data:      fmt.Sprintf(`{"access_token_hash": "%s"}`, tokenHash),
+		ExpiresAt: gtime.Now().Add(2 * time.Hour),
 	}).Insert()
 
 	return err

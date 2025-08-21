@@ -11,17 +11,23 @@ function getApiBaseUrl() {
       return import.meta.env.VITE_API_URL
     }
     
+    // 开发环境使用后端端口
+    if (import.meta.env.DEV) {
+      return 'http://localhost:8001'
+    }
+    
     // 生产环境使用当前域名
     const { protocol, hostname, port } = window.location
     let basePort = port ? `:${port}` : ''
     
     // 处理非标准端口
     if ((protocol === 'http:' && port === '80') || 
-        (protocol === 'https:' && port === '443')) {
+        (protocol === 'https:' && port === '443') ||
+        port === '5173') {  // 前端开发端口
       basePort = ''
     }
     
-    return `${protocol}//${hostname}${basePort}/api`
+    return `${protocol}//${hostname}${basePort}`
   }
 
 

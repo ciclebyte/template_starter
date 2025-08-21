@@ -10,12 +10,14 @@
     </Container>
   </div>
   <FooterBar />
+  <UserPermissions />
 </template>
 
 <script setup>
 import NavBar from '@/components/NavBar.vue'
 import FooterBar from '@/components/FooterBar.vue'
 import Container from '@/components/Container.vue'
+import UserPermissions from '@/components/UserPermissions.vue'
 
 function beforeEnter(el) {
   el.style.opacity = 0

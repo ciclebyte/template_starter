@@ -44,14 +44,34 @@
           </div>
         </div>
         <div class="nav-right">
-          <n-button type="primary" round @click="goTemplateEditor">
-            <template #icon>
-              <n-icon>
-                <SettingsOutline />
-              </n-icon>
-            </template>
-            管理后台
-          </n-button>
+          <!-- 未登录状态 -->
+          <div v-if="!authStore.isLoggedIn" class="auth-buttons">
+            <n-button text @click="goLogin">登录</n-button>
+            <n-button type="primary" round @click="goRegister">注册</n-button>
+          </div>
+          
+          <!-- 已登录状态 -->
+          <div v-else class="user-menu">
+            <n-dropdown :options="userMenuOptions" @select="handleUserMenuSelect">
+              <n-button text>
+                <template #icon>
+                  <n-icon>
+                    <PersonOutline />
+                  </n-icon>
+                </template>
+                {{ authStore.userDisplayName }}
+              </n-button>
+            </n-dropdown>
+            
+            <n-button v-if="authStore.isAdmin" type="primary" round @click="goTemplateEditor">
+              <template #icon>
+                <n-icon>
+                  <SettingsOutline />
+                </n-icon>
+              </template>
+              管理后台
+            </n-button>
+          </div>
         </div>
       </div>
     </div>
@@ -59,17 +79,29 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NLayoutHeader, NMenu, NInput, NButton, NIcon } from 'naive-ui'
-import { SearchOutline, SettingsOutline } from '@vicons/ionicons5'
+import { NLayoutHeader, NMenu, NInput, NButton, NIcon, NDropdown } from 'naive-ui'
+import { SearchOutline, SettingsOutline, PersonOutline, LogOutOutline } from '@vicons/ionicons5'
+import { useAuthStore } from '@/stores/auth'
+import { useMessage } from 'naive-ui'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
+const message = useMessage()
 
 const menuOptions = [
   { label: '首页', key: 'home' },
   { label: '模板', key: 'templates' },
+  { label: '权限演示', key: 'permission-demo' },
+]
+
+// 用户菜单选项
+const userMenuOptions = [
+  { label: '个人资料', key: 'profile', icon: () => h(PersonOutline) },
+  { type: 'divider' },
+  { label: '退出登录', key: 'logout', icon: () => h(LogOutOutline) },
 ]
 
 const activeKey = ref(route.name || 'home')
@@ -78,14 +110,38 @@ function handleUpdateValue(key) {
   activeKey.value = key
   if (key === 'home') router.push('/')
   else if (key === 'templates') router.push('/templates')
+  else if (key === 'permission-demo') router.push('/permission-demo')
 }
 
 function goHome() {
   router.push('/')
 }
 
+function goLogin() {
+  router.push('/login')
+}
+
+function goRegister() {
+  router.push('/register')
+}
+
 function goTemplateEditor() {
   router.push('/admin')
+}
+
+// 处理用户菜单选择
+async function handleUserMenuSelect(key) {
+  if (key === 'logout') {
+    try {
+      await authStore.doLogout()
+      message.success('已退出登录')
+      router.push('/')
+    } catch (error) {
+      message.error('退出登录失败')
+    }
+  } else if (key === 'profile') {
+    router.push('/profile')
+  }
 }
 
 // 搜索相关
@@ -134,6 +190,24 @@ function handleSearch() {
 .nav-left {
   display: flex;
   align-items: center;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .brand {

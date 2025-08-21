@@ -3,6 +3,40 @@ import MainLayout from '@/layouts/MainLayout.vue'
 import AdminLayout from '@/layouts/AdminLayout.vue'
 
 const routes = [
+  // 认证路由 (独立页面，不在布局内)
+  {
+    path: '/login',
+    name: 'login',
+    component: () => import('@/views/auth/Login.vue'),
+    meta: { title: '登录' }
+  },
+  {
+    path: '/register',
+    name: 'register',
+    component: () => import('@/views/auth/Register.vue'),
+    meta: { title: '注册' }
+  },
+  {
+    path: '/profile',
+    name: 'profile',
+    component: () => import('@/views/auth/Profile.vue'),
+    meta: { title: '个人资料', requiresAuth: true }
+  },
+  
+  // 错误页面
+  {
+    path: '/401',
+    name: 'error-401',
+    component: () => import('@/views/errors/401.vue'),
+    meta: { title: '未授权' }
+  },
+  {
+    path: '/403',
+    name: 'error-403',
+    component: () => import('@/views/errors/403.vue'),
+    meta: { title: '权限不足' }
+  },
+  
   // 前台路由
   {
     path: '/',
@@ -17,6 +51,12 @@ const routes = [
         path: '/templates',
         name: 'templates',
         component: () => import('@/views/client/templates-public/index.vue')
+      },
+      {
+        path: '/permission-demo',
+        name: 'permission-demo',
+        component: () => import('@/views/demo/PermissionDemo.vue'),
+        meta: { title: '权限演示' }
       },
     ]
   },
@@ -46,6 +86,11 @@ const routes = [
   {
     path: '/admin',
     component: AdminLayout,
+    meta: { 
+      requiresAuth: true, 
+      roles: ['super_admin', 'system_admin', 'org_admin'],
+      title: '管理后台'
+    },
     children: [
       {
         path: '',

@@ -7,11 +7,12 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"golang.org/x/crypto/argon2"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -65,22 +66,38 @@ func HashPasswordWithParams(password string, p *Params) (string, error) {
 	return encodedHash, nil
 }
 
-// VerifyPassword 验证密码
+// VerifyPassword 验证密码 - 支持bcrypt和Argon2id
 func VerifyPassword(password, encodedHash string) (bool, error) {
-	// 解析存储的哈希
-	p, salt, hash, err := decodeHash(encodedHash)
-	if err != nil {
-		return false, err
+	// 检查是否是bcrypt哈希 (以$2a$, $2b$, $2x$, $2y$开头)
+	if strings.HasPrefix(encodedHash, "$2a$") || 
+	   strings.HasPrefix(encodedHash, "$2b$") || 
+	   strings.HasPrefix(encodedHash, "$2x$") || 
+	   strings.HasPrefix(encodedHash, "$2y$") {
+		// 使用bcrypt验证
+		err := bcrypt.CompareHashAndPassword([]byte(encodedHash), []byte(password))
+		return err == nil, nil
 	}
 
-	// 使用相同参数对输入密码进行哈希
-	otherHash := argon2.IDKey([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
+	// 检查是否是Argon2id哈希 (以$argon2id$开头)
+	if strings.HasPrefix(encodedHash, "$argon2id$") {
+		// 解析存储的哈希
+		p, salt, hash, err := decodeHash(encodedHash)
+		if err != nil {
+			return false, err
+		}
 
-	// 使用constant-time比较防止时序攻击
-	if subtle.ConstantTimeCompare(hash, otherHash) == 1 {
-		return true, nil
+		// 使用相同参数对输入密码进行哈希
+		otherHash := argon2.IDKey([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
+
+		// 使用constant-time比较防止时序攻击
+		if subtle.ConstantTimeCompare(hash, otherHash) == 1 {
+			return true, nil
+		}
+		return false, nil
 	}
-	return false, nil
+
+	// 不支持的哈希格式
+	return false, errors.New("unsupported password hash format")
 }
 
 // generateRandomBytes 生成随机字节
@@ -135,7 +152,7 @@ func IsValidPassword(password string) (bool, string) {
 	if len(password) < 6 {
 		return false, "密码长度至少6位"
 	}
-	
+
 	if len(password) > 64 {
 		return false, "密码长度不能超过64位"
 	}
@@ -211,11 +228,11 @@ func CheckPasswordHistory(password string, historyHashes []string) (bool, error)
 
 // EstimateHashingTime 估算哈希时间（用于性能调优）
 func EstimateHashingTime(password string, p *Params) (string, error) {
-	start := g.TimestampMilli()
+	start := time.Now()
 	_, err := HashPasswordWithParams(password, p)
 	if err != nil {
 		return "", err
 	}
-	duration := g.TimestampMilli() - start
-	return strconv.FormatInt(duration, 10) + "ms", nil
+	duration := time.Since(start)
+	return duration.String(), nil
 }
