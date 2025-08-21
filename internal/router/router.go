@@ -14,6 +14,12 @@ type Router struct{}
 func (router *Router) BindController(ctx context.Context, group *ghttp.RouterGroup) {
 	group.Group("/api/v1", func(group *ghttp.RouterGroup) {
 		group.Middleware(service.Middleware().MiddlewareCORS)
+		
+		// 认证相关路由 (无需认证)
+		group.Bind(controller.Auth)
+		
+		// 公开访问路由 (可选认证) - 为了向前兼容，暂时让所有路由都可选认证
+		group.Middleware(service.Middleware().OptionalAuth)
 		group.Bind(
 			controller.Languages,
 			controller.Categories,

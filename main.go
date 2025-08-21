@@ -8,10 +8,15 @@ import (
 	"github.com/gogf/gf/v2/os/gctx"
 
 	"github.com/ciclebyte/template_starter/internal/cmd"
+	"github.com/ciclebyte/template_starter/library/libJWT"
 )
 
 func main() {
 	// 初始化配置
 	config.InitConfig()
+	
+	// 初始化JWT管理器
+	libJWT.Init()
+	
 	cmd.Main.Run(gctx.GetInitCtx())
 }

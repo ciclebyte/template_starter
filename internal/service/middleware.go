@@ -11,6 +11,11 @@ import (
 
 type IMiddleware interface {
 	MiddlewareCORS(r *ghttp.Request)
+	RequireAuth(r *ghttp.Request)
+	OptionalAuth(r *ghttp.Request)
+	RequirePermission(permission string) ghttp.HandlerFunc
+	RequireRole(role string) ghttp.HandlerFunc
+	RequireTemplateOwnerOrPermission(permission string) ghttp.HandlerFunc
 }
 
 var localMiddleware IMiddleware
