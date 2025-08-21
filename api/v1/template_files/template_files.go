@@ -167,6 +167,18 @@ type TemplateFilesRenderRes struct {
 	FileName    string                 `json:"fileName"`
 	FileContent string                 `json:"fileContent"` // 渲染后的内容
 	Variables   map[string]interface{} `json:"variables"`   // 使用的变量
+	Success     bool                   `json:"success"`     // 渲染是否成功
+	Error       *TemplateRenderError   `json:"error,omitempty"` // 渲染错误详情
+}
+
+// 模板渲染错误详情
+type TemplateRenderError struct {
+	Type        string `json:"type"`        // 错误类型: "parse_error", "execute_error", "variable_error"
+	Message     string `json:"message"`     // 错误消息
+	Line        int    `json:"line"`        // 错误行号
+	Column      int    `json:"column"`      // 错误列号
+	Context     string `json:"context"`     // 错误上下文
+	Suggestion  string `json:"suggestion"`  // 修复建议
 }
 
 // 渲染文件树接口

@@ -9,7 +9,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -811,38 +813,175 @@ func (s sTemplateFiles) getTemplateFuncs() template.FuncMap {
 	return funcs
 }
 
+// parseTemplateError 解析模板错误，提取行号、列号等详细信息
+func (s sTemplateFiles) parseTemplateError(err error, templateContent string) *api.TemplateRenderError {
+	if err == nil {
+		return nil
+	}
+
+	errorMessage := err.Error()
+	templateError := &api.TemplateRenderError{
+		Message: errorMessage,
+		Type:    "unknown_error",
+		Line:    0,
+		Column:  0,
+	}
+
+	// 解析模板解析错误
+	// 示例: template: template:5: function "package_info" not defined
+	parseErrorRegex := regexp.MustCompile(`template: template:(\d+):(.*)`)
+	if matches := parseErrorRegex.FindStringSubmatch(errorMessage); len(matches) > 2 {
+		templateError.Type = "parse_error"
+		if line, err := strconv.Atoi(matches[1]); err == nil {
+			templateError.Line = line
+		}
+		templateError.Message = strings.TrimSpace(matches[2])
+		
+		// 提取错误上下文
+		templateError.Context = s.getErrorContext(templateContent, templateError.Line)
+		
+		// 提供修复建议
+		templateError.Suggestion = s.getErrorSuggestion(templateError.Message)
+		return templateError
+	}
+
+	// 解析执行错误
+	// 示例: template: template:5:10: executing "template" at <.SomeVar>: map has no entry for key "SomeVar"
+	executeErrorRegex := regexp.MustCompile(`template: template:(\d+):(\d+):(.*)`)
+	if matches := executeErrorRegex.FindStringSubmatch(errorMessage); len(matches) > 3 {
+		templateError.Type = "execute_error"
+		if line, err := strconv.Atoi(matches[1]); err == nil {
+			templateError.Line = line
+		}
+		if column, err := strconv.Atoi(matches[2]); err == nil {
+			templateError.Column = column
+		}
+		templateError.Message = strings.TrimSpace(matches[3])
+		
+		// 提取错误上下文
+		templateError.Context = s.getErrorContext(templateContent, templateError.Line)
+		
+		// 提供修复建议
+		templateError.Suggestion = s.getErrorSuggestion(templateError.Message)
+		return templateError
+	}
+
+	// 检查是否是函数未定义错误
+	if strings.Contains(errorMessage, "function") && strings.Contains(errorMessage, "not defined") {
+		templateError.Type = "function_error"
+		templateError.Suggestion = "请检查函数名是否正确，或者该函数是否已在模板函数中注册"
+	}
+
+	// 检查是否是变量错误
+	if strings.Contains(errorMessage, "map has no entry for key") {
+		templateError.Type = "variable_error"
+		templateError.Suggestion = "请检查变量名是否正确，或者该变量是否已在模板变量中定义"
+	}
+
+	return templateError
+}
+
+// getErrorContext 获取错误行周围的上下文
+func (s sTemplateFiles) getErrorContext(templateContent string, errorLine int) string {
+	if errorLine <= 0 {
+		return ""
+	}
+
+	lines := strings.Split(templateContent, "\n")
+	if errorLine > len(lines) {
+		return ""
+	}
+
+	// 获取错误行前后2行的内容
+	start := errorLine - 3
+	if start < 0 {
+		start = 0
+	}
+	end := errorLine + 2
+	if end > len(lines) {
+		end = len(lines)
+	}
+
+	var contextLines []string
+	for i := start; i < end; i++ {
+		lineNumber := i + 1
+		prefix := "  "
+		if lineNumber == errorLine {
+			prefix = "► " // 标记错误行
+		}
+		contextLines = append(contextLines, fmt.Sprintf("%s%d: %s", prefix, lineNumber, lines[i]))
+	}
+
+	return strings.Join(contextLines, "\n")
+}
+
+// getErrorSuggestion 根据错误消息提供修复建议
+func (s sTemplateFiles) getErrorSuggestion(errorMessage string) string {
+	switch {
+	case strings.Contains(errorMessage, "function") && strings.Contains(errorMessage, "not defined"):
+		return "检查函数名拼写是否正确，确保函数已注册。常用函数: upper, lower, split, join, replace 等"
+	case strings.Contains(errorMessage, "map has no entry for key"):
+		return "检查变量名是否正确，确保变量已在模板变量中定义"
+	case strings.Contains(errorMessage, "unexpected"):
+		return "检查模板语法是否正确，确保 {{ }} 标签正确闭合"
+	case strings.Contains(errorMessage, "can't evaluate field"):
+		return "检查对象字段是否存在，或使用 if 语句进行条件判断"
+	case strings.Contains(errorMessage, "wrong type for value"):
+		return "检查变量类型是否匹配，确保类型转换正确"
+	default:
+		return "请检查模板语法是否正确，参考 Go template 语法文档"
+	}
+}
+
 // 渲染模板文件
 func (s sTemplateFiles) Render(ctx context.Context, req *api.TemplateFilesRenderReq) (res *api.TemplateFilesRenderRes, err error) {
-	err = g.Try(ctx, func(ctx context.Context) {
-		// 1. 获取文件内容
-		fileContent, err := s.GetFileContent(ctx, gconv.Int64(req.FileId))
-		liberr.ErrIsNil(ctx, err, "获取文件内容失败")
+	// 1. 获取文件内容
+	fileContent, err := s.GetFileContent(ctx, gconv.Int64(req.FileId))
+	if err != nil {
+		return nil, gerror.Wrap(err, "获取文件内容失败")
+	}
 
-		// 2. 获取文件信息
-		fileInfo, err := s.GetById(ctx, gconv.Int64(req.FileId))
-		liberr.ErrIsNil(ctx, err, "获取文件信息失败")
+	// 2. 获取文件信息
+	fileInfo, err := s.GetById(ctx, gconv.Int64(req.FileId))
+	if err != nil {
+		return nil, gerror.Wrap(err, "获取文件信息失败")
+	}
 
-		// 3. 转换变量类型
-		convertedVariables, err := s.convertVariableTypes(ctx, fileInfo.TemplateId, req.Variables)
-		liberr.ErrIsNil(ctx, err, "转换变量类型失败")
+	// 3. 转换变量类型
+	convertedVariables, err := s.convertVariableTypes(ctx, fileInfo.TemplateId, req.Variables)
+	if err != nil {
+		return nil, gerror.Wrap(err, "转换变量类型失败")
+	}
 
-		// 4. 创建模板
-		tmpl, err := template.New("template").Funcs(s.getTemplateFuncs()).Parse(fileContent)
-		liberr.ErrIsNil(ctx, err, "解析模板失败")
+	// 初始化响应结构
+	res = &api.TemplateFilesRenderRes{
+		FileId:    gconv.Int64(req.FileId),
+		FileName:  fileInfo.FileName,
+		Variables: convertedVariables,
+		Success:   false,
+	}
 
-		// 5. 渲染模板
-		var buf bytes.Buffer
-		err = tmpl.Execute(&buf, convertedVariables)
-		liberr.ErrIsNil(ctx, err, "模板渲染失败")
+	// 4. 创建模板
+	tmpl, err := template.New("template").Funcs(s.getTemplateFuncs()).Parse(fileContent)
+	if err != nil {
+		// 解析错误，返回详细错误信息
+		res.Error = s.parseTemplateError(err, fileContent)
+		return res, nil
+	}
 
-		res = &api.TemplateFilesRenderRes{
-			FileId:      gconv.Int64(req.FileId),
-			FileName:    fileInfo.FileName,
-			FileContent: buf.String(),
-			Variables:   convertedVariables,
-		}
-	})
-	return
+	// 5. 渲染模板
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, convertedVariables)
+	if err != nil {
+		// 执行错误，返回详细错误信息
+		res.Error = s.parseTemplateError(err, fileContent)
+		return res, nil
+	}
+
+	// 渲染成功
+	res.Success = true
+	res.FileContent = buf.String()
+	return res, nil
 }
 
 // RenderFileTree 渲染整个文件树

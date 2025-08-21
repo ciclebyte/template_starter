@@ -33,7 +33,36 @@
     </div>
     
     <div v-show="!isCollapsed" class="preview-content" @contextmenu.prevent>
-      <div class="file-content" ref="previewEditorRef"></div>
+      <!-- 错误显示区域 -->
+      <div v-if="renderError" class="error-display">
+        <div class="error-header">
+          <n-icon size="18" color="#ff4757">
+            <AlertCircle />
+          </n-icon>
+          <span class="error-title">模板渲染错误</span>
+        </div>
+        <div class="error-body">
+          <div class="error-type" :class="`error-type-${renderError.type}`">
+            {{ getErrorTypeText(renderError.type) }}
+            <span v-if="renderError.line" class="error-location">
+              第 {{ renderError.line }} 行
+              <span v-if="renderError.column">第 {{ renderError.column }} 列</span>
+            </span>
+          </div>
+          <div class="error-message">{{ renderError.message }}</div>
+          <div v-if="renderError.context" class="error-context">
+            <div class="context-label">错误上下文:</div>
+            <pre class="context-content">{{ renderError.context }}</pre>
+          </div>
+          <div v-if="renderError.suggestion" class="error-suggestion">
+            <div class="suggestion-label">修复建议:</div>
+            <div class="suggestion-content">{{ renderError.suggestion }}</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 正常内容显示区域 -->
+      <div v-else class="file-content" ref="previewEditorRef"></div>
     </div>
     
     <!-- 拖动调整器 -->
@@ -48,7 +77,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { NButton, NIcon, useMessage } from 'naive-ui'
-import { Copy, ChevronForward, ChevronBack } from '@vicons/ionicons5'
+import { Copy, ChevronForward, ChevronBack, AlertCircle } from '@vicons/ionicons5'
 import { EditorView, highlightActiveLine, highlightActiveLineGutter, lineNumbers } from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language'
@@ -95,6 +124,7 @@ let previewEditor = null
 const loading = ref(false)
 const renderedContent = ref('')
 const fileName = ref('')
+const renderError = ref(null)
 
 // 语言映射
 const languageMap = {
@@ -134,6 +164,18 @@ const languageMap = {
 function getLanguageExtension(filename) {
   const ext = filename.split('.').pop()?.toLowerCase()
   return languageMap[ext] || null
+}
+
+// 获取错误类型文本
+function getErrorTypeText(type) {
+  const typeMap = {
+    'parse_error': '解析错误',
+    'execute_error': '执行错误',
+    'function_error': '函数错误',
+    'variable_error': '变量错误',
+    'unknown_error': '未知错误'
+  }
+  return typeMap[type] || '未知错误'
 }
 
 // 折叠状态
@@ -318,6 +360,10 @@ const renderTemplateContent = async () => {
     return
   }
   
+  // 清空之前的错误状态
+  renderError.value = null
+  renderedContent.value = ''
+  
   // 确保有测试变量，如果没有则使用空对象
   const variables = props.variables || {}
   
@@ -330,19 +376,51 @@ const renderTemplateContent = async () => {
     })
     
     if (response.data.code === 0) {
-      renderedContent.value = response.data.data.fileContent
-      fileName.value = response.data.data.fileName
+      const data = response.data.data
       
-      // 立即更新预览内容
-      nextTick(() => {
-        updatePreviewContent()
-      })
+      // 检查渲染是否成功
+      if (data.success) {
+        // 渲染成功
+        renderedContent.value = data.fileContent
+        fileName.value = data.fileName
+        renderError.value = null
+        
+        // 立即更新预览内容
+        nextTick(() => {
+          updatePreviewContent()
+        })
+      } else if (data.error) {
+        // 渲染失败，显示详细错误信息
+        renderError.value = data.error
+        fileName.value = data.fileName
+        renderedContent.value = ''
+        
+        // 显示错误消息
+        message.error(`模板${getErrorTypeText(data.error.type)}: ${data.error.message}`)
+      } else {
+        // 旧版本响应格式兼容
+        renderedContent.value = data.fileContent || ''
+        fileName.value = data.fileName
+        renderError.value = null
+        
+        nextTick(() => {
+          updatePreviewContent()
+        })
+      }
     } else {
       message.error(response.data.message || response.data.msg || '渲染失败')
     }
   } catch (error) {
     console.error('渲染模板失败:', error)
     message.error('渲染模板失败: ' + (error.message || '未知错误'))
+    renderError.value = {
+      type: 'unknown_error',
+      message: error.message || '网络请求失败',
+      line: 0,
+      column: 0,
+      context: '',
+      suggestion: '请检查网络连接或稍后重试'
+    }
   } finally {
     loading.value = false
   }
@@ -550,5 +628,134 @@ defineExpose({
 
 .template-preview.collapsed .resize-handle {
   display: none;
+}
+
+/* 错误显示样式 */
+.error-display {
+  height: 100%;
+  padding: 16px;
+  background: #fff;
+  overflow-y: auto;
+}
+
+.error-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.error-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ff4757;
+}
+
+.error-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.error-type {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.error-type-parse_error {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeaa7;
+}
+
+.error-type-execute_error {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.error-type-function_error {
+  background: #d1ecf1;
+  color: #0c5460;
+  border: 1px solid #bee5eb;
+}
+
+.error-type-variable_error {
+  background: #e2e3e5;
+  color: #383d41;
+  border: 1px solid #d6d8db;
+}
+
+.error-type-unknown_error {
+  background: #f8f9fa;
+  color: #495057;
+  border: 1px solid #dee2e6;
+}
+
+.error-location {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.error-message {
+  padding: 12px;
+  background: #f8f9fa;
+  border-left: 4px solid #ff4757;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  color: #2d3436;
+  line-height: 1.5;
+}
+
+.error-context {
+  margin-top: 8px;
+}
+
+.context-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.context-content {
+  background: #2d3436;
+  color: #ddd;
+  padding: 12px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.error-suggestion {
+  margin-top: 8px;
+}
+
+.suggestion-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #0984e3;
+  margin-bottom: 8px;
+}
+
+.suggestion-content {
+  background: #e3f2fd;
+  color: #1565c0;
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  border-left: 4px solid #2196f3;
 }
 </style> 
