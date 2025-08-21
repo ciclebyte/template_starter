@@ -16,12 +16,6 @@ const routes = [
     component: () => import('@/views/auth/Register.vue'),
     meta: { title: '注册' }
   },
-  {
-    path: '/profile',
-    name: 'profile',
-    component: () => import('@/views/auth/Profile.vue'),
-    meta: { title: '个人资料', requiresAuth: true }
-  },
   
   // 错误页面
   {
@@ -57,6 +51,12 @@ const routes = [
         name: 'permission-demo',
         component: () => import('@/views/demo/PermissionDemo.vue'),
         meta: { title: '权限演示' }
+      },
+      {
+        path: '/profile',
+        name: 'profile',
+        component: () => import('@/views/client/Profile.vue'),
+        meta: { title: '个人资料', requiresAuth: true }
       },
     ]
   },

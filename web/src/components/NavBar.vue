@@ -52,25 +52,27 @@
           
           <!-- 已登录状态 -->
           <div v-else class="user-menu">
-            <n-dropdown :options="userMenuOptions" @select="handleUserMenuSelect">
-              <n-button text>
-                <template #icon>
-                  <n-icon>
-                    <PersonOutline />
-                  </n-icon>
-                </template>
-                {{ authStore.userDisplayName }}
-              </n-button>
+            <n-dropdown 
+              :options="userMenuOptions" 
+              @select="handleUserMenuSelect"
+              placement="bottom-end"
+              trigger="hover"
+            >
+              <div class="user-trigger">
+                <n-avatar 
+                  round 
+                  size="small"
+                  :src="authStore.user?.avatar"
+                >
+                  <template #fallback>
+                    <n-icon>
+                      <PersonOutline />
+                    </n-icon>
+                  </template>
+                </n-avatar>
+                <span class="user-name">{{ authStore.userDisplayName }}</span>
+              </div>
             </n-dropdown>
-            
-            <n-button v-if="authStore.isAdmin" type="primary" round @click="goTemplateEditor">
-              <template #icon>
-                <n-icon>
-                  <SettingsOutline />
-                </n-icon>
-              </template>
-              管理后台
-            </n-button>
           </div>
         </div>
       </div>
@@ -82,7 +84,7 @@
 import { ref, computed, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NLayoutHeader, NMenu, NInput, NButton, NIcon, NDropdown } from 'naive-ui'
-import { SearchOutline, SettingsOutline, PersonOutline, LogOutOutline } from '@vicons/ionicons5'
+import { SearchOutline, SettingsOutline, PersonOutline, LogOutOutline, PersonCircleOutline } from '@vicons/ionicons5'
 import { useAuthStore } from '@/stores/auth'
 import { useMessage } from 'naive-ui'
 
@@ -97,12 +99,39 @@ const menuOptions = [
   { label: '权限演示', key: 'permission-demo' },
 ]
 
-// 用户菜单选项
-const userMenuOptions = [
-  { label: '个人资料', key: 'profile', icon: () => h(PersonOutline) },
-  { type: 'divider' },
-  { label: '退出登录', key: 'logout', icon: () => h(LogOutOutline) },
-]
+// 用户菜单选项 - 动态生成
+const userMenuOptions = computed(() => {
+  const options = [
+    { 
+      label: '个人资料', 
+      key: 'profile', 
+      icon: () => h(NIcon, { size: 16 }, { default: () => h(PersonOutline) })
+    },
+  ]
+  
+  // 如果是管理员，添加管理后台选项
+  if (authStore.isAdmin) {
+    options.push(
+      { type: 'divider' },
+      { 
+        label: '管理后台', 
+        key: 'admin', 
+        icon: () => h(NIcon, { size: 16 }, { default: () => h(SettingsOutline) })
+      }
+    )
+  }
+  
+  options.push(
+    { type: 'divider' },
+    { 
+      label: '退出登录', 
+      key: 'logout', 
+      icon: () => h(NIcon, { size: 16 }, { default: () => h(LogOutOutline) })
+    }
+  )
+  
+  return options
+})
 
 const activeKey = ref(route.name || 'home')
 
@@ -141,6 +170,8 @@ async function handleUserMenuSelect(key) {
     }
   } else if (key === 'profile') {
     router.push('/profile')
+  } else if (key === 'admin') {
+    router.push('/admin')
   }
 }
 
@@ -207,7 +238,25 @@ function handleSearch() {
 .user-menu {
   display: flex;
   align-items: center;
-  gap: 12px;
+}
+
+.user-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.user-trigger:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.user-name {
+  font-size: 14px;
+  color: #333;
 }
 
 .brand {
@@ -375,4 +424,18 @@ function handleSearch() {
   background: #fff;
   box-shadow: 0 2px 8px 0 rgba(60, 60, 60, 0.04);
 }
+
+/* 下拉菜单样式优化 */
+:deep(.n-dropdown-option .n-dropdown-option-body) {
+  padding: 10px 16px !important;
+}
+
+:deep(.n-dropdown-option .n-dropdown-option-body__prefix) {
+  margin-right: 8px !important;
+}
+
+:deep(.n-dropdown-option .n-dropdown-option-body__label) {
+  font-size: 14px !important;
+}
+
 </style>
