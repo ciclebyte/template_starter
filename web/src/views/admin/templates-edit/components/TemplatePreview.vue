@@ -378,18 +378,8 @@ const renderTemplateContent = async () => {
     if (response.data.code === 0) {
       const data = response.data.data
       
-      // 检查渲染是否成功
-      if (data.success) {
-        // 渲染成功
-        renderedContent.value = data.fileContent
-        fileName.value = data.fileName
-        renderError.value = null
-        
-        // 立即更新预览内容
-        nextTick(() => {
-          updatePreviewContent()
-        })
-      } else if (data.error) {
+      // 检查是否有错误信息
+      if (data.error) {
         // 渲染失败，显示详细错误信息
         renderError.value = data.error
         fileName.value = data.fileName
@@ -398,11 +388,12 @@ const renderTemplateContent = async () => {
         // 显示错误消息
         message.error(`模板${getErrorTypeText(data.error.type)}: ${data.error.message}`)
       } else {
-        // 旧版本响应格式兼容
+        // 渲染成功或旧版本响应格式兼容
         renderedContent.value = data.fileContent || ''
         fileName.value = data.fileName
         renderError.value = null
         
+        // 立即更新预览内容
         nextTick(() => {
           updatePreviewContent()
         })
