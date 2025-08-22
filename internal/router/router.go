@@ -26,6 +26,7 @@ func (router *Router) BindController(ctx context.Context, group *ghttp.RouterGro
 				controller.Permission,
 				controller.User,
 				controller.Profile,
+				controller.ApiKey,
 			)
 		})
 		

@@ -2,6 +2,7 @@ package logic
 
 import (
 	_ "github.com/ciclebyte/template_starter/internal/logic/ai"
+	_ "github.com/ciclebyte/template_starter/internal/logic/apikey"
 	_ "github.com/ciclebyte/template_starter/internal/logic/auth"
 	_ "github.com/ciclebyte/template_starter/internal/logic/builtin_functions"
 	_ "github.com/ciclebyte/template_starter/internal/logic/categories"

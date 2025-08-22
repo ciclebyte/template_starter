@@ -210,6 +210,34 @@
               </div>
             </div>
 
+            <!-- API Keys 管理 -->
+            <div v-if="activeTab === 'apikeys'" class="tab-content">
+              <div class="content-header">
+                <h2>API Keys</h2>
+                <p>管理您的API访问密钥，用于程序化访问系统功能</p>
+              </div>
+
+              <div class="apikeys-toolbar">
+                <n-button type="primary" @click="showApiKeyModal()">
+                  <template #icon>
+                    <n-icon>
+                      <KeyOutline />
+                    </n-icon>
+                  </template>
+                  创建 API Key
+                </n-button>
+              </div>
+
+              <n-data-table
+                :columns="apiKeyColumns"
+                :data="apiKeyList"
+                :loading="apiKeyLoading"
+                :pagination="apiKeyPagination"
+                :row-key="row => row.id"
+                @update:page="handleApiKeyPageChange"
+              />
+            </div>
+
             <!-- 账户统计 -->
             <div v-if="activeTab === 'stats'" class="tab-content">
               <div class="content-header">
@@ -270,13 +298,90 @@
       </div>
     </div>
   </div>
+
+  <!-- API Key 编辑弹窗 -->
+  <n-modal v-model:show="apiKeyModalVisible" preset="dialog" title="API Key" style="width: 600px">
+    <template #header>
+      <div>{{ apiKeyForm.id ? '编辑 API Key' : '创建 API Key' }}</div>
+    </template>
+    
+    <n-form
+      ref="apiKeyFormRef"
+      :model="apiKeyForm"
+      :rules="apiKeyRules"
+      label-placement="left"
+      label-width="100px"
+      style="margin-top: 16px"
+    >
+      <n-form-item label="名称" path="name">
+        <n-input v-model:value="apiKeyForm.name" placeholder="请输入API Key名称" />
+      </n-form-item>
+
+      <n-form-item label="权限" path="permissions">
+        <n-select
+          v-model:value="apiKeyForm.permissions"
+          placeholder="选择权限"
+          multiple
+          :options="availablePermissions"
+        />
+      </n-form-item>
+
+      <n-form-item label="过期时间" path="expiresAt">
+        <n-date-picker
+          v-model:value="apiKeyForm.expiresAt"
+          type="datetime"
+          placeholder="选择过期时间（可选）"
+          clearable
+          style="width: 100%"
+        />
+      </n-form-item>
+    </n-form>
+
+    <template #action>
+      <n-button @click="apiKeyModalVisible = false">取消</n-button>
+      <n-button type="primary" @click="saveApiKey" :loading="apiKeySaving">
+        保存
+      </n-button>
+    </template>
+  </n-modal>
+
+  <!-- API Key Secret 显示弹窗 -->
+  <n-modal v-model:show="apiKeySecretModalVisible" preset="dialog" title="API Key Secret">
+    <div style="margin: 16px 0">
+      <n-alert type="warning" title="重要提示" style="margin-bottom: 16px">
+        请妥善保存以下信息，此密钥只会显示一次！
+      </n-alert>
+      
+      <div style="margin-bottom: 16px">
+        <strong>API Key ID:</strong>
+        <n-input readonly :value="newApiKeyData.keyId" style="margin-top: 8px" />
+        <n-button size="small" @click="copyToClipboard(newApiKeyData.keyId)" style="margin-top: 4px">
+          复制
+        </n-button>
+      </div>
+      
+      <div>
+        <strong>API Key Secret:</strong>
+        <n-input readonly :value="newApiKeyData.keySecret" style="margin-top: 8px" />
+        <n-button size="small" @click="copyToClipboard(newApiKeyData.keySecret)" style="margin-top: 4px">
+          复制
+        </n-button>
+      </div>
+    </div>
+
+    <template #action>
+      <n-button type="primary" @click="apiKeySecretModalVisible = false">
+        我已保存
+      </n-button>
+    </template>
+  </n-modal>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted, h } from 'vue'
-import { useMessage } from 'naive-ui'
+import { useMessage, useDialog } from 'naive-ui'
 import { useAuthStore } from '@/stores/auth'
-import { PersonOutline, LockClosedOutline, BarChartOutline, ShieldCheckmarkOutline } from '@vicons/ionicons5'
+import { PersonOutline, LockClosedOutline, BarChartOutline, ShieldCheckmarkOutline, KeyOutline } from '@vicons/ionicons5'
 import { NIcon } from 'naive-ui'
 import { 
   getProfile, 
@@ -287,6 +392,13 @@ import {
   getSecurityInfo, 
   getLoginHistory 
 } from '@/api/profile'
+import {
+  getMyApiKeys,
+  createMyApiKey,
+  updateMyApiKey,
+  deleteMyApiKey,
+  regenerateMyApiKey
+} from '@/api/apikey'
 
 const message = useMessage()
 const authStore = useAuthStore()
@@ -310,6 +422,11 @@ const menuOptions = [
     label: '安全设置',
     key: 'security',
     icon: () => h(NIcon, { size: 16 }, { default: () => h(LockClosedOutline) })
+  },
+  {
+    label: 'API Keys',
+    key: 'apikeys',
+    icon: () => h(NIcon, { size: 16 }, { default: () => h(KeyOutline) })
   },
   {
     label: '我的角色',
@@ -344,6 +461,112 @@ const stats = reactive({
   lastLoginAt: '',
   createdAt: ''
 })
+
+// API Key 相关数据
+const apiKeyList = ref([])
+const apiKeyLoading = ref(false)
+const apiKeyModalVisible = ref(false)
+const apiKeySecretModalVisible = ref(false)
+const apiKeySaving = ref(false)
+const apiKeyFormRef = ref(null)
+
+const apiKeyForm = reactive({
+  id: null,
+  name: '',
+  permissions: [],
+  expiresAt: null
+})
+
+const newApiKeyData = reactive({
+  keyId: '',
+  keySecret: ''
+})
+
+// API Key 分页
+const apiKeyPagination = reactive({
+  page: 1,
+  pageSize: 10,
+  showSizePicker: true,
+  pageSizes: [10, 20, 50],
+  onChange: (page) => {
+    apiKeyPagination.page = page
+    loadApiKeys()
+  }
+})
+
+// 可用权限选项
+const availablePermissions = ref([
+  { label: '查看模板', value: 'template:read' },
+  { label: '使用模板', value: 'template:use' },
+  { label: '创建模板', value: 'template:create' },
+  { label: '编辑模板', value: 'template:edit' },
+  { label: '删除模板', value: 'template:delete' }
+])
+
+// API Key 表格列定义
+const apiKeyColumns = [
+  { title: 'ID', key: 'keyId', width: 200 },
+  { title: '名称', key: 'name' },
+  { 
+    title: '权限', 
+    key: 'permissions',
+    render(row) {
+      if (!row.permissions || row.permissions.length === 0) {
+        return h('span', { style: { color: '#999' } }, '无权限')
+      }
+      return h('div', {}, row.permissions.map(permission => 
+        h('n-tag', { 
+          size: 'small',
+          style: { marginRight: '4px', marginBottom: '4px' }
+        }, { default: () => getPermissionLabel(permission) })
+      ))
+    }
+  },
+  { 
+    title: '状态', 
+    key: 'status',
+    width: 80,
+    render(row) {
+      return h('n-tag', {
+        type: row.status === 1 ? 'success' : 'default'
+      }, {
+        default: () => row.status === 1 ? '启用' : '禁用'
+      })
+    }
+  },
+  { title: '最后使用', key: 'lastUsedAt', width: 150 },
+  { title: '创建时间', key: 'createdAt', width: 150 },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 200,
+    render(row) {
+      return h('div', { style: { display: 'flex', gap: '8px' } }, [
+        h('n-button', {
+          size: 'small',
+          onClick: () => showApiKeyModal(row)
+        }, { default: () => '编辑' }),
+        h('n-button', {
+          size: 'small',
+          onClick: () => handleRegenerateApiKey(row)
+        }, { default: () => '重新生成' }),
+        h('n-button', {
+          size: 'small',
+          type: 'error',
+          onClick: () => handleDeleteApiKey(row)
+        }, { default: () => '删除' })
+      ])
+    }
+  }
+]
+
+// API Key 表单验证规则
+const apiKeyRules = {
+  name: [
+    { required: true, message: '请输入API Key名称', trigger: 'blur' },
+    { min: 2, max: 50, message: '名称长度在 2 到 50 个字符', trigger: 'blur' }
+  ]
+}
 
 // 基本资料验证规则
 const profileRules = {
@@ -539,8 +762,158 @@ const handleChangePassword = async () => {
   }
 }
 
+// ============================================================================
+// API Key 管理方法
+// ============================================================================
+
+// 获取权限标签
+const getPermissionLabel = (permission) => {
+  const option = availablePermissions.value.find(opt => opt.value === permission)
+  return option ? option.label : permission
+}
+
+// 加载API Key列表
+const loadApiKeys = async () => {
+  try {
+    apiKeyLoading.value = true
+    const response = await getMyApiKeys({
+      page: apiKeyPagination.page,
+      size: apiKeyPagination.pageSize
+    })
+    
+    if (response.data.code === 0) {
+      apiKeyList.value = response.data.data.list || []
+      apiKeyPagination.itemCount = response.data.data.total || 0
+    }
+  } catch (error) {
+    message.error('加载API Key列表失败')
+  } finally {
+    apiKeyLoading.value = false
+  }
+}
+
+// 显示API Key编辑弹窗
+const showApiKeyModal = (apiKey = null) => {
+  if (apiKey) {
+    Object.assign(apiKeyForm, {
+      id: apiKey.id,
+      name: apiKey.name,
+      permissions: apiKey.permissions || [],
+      expiresAt: apiKey.expiresAt ? new Date(apiKey.expiresAt).getTime() : null
+    })
+  } else {
+    Object.assign(apiKeyForm, {
+      id: null,
+      name: '',
+      permissions: [],
+      expiresAt: null
+    })
+  }
+  apiKeyModalVisible.value = true
+}
+
+// 保存API Key
+const saveApiKey = async () => {
+  try {
+    await apiKeyFormRef.value?.validate()
+    apiKeySaving.value = true
+
+    const data = {
+      name: apiKeyForm.name,
+      permissions: apiKeyForm.permissions,
+      expiresAt: apiKeyForm.expiresAt ? new Date(apiKeyForm.expiresAt).toISOString() : null
+    }
+
+    let response
+    if (apiKeyForm.id) {
+      response = await updateMyApiKey(apiKeyForm.id, data)
+      message.success('API Key更新成功')
+    } else {
+      response = await createMyApiKey(data)
+      message.success('API Key创建成功')
+      
+      // 显示新创建的API Key信息
+      if (response.data.code === 0) {
+        const apiKeyData = response.data.data
+        newApiKeyData.keyId = apiKeyData.apiKey.keyId
+        newApiKeyData.keySecret = apiKeyData.keySecret
+        apiKeySecretModalVisible.value = true
+      }
+    }
+
+    apiKeyModalVisible.value = false
+    loadApiKeys()
+  } catch (error) {
+    message.error('保存失败，请重试')
+  } finally {
+    apiKeySaving.value = false
+  }
+}
+
+// 重新生成API Key
+const handleRegenerateApiKey = (apiKey) => {
+  const dialog = useDialog()
+  dialog.warning({
+    title: '确认重新生成',
+    content: `确定要重新生成API Key "${apiKey.name}" 的密钥吗？原密钥将失效。`,
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        const response = await regenerateMyApiKey(apiKey.id)
+        if (response.data.code === 0) {
+          newApiKeyData.keyId = apiKey.keyId
+          newApiKeyData.keySecret = response.data.data.keySecret
+          apiKeySecretModalVisible.value = true
+          message.success('API Key重新生成成功')
+          loadApiKeys()
+        }
+      } catch (error) {
+        message.error('重新生成失败')
+      }
+    }
+  })
+}
+
+// 删除API Key
+const handleDeleteApiKey = (apiKey) => {
+  const dialog = useDialog()
+  dialog.warning({
+    title: '确认删除',
+    content: `确定要删除API Key "${apiKey.name}" 吗？此操作不可恢复。`,
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await deleteMyApiKey(apiKey.id)
+        message.success('API Key删除成功')
+        loadApiKeys()
+      } catch (error) {
+        message.error('删除失败')
+      }
+    }
+  })
+}
+
+// API Key分页变化
+const handleApiKeyPageChange = (page) => {
+  apiKeyPagination.page = page
+  loadApiKeys()
+}
+
+// 复制到剪贴板
+const copyToClipboard = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text)
+    message.success('已复制到剪贴板')
+  } catch (error) {
+    message.error('复制失败，请手动复制')
+  }
+}
+
 onMounted(() => {
   initFormData()
+  loadApiKeys()
 })
 </script>
 
@@ -878,5 +1251,121 @@ onMounted(() => {
 
 :deep(.n-menu .n-menu-item.n-menu-item--selected .n-icon) {
   color: white;
+}
+
+/* API Keys 管理样式 */
+.apikeys-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.apikeys-toolbar h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 0;
+}
+
+.apikeys-table {
+  margin-top: 16px;
+}
+
+.api-key-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.api-key-permissions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.api-key-usage {
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.api-key-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.api-key-secret-display {
+  font-family: 'Monaco', 'Consolas', monospace;
+  background: #f8f9fa;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid #e9ecef;
+  word-break: break-all;
+}
+
+.api-key-form {
+  max-width: 100%;
+}
+
+.api-key-form .n-form-item {
+  margin-bottom: 20px;
+}
+
+.permission-checkbox-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.api-key-modal .n-modal-container {
+  max-width: 600px;
+}
+
+.api-key-secret-modal .n-alert {
+  margin-bottom: 16px;
+}
+
+.copy-button {
+  margin-top: 8px;
+}
+
+/* API Key 表格列样式 */
+:deep(.api-key-id-cell) {
+  font-family: 'Monaco', 'Consolas', monospace;
+  font-size: 12px;
+}
+
+:deep(.api-key-name-cell) {
+  font-weight: 600;
+}
+
+:deep(.api-key-permissions-cell) {
+  max-width: 200px;
+}
+
+:deep(.api-key-usage-cell) {
+  font-size: 12px;
+  color: #6c757d;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .apikeys-toolbar {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .permission-checkbox-group {
+    grid-template-columns: 1fr;
+  }
+
+  .api-key-actions {
+    flex-direction: column;
+    width: 100%;
+  }
 }
 </style>
