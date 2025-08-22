@@ -21,9 +21,18 @@ export function setupRouterGuards(router) {
             document.title = `${to.meta.title} - Template Starter`
         }
         
-        // 如果用户已登录但用户信息为空，尝试获取用户信息
+        // 如果有token但用户信息为空，尝试获取用户信息
         if (authStore.accessToken && !authStore.user) {
-            await authStore.fetchUserInfo()
+            const success = await authStore.fetchUserInfo()
+            // 如果获取用户信息失败，说明token无效，直接跳转到登录页
+            if (!success && to.meta?.requiresAuth) {
+                message.warning('登录已过期，请重新登录')
+                next({
+                    path: '/login',
+                    query: { redirect: to.fullPath }
+                })
+                return
+            }
         }
         
         // 检查是否需要认证

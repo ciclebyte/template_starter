@@ -50,6 +50,9 @@ func (s *sMiddleware) RequireAuth(r *ghttp.Request) {
 		return
 	}
 
+	// 添加调试日志
+	g.Log().Debug(ctx, "JWT claims UserID:", claims.UserID, "Username:", claims.Username)
+
 	// 将用户信息存储到请求上下文
 	r.SetCtxVar("user_id", claims.UserID)
 	r.SetCtxVar("username", claims.Username)

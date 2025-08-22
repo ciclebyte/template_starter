@@ -253,7 +253,12 @@ func (s *sAuth) GetCurrentUser(ctx context.Context) (*service.AuthUserInfo, erro
 		return nil, errors.New("未登录")
 	}
 
+	// 添加调试日志
+	g.Log().Debug(ctx, "userIdVar type:", fmt.Sprintf("%T", userIdVar), "value:", userIdVar)
+
 	userId := gconv.Int64(userIdVar)
+	g.Log().Debug(ctx, "converted userId:", userId)
+	
 	if userId == 0 {
 		return nil, errors.New("用户ID无效")
 	}

@@ -86,18 +86,26 @@ export const useAuthStore = defineStore('auth', () => {
     
     // 获取用户信息
     const fetchUserInfo = async () => {
+        if (!accessToken.value) {
+            return false
+        }
+        
         try {
             const response = await getUserInfo()
             if (response.data.code === 0) {
                 setUserInfo(response.data.data.user)
                 return true
             } else {
+                console.warn('获取用户信息失败:', response.data.message)
                 clearAuth()
                 return false
             }
         } catch (error) {
             console.error('获取用户信息失败:', error)
-            clearAuth()
+            // 只有在401错误时才清除认证信息，其他错误保留token以便重试
+            if (error.response?.status === 401) {
+                clearAuth()
+            }
             return false
         }
     }
@@ -146,7 +154,16 @@ export const useAuthStore = defineStore('auth', () => {
     // 初始化
     const init = async () => {
         if (accessToken.value && !user.value) {
-            await fetchUserInfo()
+            const success = await fetchUserInfo()
+            if (!success) {
+                // 如果获取用户信息失败，尝试刷新token
+                if (refreshTokenValue.value) {
+                    const refreshSuccess = await doRefreshToken()
+                    if (refreshSuccess) {
+                        await fetchUserInfo()
+                    }
+                }
+            }
         }
     }
     

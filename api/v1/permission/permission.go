@@ -13,7 +13,7 @@ import (
 type ListPermissionsReq struct {
 	g.Meta `path:"/permissions" method:"get" summary:"获取权限列表" tags:"权限管理"`
 	Page   int    `json:"page" v:"min:1" dc:"页码，默认1"`
-	Size   int    `json:"size" v:"min:1|max:100" dc:"每页数量，默认20"`
+	Size   int    `json:"size" v:"min:1|max:1000" dc:"每页数量，默认20"`
 	Search string `json:"search" dc:"搜索关键词"`
 	Resource string `json:"resource" dc:"资源类型过滤"`
 }
@@ -78,9 +78,9 @@ type GetPermissionRes struct {
 type ListRolesReq struct {
 	g.Meta `path:"/roles" method:"get" summary:"获取角色列表" tags:"角色管理"`
 	Page   int    `json:"page" v:"min:1" dc:"页码，默认1"`
-	Size   int    `json:"size" v:"min:1|max:100" dc:"每页数量，默认20"`
+	Size   int    `json:"size" v:"min:1|max:1000" dc:"每页数量，默认20"`
 	Search string `json:"search" dc:"搜索关键词"`
-	Status int    `json:"status" dc:"状态过滤 0-禁用 1-启用"`
+	Status *int   `json:"status" dc:"状态过滤 0-禁用 1-启用"`
 }
 
 type ListRolesRes struct {

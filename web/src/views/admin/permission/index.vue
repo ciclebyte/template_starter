@@ -240,7 +240,7 @@
 <script setup>
 import { ref, reactive, onMounted, h } from 'vue'
 import { useMessage, useDialog } from 'naive-ui'
-import { SearchOutline, AddOutline, EditOutline, TrashOutline } from '@vicons/ionicons5'
+import { SearchOutline, AddOutline, CreateOutline, TrashBinOutline } from '@vicons/ionicons5'
 import {
   getPermissions,
   createPermission,

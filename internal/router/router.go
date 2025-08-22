@@ -15,11 +15,17 @@ func (router *Router) BindController(ctx context.Context, group *ghttp.RouterGro
 	group.Group("/api/v1", func(group *ghttp.RouterGroup) {
 		group.Middleware(service.Middleware().MiddlewareCORS)
 		
-		// 认证相关路由 (无需认证)
+		// 认证相关路由 - 使用OptionalAuth中间件，在控制器方法中处理认证检查
+		group.Middleware(service.Middleware().OptionalAuth)
 		group.Bind(controller.Auth)
 		
-		// 公开访问路由 (可选认证) - 为了向前兼容，暂时让所有路由都可选认证
-		group.Middleware(service.Middleware().OptionalAuth)
+		// 权限管理路由 (需要认证)
+		group.Group("", func(group *ghttp.RouterGroup) {
+			group.Middleware(service.Middleware().RequireAuth)
+			group.Bind(controller.Permission)
+		})
+		
+		// 其他公开访问路由 (可选认证)
 		group.Bind(
 			controller.Languages,
 			controller.Categories,

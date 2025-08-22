@@ -224,18 +224,23 @@ func (s *sPermission) ListRoles(ctx context.Context, req *permission.ListRolesRe
 		size = 20
 	}
 
+	// 添加调试日志
+	g.Log().Debug(ctx, "ListRoles request:", req)
+
 	query := dao.Roles.Ctx(ctx)
 
 	// 搜索条件
 	if req.Search != "" {
+		g.Log().Debug(ctx, "Adding search condition:", req.Search)
 		query = query.WhereLike("name", "%"+req.Search+"%").
 			WhereOrLike("code", "%"+req.Search+"%").
 			WhereOrLike("description", "%"+req.Search+"%")
 	}
 
-	// 状态过滤
-	if req.Status >= 0 {
-		query = query.Where("status", req.Status)
+	// 状态过滤 - 只有明确指定状态值时才过滤
+	if req.Status != nil {
+		g.Log().Debug(ctx, "Adding status condition:", *req.Status)
+		query = query.Where("status", *req.Status)
 	}
 
 	// 获取总数
@@ -244,6 +249,7 @@ func (s *sPermission) ListRoles(ctx context.Context, req *permission.ListRolesRe
 		g.Log().Error(ctx, "get roles count failed:", err)
 		return nil, err
 	}
+	g.Log().Debug(ctx, "Roles total count:", total)
 
 	// 获取列表
 	var roles []entity.Roles
@@ -252,6 +258,7 @@ func (s *sPermission) ListRoles(ctx context.Context, req *permission.ListRolesRe
 		g.Log().Error(ctx, "get roles failed:", err)
 		return nil, err
 	}
+	g.Log().Debug(ctx, "Retrieved roles count:", len(roles))
 
 	// 转换数据并获取角色权限
 	list := make([]permission.RoleInfo, 0, len(roles))
