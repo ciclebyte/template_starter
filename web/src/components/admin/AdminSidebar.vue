@@ -138,19 +138,26 @@ const menuOptions = [
     icon: renderIcon(DocumentTextOutline)
   },
   {
+    label: '用户管理',
+    key: 'admin-user-management',
+    icon: renderIcon(PeopleOutline),
+    children: [
+      {
+        label: '用户管理',
+        key: 'admin-users',
+        icon: renderIcon(PeopleOutline)
+      },
+      {
+        label: '权限管理',
+        key: 'admin-permissions',
+        icon: renderIcon(LockClosedOutline)
+      }
+    ]
+  },
+  {
     label: '统计分析',
     key: 'admin-analytics',
     icon: renderIcon(StatsChartOutline)
-  },
-  {
-    label: '权限管理',
-    key: 'admin-permissions',
-    icon: renderIcon(LockClosedOutline)
-  },
-  {
-    label: '用户管理',
-    key: 'admin-users',
-    icon: renderIcon(PeopleOutline)
   },
   {
     label: '系统设置',
