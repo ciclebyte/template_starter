@@ -1,55 +1,79 @@
 <template>
   <div class="user-management">
-    <n-card title="用户管理" :bordered="false">
+    <div class="page-header">
+      <div class="header-left">
+        <h1>用户管理</h1>
+        <p class="page-description">管理系统用户账户、角色分配和权限设置</p>
+      </div>
+    </div>
+
+    <div class="content-card">
       <!-- 工具栏 -->
       <div class="toolbar">
-        <div class="search-bar">
-          <n-input
-            v-model:value="searchForm.search"
-            placeholder="搜索用户名、邮箱或昵称"
-            clearable
-            style="width: 300px"
-            @keyup.enter="loadUsers"
-          >
-            <template #prefix>
-              <n-icon>
-                <SearchOutline />
-              </n-icon>
-            </template>
-          </n-input>
-          <n-select
-            v-model:value="searchForm.status"
-            placeholder="选择状态"
-            clearable
-            style="width: 120px; margin-left: 12px"
-            :options="statusOptions"
-            @update:value="loadUsers"
-          />
-          <n-select
-            v-model:value="searchForm.role"
-            placeholder="选择角色"
-            clearable
-            style="width: 150px; margin-left: 12px"
-            :options="roleOptions"
-            @update:value="loadUsers"
-          />
-          <n-button @click="loadUsers" style="margin-left: 12px">
-            <template #icon>
-              <n-icon>
-                <SearchOutline />
-              </n-icon>
-            </template>
-            搜索
-          </n-button>
+        <div class="toolbar-left">
+          <div class="search-section">
+            <span class="search-label">关键词：</span>
+            <n-input
+              v-model:value="searchForm.search"
+              placeholder="输入用户名、邮箱或昵称进行搜索..."
+              clearable
+              style="width: 300px"
+              @keyup.enter="loadUsers"
+              @input="handleSearch"
+            >
+              <template #prefix>
+                <n-icon>
+                  <SearchOutline />
+                </n-icon>
+              </template>
+            </n-input>
+            <n-button type="primary" @click="handleSearch" :loading="userLoading" style="margin-left: 8px">
+              <template #icon>
+                <n-icon>
+                  <SearchOutline />
+                </n-icon>
+              </template>
+              搜索
+            </n-button>
+            <n-button @click="clearSearch" quaternary style="margin-left: 8px" v-if="searchForm.search">
+              清空
+            </n-button>
+            <span class="search-label" style="margin-left: 16px">状态：</span>
+            <n-select
+              v-model:value="searchForm.status"
+              placeholder="选择状态"
+              clearable
+              style="width: 120px; margin-left: 8px"
+              :options="statusOptions"
+              @update:value="loadUsers"
+            />
+            <span class="search-label" style="margin-left: 16px">角色：</span>
+            <n-select
+              v-model:value="searchForm.role"
+              placeholder="选择角色"
+              clearable
+              style="width: 150px; margin-left: 8px"
+              :options="roleOptions"
+              @update:value="loadUsers"
+            />
+            <n-button type="primary" @click="showUserModal()" style="margin-left: 16px">
+              <template #icon>
+                <n-icon>
+                  <AddOutline />
+                </n-icon>
+              </template>
+              添加
+            </n-button>
+          </div>
         </div>
-        <div class="actions">
-          <n-button type="primary" @click="showUserModal()">
+        <div class="toolbar-right">
+          <n-button @click="refreshData" :loading="userLoading" quaternary>
             <template #icon>
               <n-icon>
-                <AddOutline />
+                <RefreshOutline />
               </n-icon>
             </template>
-            新增用户
+            刷新
           </n-button>
         </div>
       </div>
@@ -61,9 +85,12 @@
         :loading="userLoading"
         :pagination="userPagination"
         :row-key="row => row.id"
+        class="user-table"
+        remote
         @update:page="handleUserPageChange"
+        @update:page-size="handlePageSizeChange"
       />
-    </n-card>
+    </div>
 
     <!-- 用户编辑弹窗 -->
     <n-modal v-model:show="userModalVisible" preset="dialog" title="用户信息" style="width: 600px">
@@ -194,7 +221,7 @@
 <script setup>
 import { ref, reactive, onMounted, h } from 'vue'
 import { useMessage, useDialog, NButton, NIcon } from 'naive-ui'
-import { SearchOutline, AddOutline, CreateOutline, TrashBinOutline, KeyOutline, PersonOutline } from '@vicons/ionicons5'
+import { SearchOutline, AddOutline, CreateOutline, TrashBinOutline, KeyOutline, PersonOutline, RefreshOutline } from '@vicons/ionicons5'
 import {
   getUsers,
   createUser,
@@ -583,6 +610,35 @@ function handleUserPageChange(page) {
   loadUsers()
 }
 
+// 页面大小变化
+function handlePageSizeChange(pageSize) {
+  userPagination.pageSize = pageSize
+  userPagination.page = 1
+  searchForm.size = pageSize
+  searchForm.page = 1
+  loadUsers()
+}
+
+// 搜索处理
+function handleSearch() {
+  userPagination.page = 1
+  searchForm.page = 1
+  loadUsers()
+}
+
+// 清空搜索
+function clearSearch() {
+  searchForm.search = ''
+  searchForm.status = null
+  searchForm.role = ''
+  handleSearch()
+}
+
+// 刷新数据
+function refreshData() {
+  loadUsers()
+}
+
 // 初始化
 onMounted(() => {
   loadUsers()
@@ -592,23 +648,93 @@ onMounted(() => {
 
 <style scoped>
 .user-management {
-  padding: 16px;
+  padding: 0;
+  background: transparent;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.header-left h1 {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #333;
+}
+
+.page-description {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.content-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .toolbar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
-.search-bar {
+.toolbar-left {
+  flex: 1;
+}
+
+.toolbar-right {
+  flex-shrink: 0;
+}
+
+.search-section {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.search-label {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.user-table {
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .action-buttons {
   display: flex;
   gap: 8px;
+}
+
+.text-placeholder {
+  color: #999;
+  font-style: italic;
+}
+
+:deep(.n-data-table th) {
+  background: #fafbfc;
+  font-weight: 600;
+}
+
+:deep(.n-data-table td) {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+:deep(.n-data-table .n-data-table-tbody .n-data-table-tr:hover .n-data-table-td) {
+  background: #fafafa;
 }
 </style>

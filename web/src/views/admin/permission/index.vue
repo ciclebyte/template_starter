@@ -1,51 +1,74 @@
 <template>
   <div class="permission-management">
-    <n-card title="权限管理" :bordered="false">
+    <div class="page-header">
+      <div class="header-left">
+        <h1>权限管理</h1>
+        <p class="page-description">管理系统权限定义和角色权限分配</p>
+      </div>
+    </div>
+
+    <div class="content-card">
       <n-tabs v-model:value="activeTab" type="line" animated>
         <!-- 权限管理 -->
         <n-tab-pane name="permissions" tab="权限管理">
           <div class="tab-content">
             <!-- 工具栏 -->
             <div class="toolbar">
-              <div class="search-bar">
-                <n-input
-                  v-model:value="permissionSearchForm.search"
-                  placeholder="搜索权限名称、代码或描述"
-                  clearable
-                  style="width: 300px"
-                  @keyup.enter="loadPermissions"
-                >
-                  <template #prefix>
-                    <n-icon>
-                      <SearchOutline />
-                    </n-icon>
-                  </template>
-                </n-input>
-                <n-select
-                  v-model:value="permissionSearchForm.resource"
-                  placeholder="选择资源类型"
-                  clearable
-                  style="width: 150px; margin-left: 12px"
-                  :options="resourceOptions"
-                  @update:value="loadPermissions"
-                />
-                <n-button @click="loadPermissions" style="margin-left: 12px">
-                  <template #icon>
-                    <n-icon>
-                      <SearchOutline />
-                    </n-icon>
-                  </template>
-                  搜索
-                </n-button>
+              <div class="toolbar-left">
+                <div class="search-section">
+                  <span class="search-label">关键词：</span>
+                  <n-input
+                    v-model:value="permissionSearchForm.search"
+                    placeholder="输入权限名称、代码或描述进行搜索..."
+                    clearable
+                    style="width: 300px"
+                    @keyup.enter="handlePermissionSearch"
+                    @input="handlePermissionSearch"
+                  >
+                    <template #prefix>
+                      <n-icon>
+                        <SearchOutline />
+                      </n-icon>
+                    </template>
+                  </n-input>
+                  <n-button type="primary" @click="handlePermissionSearch" :loading="permissionLoading" style="margin-left: 8px">
+                    <template #icon>
+                      <n-icon>
+                        <SearchOutline />
+                      </n-icon>
+                    </template>
+                    搜索
+                  </n-button>
+                  <n-button @click="clearPermissionSearch" quaternary style="margin-left: 8px" v-if="permissionSearchForm.search">
+                    清空
+                  </n-button>
+                  <span class="search-label" style="margin-left: 16px">资源类型：</span>
+                  <n-select
+                    v-model:value="permissionSearchForm.resource"
+                    placeholder="选择资源类型"
+                    clearable
+                    style="width: 150px; margin-left: 8px"
+                    :options="resourceOptions"
+                    @update:value="loadPermissions"
+                  />
+                  <n-button type="primary" @click="showPermissionModal()" style="margin-left: 16px">
+                    <template #icon>
+                      <n-icon>
+                        <AddOutline />
+                      </n-icon>
+                    </template>
+                    添加
+                  </n-button>
+                </div>
               </div>
-              <div class="actions">
-                <n-button type="primary" @click="showPermissionModal()">
+              <div class="toolbar-right">
+                <n-button @click="refreshPermissions" :loading="permissionLoading" quaternary>
                   <template #icon>
                     <n-icon>
-                      <AddOutline />
+                      <RefreshOutline />
                     </n-icon>
                   </template>
-                  新增权限
+                  刷新
                 </n-button>
               </div>
             </div>
@@ -67,45 +90,61 @@
           <div class="tab-content">
             <!-- 工具栏 -->
             <div class="toolbar">
-              <div class="search-bar">
-                <n-input
-                  v-model:value="roleSearchForm.search"
-                  placeholder="搜索角色名称、代码或描述"
-                  clearable
-                  style="width: 300px"
-                  @keyup.enter="loadRoles"
-                >
-                  <template #prefix>
-                    <n-icon>
-                      <SearchOutline />
-                    </n-icon>
-                  </template>
-                </n-input>
-                <n-select
-                  v-model:value="roleSearchForm.status"
-                  placeholder="选择状态"
-                  clearable
-                  style="width: 120px; margin-left: 12px"
-                  :options="statusOptions"
-                  @update:value="loadRoles"
-                />
-                <n-button @click="loadRoles" style="margin-left: 12px">
-                  <template #icon>
-                    <n-icon>
-                      <SearchOutline />
-                    </n-icon>
-                  </template>
-                  搜索
-                </n-button>
+              <div class="toolbar-left">
+                <div class="search-section">
+                  <span class="search-label">关键词：</span>
+                  <n-input
+                    v-model:value="roleSearchForm.search"
+                    placeholder="输入角色名称、代码或描述进行搜索..."
+                    clearable
+                    style="width: 300px"
+                    @keyup.enter="handleRoleSearch"
+                    @input="handleRoleSearch"
+                  >
+                    <template #prefix>
+                      <n-icon>
+                        <SearchOutline />
+                      </n-icon>
+                    </template>
+                  </n-input>
+                  <n-button type="primary" @click="handleRoleSearch" :loading="roleLoading" style="margin-left: 8px">
+                    <template #icon>
+                      <n-icon>
+                        <SearchOutline />
+                      </n-icon>
+                    </template>
+                    搜索
+                  </n-button>
+                  <n-button @click="clearRoleSearch" quaternary style="margin-left: 8px" v-if="roleSearchForm.search">
+                    清空
+                  </n-button>
+                  <span class="search-label" style="margin-left: 16px">状态：</span>
+                  <n-select
+                    v-model:value="roleSearchForm.status"
+                    placeholder="选择状态"
+                    clearable
+                    style="width: 120px; margin-left: 8px"
+                    :options="statusOptions"
+                    @update:value="loadRoles"
+                  />
+                  <n-button type="primary" @click="showRoleModal()" style="margin-left: 16px">
+                    <template #icon>
+                      <n-icon>
+                        <AddOutline />
+                      </n-icon>
+                    </template>
+                    添加
+                  </n-button>
+                </div>
               </div>
-              <div class="actions">
-                <n-button type="primary" @click="showRoleModal()">
+              <div class="toolbar-right">
+                <n-button @click="refreshRoles" :loading="roleLoading" quaternary>
                   <template #icon>
                     <n-icon>
-                      <AddOutline />
+                      <RefreshOutline />
                     </n-icon>
                   </template>
-                  新增角色
+                  刷新
                 </n-button>
               </div>
             </div>
@@ -122,7 +161,7 @@
           </div>
         </n-tab-pane>
       </n-tabs>
-    </n-card>
+    </div>
 
     <!-- 权限编辑弹窗 -->
     <n-modal v-model:show="permissionModalVisible" preset="dialog" title="权限信息">
@@ -240,7 +279,7 @@
 <script setup>
 import { ref, reactive, onMounted, h } from 'vue'
 import { useMessage, useDialog } from 'naive-ui'
-import { SearchOutline, AddOutline, CreateOutline, TrashBinOutline } from '@vicons/ionicons5'
+import { SearchOutline, AddOutline, CreateOutline, TrashBinOutline, RefreshOutline } from '@vicons/ionicons5'
 import { NButton, NIcon } from 'naive-ui'
 import {
   getPermissions,
@@ -714,6 +753,44 @@ function handleRolePageChange(page) {
   loadRoles()
 }
 
+// 权限搜索处理
+function handlePermissionSearch() {
+  permissionPagination.page = 1
+  permissionSearchForm.page = 1
+  loadPermissions()
+}
+
+// 清空权限搜索
+function clearPermissionSearch() {
+  permissionSearchForm.search = ''
+  permissionSearchForm.resource = null
+  handlePermissionSearch()
+}
+
+// 刷新权限数据
+function refreshPermissions() {
+  loadPermissions()
+}
+
+// 角色搜索处理
+function handleRoleSearch() {
+  rolePagination.page = 1
+  roleSearchForm.page = 1
+  loadRoles()
+}
+
+// 清空角色搜索
+function clearRoleSearch() {
+  roleSearchForm.search = ''
+  roleSearchForm.status = null
+  handleRoleSearch()
+}
+
+// 刷新角色数据
+function refreshRoles() {
+  loadRoles()
+}
+
 // 初始化
 onMounted(() => {
   loadPermissions()
@@ -723,7 +800,35 @@ onMounted(() => {
 
 <style scoped>
 .permission-management {
-  padding: 16px;
+  padding: 0;
+  background: transparent;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.header-left h1 {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #333;
+}
+
+.page-description {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.content-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .tab-content {
@@ -733,13 +838,32 @@ onMounted(() => {
 .toolbar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
-.search-bar {
+.toolbar-left {
+  flex: 1;
+}
+
+.toolbar-right {
+  flex-shrink: 0;
+}
+
+.search-section {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.search-label {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .permission-tree {
@@ -753,5 +877,23 @@ onMounted(() => {
 .action-buttons {
   display: flex;
   gap: 8px;
+}
+
+.text-placeholder {
+  color: #999;
+  font-style: italic;
+}
+
+:deep(.n-data-table th) {
+  background: #fafbfc;
+  font-weight: 600;
+}
+
+:deep(.n-data-table td) {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+:deep(.n-data-table .n-data-table-tbody .n-data-table-tr:hover .n-data-table-td) {
+  background: #fafafa;
 }
 </style>
