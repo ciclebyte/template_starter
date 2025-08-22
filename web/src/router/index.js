@@ -131,6 +131,11 @@ const routes = [
         path: 'settings',
         name: 'admin-settings',
         component: () => import('@/views/admin/setting/index.vue')
+      },
+      {
+        path: 'permissions',
+        name: 'admin-permissions',
+        component: () => import('@/views/admin/permission/index.vue')
       }
     ]
   }

@@ -161,6 +161,55 @@
               </n-form>
             </div>
 
+            <!-- 我的角色 -->
+            <div v-if="activeTab === 'roles'" class="tab-content">
+              <div class="content-header">
+                <h2>我的角色</h2>
+                <p>查看您拥有的角色和权限信息</p>
+              </div>
+
+              <div class="roles-info">
+                <div class="roles-overview">
+                  <h3>角色概览</h3>
+                  <div class="role-cards">
+                    <div 
+                      v-for="role in authStore.roles" 
+                      :key="role"
+                      class="role-card"
+                    >
+                      <div class="role-header">
+                        <n-icon size="24" class="role-icon">
+                          <ShieldCheckmarkOutline />
+                        </n-icon>
+                        <div class="role-info">
+                          <div class="role-name">{{ getRoleDisplayName(role) }}</div>
+                          <div class="role-code">{{ role }}</div>
+                        </div>
+                      </div>
+                      <div class="role-description">
+                        {{ getRoleDescription(role) }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="permissions-info" v-if="authStore.permissions.length > 0">
+                  <h3>我的权限</h3>
+                  <div class="permission-grid">
+                    <n-tag
+                      v-for="permission in authStore.permissions"
+                      :key="permission"
+                      type="info"
+                      size="medium"
+                      class="permission-tag"
+                    >
+                      {{ getPermissionDisplayName(permission) }}
+                    </n-tag>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- 账户统计 -->
             <div v-if="activeTab === 'stats'" class="tab-content">
               <div class="content-header">
@@ -227,7 +276,7 @@
 import { ref, reactive, computed, onMounted, h } from 'vue'
 import { useMessage } from 'naive-ui'
 import { useAuthStore } from '@/stores/auth'
-import { PersonOutline, LockClosedOutline, BarChartOutline } from '@vicons/ionicons5'
+import { PersonOutline, LockClosedOutline, BarChartOutline, ShieldCheckmarkOutline } from '@vicons/ionicons5'
 import { NIcon } from 'naive-ui'
 
 const message = useMessage()
@@ -252,6 +301,11 @@ const menuOptions = [
     label: '安全设置',
     key: 'security',
     icon: () => h(NIcon, { size: 16 }, { default: () => h(LockClosedOutline) })
+  },
+  {
+    label: '我的角色',
+    key: 'roles',
+    icon: () => h(NIcon, { size: 16 }, { default: () => h(ShieldCheckmarkOutline) })
   },
   {
     label: '账户统计',
@@ -326,6 +380,47 @@ const getRoleDisplayName = (role) => {
     'guest': '访客'
   }
   return roleMap[role] || role
+}
+
+// 角色描述映射
+const getRoleDescription = (role) => {
+  const roleDescMap = {
+    'super_admin': '拥有系统的最高权限，可以管理所有功能和用户',
+    'system_admin': '系统管理员，可以管理系统配置和用户',
+    'org_admin': '组织管理员，可以管理本组织的用户和资源',
+    'user': '普通用户，可以使用基本功能',
+    'guest': '访客用户，仅可查看公开内容'
+  }
+  return roleDescMap[role] || '暂无描述'
+}
+
+// 权限显示名称映射
+const getPermissionDisplayName = (permission) => {
+  const permMap = {
+    'template:read': '查看模板',
+    'template:use': '使用模板',
+    'template:create': '创建模板',
+    'template:edit': '编辑模板',
+    'template:delete': '删除模板',
+    'template:share': '分享模板',
+    'template:manage': '管理模板',
+    'category:read': '查看分类',
+    'category:manage': '管理分类',
+    'language:read': '查看语言',
+    'language:manage': '管理语言',
+    'tag:read': '查看标签',
+    'tag:manage': '管理标签',
+    'user:read': '查看用户',
+    'user:manage': '管理用户',
+    'user:assign_role': '分配角色',
+    'role:read': '查看角色',
+    'role:manage': '管理角色',
+    'role:assign_permission': '分配权限',
+    'system:config': '系统配置',
+    'system:audit': '审计日志',
+    'system:analytics': '统计分析'
+  }
+  return permMap[permission] || permission
 }
 
 // Tab切换
@@ -585,6 +680,86 @@ onMounted(() => {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* 我的角色页面样式 */
+.roles-info h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 0 0 16px 0;
+}
+
+.role-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.role-card {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 20px;
+  transition: all 0.2s ease;
+}
+
+.role-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.role-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.role-icon {
+  color: #18a058;
+}
+
+.role-info {
+  flex: 1;
+}
+
+.role-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 0 0 4px 0;
+}
+
+.role-code {
+  font-size: 12px;
+  color: #6c757d;
+  font-family: 'Monaco', 'Consolas', monospace;
+  background: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.role-description {
+  font-size: 14px;
+  color: #6c757d;
+  line-height: 1.5;
+}
+
+.permissions-info {
+  margin-top: 32px;
+}
+
+.permission-grid {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.permission-tag {
+  margin: 0;
 }
 
 /* 响应式设计 */

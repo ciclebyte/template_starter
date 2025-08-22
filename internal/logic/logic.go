@@ -8,6 +8,7 @@ import (
 	_ "github.com/ciclebyte/template_starter/internal/logic/index"
 	_ "github.com/ciclebyte/template_starter/internal/logic/languages"
 	_ "github.com/ciclebyte/template_starter/internal/logic/middleware"
+	_ "github.com/ciclebyte/template_starter/internal/logic/permission"
 	_ "github.com/ciclebyte/template_starter/internal/logic/sprig_functions"
 	_ "github.com/ciclebyte/template_starter/internal/logic/statistics"
 	_ "github.com/ciclebyte/template_starter/internal/logic/system_config"

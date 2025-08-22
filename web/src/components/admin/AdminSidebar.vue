@@ -76,7 +76,8 @@ import {
   StatsChartOutline,
   ServerOutline,
   PricetagOutline,
-  OptionsOutline
+  OptionsOutline,
+  LockClosedOutline
 } from '@vicons/ionicons5'
 
 const props = defineProps({
@@ -139,6 +140,11 @@ const menuOptions = [
     label: '统计分析',
     key: 'admin-analytics',
     icon: renderIcon(StatsChartOutline)
+  },
+  {
+    label: '权限管理',
+    key: 'admin-permissions',
+    icon: renderIcon(LockClosedOutline)
   },
   {
     label: '系统设置',
