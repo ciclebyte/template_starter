@@ -77,7 +77,8 @@ import {
   ServerOutline,
   PricetagOutline,
   OptionsOutline,
-  LockClosedOutline
+  LockClosedOutline,
+  PeopleOutline
 } from '@vicons/ionicons5'
 
 const props = defineProps({
@@ -145,6 +146,11 @@ const menuOptions = [
     label: '权限管理',
     key: 'admin-permissions',
     icon: renderIcon(LockClosedOutline)
+  },
+  {
+    label: '用户管理',
+    key: 'admin-users',
+    icon: renderIcon(PeopleOutline)
   },
   {
     label: '系统设置',

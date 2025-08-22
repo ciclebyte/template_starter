@@ -278,6 +278,15 @@ import { useMessage } from 'naive-ui'
 import { useAuthStore } from '@/stores/auth'
 import { PersonOutline, LockClosedOutline, BarChartOutline, ShieldCheckmarkOutline } from '@vicons/ionicons5'
 import { NIcon } from 'naive-ui'
+import { 
+  getProfile, 
+  updateProfile, 
+  changePassword, 
+  updateEmail, 
+  uploadAvatar, 
+  getSecurityInfo, 
+  getLoginHistory 
+} from '@/api/profile'
 
 const message = useMessage()
 const authStore = useAuthStore()
@@ -429,19 +438,48 @@ const handleTabChange = (key) => {
 }
 
 // 初始化表单数据
-const initFormData = () => {
-  if (userInfo.value) {
-    profileForm.username = userInfo.value.username || ''
-    profileForm.nickname = userInfo.value.nickname || ''
-    profileForm.email = userInfo.value.email || ''
-    profileForm.phone = userInfo.value.phone || ''
-    
-    // 统计信息
-    stats.loginCount = userInfo.value.loginCount || 0
-    stats.lastLoginAt = userInfo.value.lastLoginAt ? 
-      new Date(userInfo.value.lastLoginAt).toLocaleString() : '从未'
-    stats.createdAt = userInfo.value.createdAt ? 
-      new Date(userInfo.value.createdAt).toLocaleDateString() : '未知'
+const initFormData = async () => {
+  try {
+    const response = await getProfile()
+    if (response.data.code === 0) {
+      const profile = response.data.data.profile
+      profileForm.username = profile.username || ''
+      profileForm.nickname = profile.nickname || ''
+      profileForm.email = profile.email || ''
+      profileForm.phone = profile.phone || ''
+      
+      // 统计信息
+      stats.loginCount = 0 // 这个需要从安全信息中获取
+      stats.lastLoginAt = profile.lastLoginAt ? 
+        new Date(profile.lastLoginAt).toLocaleString() : '从未'
+      stats.createdAt = profile.createdAt ? 
+        new Date(profile.createdAt).toLocaleDateString() : '未知'
+        
+      // 加载安全信息
+      loadSecurityInfo()
+    }
+  } catch (error) {
+    console.error('获取个人资料失败:', error)
+    // 如果获取失败，使用authStore中的信息作为后备
+    if (userInfo.value) {
+      profileForm.username = userInfo.value.username || ''
+      profileForm.nickname = userInfo.value.nickname || ''
+      profileForm.email = userInfo.value.email || ''
+      profileForm.phone = userInfo.value.phone || ''
+    }
+  }
+}
+
+// 加载安全信息
+const loadSecurityInfo = async () => {
+  try {
+    const response = await getSecurityInfo()
+    if (response.data.code === 0) {
+      const securityInfo = response.data.data.securityInfo
+      stats.loginCount = securityInfo.loginCount || 0
+    }
+  } catch (error) {
+    console.error('获取安全信息失败:', error)
   }
 }
 
@@ -456,11 +494,20 @@ const handleSaveProfile = async () => {
     await profileFormRef.value?.validate()
     loading.value = true
     
-    // TODO: 调用更新个人信息的API
+    await updateProfile({
+      nickname: profileForm.nickname,
+      phone: profileForm.phone,
+      avatar: userInfo.value?.avatar || ''
+    })
+    
     message.success('个人资料更新成功')
     
+    // 刷新用户信息
+    await authStore.fetchUserInfo()
+    
   } catch (error) {
-    console.error('表单验证失败:', error)
+    console.error('保存个人资料失败:', error)
+    message.error('保存失败，请重试')
   } finally {
     loading.value = false
   }
@@ -472,7 +519,11 @@ const handleChangePassword = async () => {
     await securityFormRef.value?.validate()
     loading.value = true
     
-    // TODO: 调用修改密码的API
+    await changePassword({
+      oldPassword: securityForm.currentPassword,
+      newPassword: securityForm.newPassword
+    })
+    
     message.success('密码修改成功')
     
     // 清空表单
@@ -481,7 +532,8 @@ const handleChangePassword = async () => {
     securityForm.confirmPassword = ''
     
   } catch (error) {
-    console.error('表单验证失败:', error)
+    console.error('修改密码失败:', error)
+    message.error('修改密码失败，请检查原密码是否正确')
   } finally {
     loading.value = false
   }

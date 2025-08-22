@@ -19,10 +19,14 @@ func (router *Router) BindController(ctx context.Context, group *ghttp.RouterGro
 		group.Middleware(service.Middleware().OptionalAuth)
 		group.Bind(controller.Auth)
 		
-		// 权限管理路由 (需要认证)
+		// 管理功能路由 (需要认证)
 		group.Group("", func(group *ghttp.RouterGroup) {
 			group.Middleware(service.Middleware().RequireAuth)
-			group.Bind(controller.Permission)
+			group.Bind(
+				controller.Permission,
+				controller.User,
+				controller.Profile,
+			)
 		})
 		
 		// 其他公开访问路由 (可选认证)
