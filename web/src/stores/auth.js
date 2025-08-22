@@ -10,6 +10,10 @@ export const useAuthStore = defineStore('auth', () => {
     const permissions = ref([])
     const roles = ref([])
     
+    // 请求锁，防止重复请求用户信息
+    let fetchingUserInfo = false
+    let fetchingPromise = null
+    
     // 计算属性
     const isLoggedIn = computed(() => !!user.value && !!accessToken.value)
     const isAdmin = computed(() => roles.value.includes('super_admin') || roles.value.includes('system_admin'))
@@ -90,24 +94,39 @@ export const useAuthStore = defineStore('auth', () => {
             return false
         }
         
-        try {
-            const response = await getUserInfo()
-            if (response.data.code === 0) {
-                setUserInfo(response.data.data.user)
-                return true
-            } else {
-                console.warn('获取用户信息失败:', response.data.message)
-                clearAuth()
-                return false
-            }
-        } catch (error) {
-            console.error('获取用户信息失败:', error)
-            // 只有在401错误时才清除认证信息，其他错误保留token以便重试
-            if (error.response?.status === 401) {
-                clearAuth()
-            }
-            return false
+        // 防止重复请求 - 如果已有请求在进行中，等待其完成
+        if (fetchingUserInfo && fetchingPromise) {
+            console.log('已有获取用户信息的请求在进行中，等待完成')
+            return await fetchingPromise
         }
+        
+        fetchingUserInfo = true
+        
+        fetchingPromise = (async () => {
+            try {
+                const response = await getUserInfo()
+                if (response.data.code === 0) {
+                    setUserInfo(response.data.data.user)
+                    return true
+                } else {
+                    console.warn('获取用户信息失败:', response.data.message)
+                    clearAuth()
+                    return false
+                }
+            } catch (error) {
+                console.error('获取用户信息失败:', error)
+                // 只有在401错误时才清除认证信息，其他错误保留token以便重试
+                if (error.response?.status === 401) {
+                    clearAuth()
+                }
+                return false
+            } finally {
+                fetchingUserInfo = false
+                fetchingPromise = null
+            }
+        })()
+        
+        return await fetchingPromise
     }
     
     // 刷新令牌

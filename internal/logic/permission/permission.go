@@ -238,7 +238,9 @@ func (s *sPermission) ListRoles(ctx context.Context, req *permission.ListRolesRe
 	}
 
 	// 状态过滤 - 只有明确指定状态值时才过滤
-	if req.Status != nil {
+	// 检查原始请求参数，避免空字符串被转换为0的问题
+	statusParam := g.RequestFromCtx(ctx).Get("status").String()
+	if statusParam != "" && req.Status != nil {
 		g.Log().Debug(ctx, "Adding status condition:", *req.Status)
 		query = query.Where("status", *req.Status)
 	}
