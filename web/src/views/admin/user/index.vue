@@ -193,7 +193,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, h } from 'vue'
-import { useMessage, useDialog } from 'naive-ui'
+import { useMessage, useDialog, NButton, NIcon } from 'naive-ui'
 import { SearchOutline, AddOutline, CreateOutline, TrashBinOutline, KeyOutline, PersonOutline } from '@vicons/ionicons5'
 import {
   getUsers,
@@ -330,37 +330,65 @@ const userColumns = [
   {
     title: '操作',
     key: 'actions',
-    width: 240,
-    render(row) {
-      return [
-        h('n-button', {
-          size: 'small',
-          type: 'primary',
-          style: { marginRight: '8px' },
-          onClick: () => showUserModal(row)
-        }, { default: () => '编辑' }),
-        h('n-button', {
-          size: 'small',
-          style: { marginRight: '8px' },
-          onClick: () => showPasswordModal(row)
-        }, { 
-          icon: () => h('n-icon', {}, { default: () => h(KeyOutline) }),
-          default: () => '重置密码'
-        }),
-        h('n-button', {
-          size: 'small',
-          style: { marginRight: '8px' },
-          onClick: () => showRoleModal(row)
-        }, { 
-          icon: () => h('n-icon', {}, { default: () => h(PersonOutline) }),
-          default: () => '分配角色'
-        }),
-        h('n-button', {
-          size: 'small',
-          type: 'error',
-          onClick: () => handleDeleteUser(row)
-        }, { default: () => '删除' })
-      ]
+    width: 450,
+    render: (row) => {
+      return h('div', { class: 'action-buttons' }, [
+        h(
+          NButton,
+          {
+            size: 'small',
+            type: 'primary',
+            secondary: true,
+            onClick: () => showUserModal(row)
+          },
+          {
+            icon: () => h(NIcon, null, { default: () => h(CreateOutline) }),
+            default: () => '编辑'
+          }
+        ),
+        h(
+          NButton,
+          {
+            size: 'small',
+            type: 'warning',
+            secondary: true,
+            style: { marginLeft: '8px' },
+            onClick: () => showPasswordModal(row)
+          },
+          {
+            icon: () => h(NIcon, null, { default: () => h(KeyOutline) }),
+            default: () => '重置'
+          }
+        ),
+        h(
+          NButton,
+          {
+            size: 'small',
+            type: 'info',
+            secondary: true,
+            style: { marginLeft: '8px' },
+            onClick: () => showRoleModal(row)
+          },
+          {
+            icon: () => h(NIcon, null, { default: () => h(PersonOutline) }),
+            default: () => '角色'
+          }
+        ),
+        h(
+          NButton,
+          {
+            size: 'small',
+            type: 'error',
+            secondary: true,
+            style: { marginLeft: '8px' },
+            onClick: () => handleDeleteUser(row)
+          },
+          {
+            icon: () => h(NIcon, null, { default: () => h(TrashBinOutline) }),
+            default: () => '删除'
+          }
+        )
+      ])
     }
   }
 ]
@@ -577,5 +605,10 @@ onMounted(() => {
 .search-bar {
   display: flex;
   align-items: center;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
 }
 </style>

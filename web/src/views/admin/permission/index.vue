@@ -241,6 +241,7 @@
 import { ref, reactive, onMounted, h } from 'vue'
 import { useMessage, useDialog } from 'naive-ui'
 import { SearchOutline, AddOutline, CreateOutline, TrashBinOutline } from '@vicons/ionicons5'
+import { NButton, NIcon } from 'naive-ui'
 import {
   getPermissions,
   createPermission,
@@ -318,21 +319,37 @@ const permissionColumns = [
   {
     title: '操作',
     key: 'actions',
-    width: 150,
-    render(row) {
-      return [
-        h('n-button', {
-          size: 'small',
-          type: 'primary',
-          style: { marginRight: '8px' },
-          onClick: () => showPermissionModal(row)
-        }, { default: () => '编辑' }),
-        h('n-button', {
-          size: 'small',
-          type: 'error',
-          onClick: () => handleDeletePermission(row)
-        }, { default: () => '删除' })
-      ]
+    width: 200,
+    render: (row) => {
+      return h('div', { class: 'action-buttons' }, [
+        h(
+          NButton,
+          {
+            size: 'small',
+            type: 'primary',
+            secondary: true,
+            onClick: () => showPermissionModal(row)
+          },
+          {
+            icon: () => h(NIcon, null, { default: () => h(CreateOutline) }),
+            default: () => '编辑'
+          }
+        ),
+        h(
+          NButton,
+          {
+            size: 'small',
+            type: 'error',
+            secondary: true,
+            style: { marginLeft: '8px' },
+            onClick: () => handleDeletePermission(row)
+          },
+          {
+            icon: () => h(NIcon, null, { default: () => h(TrashBinOutline) }),
+            default: () => '删除'
+          }
+        )
+      ])
     }
   }
 ]
@@ -524,21 +541,37 @@ const roleColumns = [
   {
     title: '操作',
     key: 'actions',
-    width: 150,
-    render(row) {
-      return [
-        h('n-button', {
-          size: 'small',
-          type: 'primary',
-          style: { marginRight: '8px' },
-          onClick: () => showRoleModal(row)
-        }, { default: () => '编辑' }),
-        h('n-button', {
-          size: 'small',
-          type: 'error',
-          onClick: () => handleDeleteRole(row)
-        }, { default: () => '删除' })
-      ]
+    width: 200,
+    render: (row) => {
+      return h('div', { class: 'action-buttons' }, [
+        h(
+          NButton,
+          {
+            size: 'small',
+            type: 'primary',
+            secondary: true,
+            onClick: () => showRoleModal(row)
+          },
+          {
+            icon: () => h(NIcon, null, { default: () => h(CreateOutline) }),
+            default: () => '编辑'
+          }
+        ),
+        h(
+          NButton,
+          {
+            size: 'small',
+            type: 'error',
+            secondary: true,
+            style: { marginLeft: '8px' },
+            onClick: () => handleDeleteRole(row)
+          },
+          {
+            icon: () => h(NIcon, null, { default: () => h(TrashBinOutline) }),
+            default: () => '删除'
+          }
+        )
+      ])
     }
   }
 ]
@@ -715,5 +748,10 @@ onMounted(() => {
   border: 1px solid #e0e0e6;
   border-radius: 6px;
   padding: 8px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
 }
 </style>
