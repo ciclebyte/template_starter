@@ -30,7 +30,11 @@ import {
   SettingsOutline,
   StatsChartOutline,
   AddOutline,
-  CreateOutline
+  CreateOutline,
+  PeopleOutline,
+  LockClosedOutline,
+  PricetagOutline,
+  OptionsOutline
 } from '@vicons/ionicons5'
 
 const route = useRoute()
@@ -60,39 +64,43 @@ const breadcrumbConfig = {
     parent: 'admin-templates-list',
     path: '/admin/templates/edit'
   },
+  // 基础数据分组
   'admin-categories': {
     title: '分类管理',
     icon: LayersOutline,
+    parent: 'basic-data',
     path: '/admin/categories'
-  },
-  'admin-categories-create': {
-    title: '创建分类',
-    icon: AddOutline,
-    parent: 'admin-categories',
-    path: '/admin/categories/create'
-  },
-  'admin-categories-edit': {
-    title: '编辑分类',
-    icon: CreateOutline,
-    parent: 'admin-categories',
-    path: '/admin/categories/edit'
   },
   'admin-languages': {
     title: '语言管理',
     icon: LanguageOutline,
+    parent: 'basic-data',
     path: '/admin/languages'
   },
-  'admin-languages-create': {
-    title: '创建语言',
-    icon: AddOutline,
-    parent: 'admin-languages',
-    path: '/admin/languages/create'
+  'admin-tags': {
+    title: '标签管理',
+    icon: PricetagOutline,
+    parent: 'basic-data',
+    path: '/admin/tags'
   },
-  'admin-languages-edit': {
-    title: '编辑语言',
-    icon: CreateOutline,
-    parent: 'admin-languages',
-    path: '/admin/languages/edit'
+  'admin-var-presets': {
+    title: '变量预设',
+    icon: OptionsOutline,
+    parent: 'basic-data',
+    path: '/admin/var-presets'
+  },
+  // 用户管理分组
+  'admin-users': {
+    title: '用户管理',
+    icon: PeopleOutline,
+    parent: 'user-management',
+    path: '/admin/users'
+  },
+  'admin-permissions': {
+    title: '权限管理',
+    icon: LockClosedOutline,
+    parent: 'user-management',
+    path: '/admin/permissions'
   },
   'admin-analytics': {
     title: '统计分析',
@@ -106,24 +114,40 @@ const breadcrumbConfig = {
   }
 }
 
+// 虚拟父级配置（对应菜单分组）
+const virtualParents = {
+  'basic-data': {
+    title: '基础数据',
+    icon: null,
+    path: null
+  },
+  'user-management': {
+    title: '用户管理',
+    icon: null,
+    path: null
+  }
+}
+
 const breadcrumbItems = computed(() => {
   const currentRouteName = route.name
   const items = []
   
-  // 始终添加仪表盘作为首页
-  items.push({
-    title: '仪表盘',
-    icon: GridOutline,
-    path: '/admin',
-    clickable: currentRouteName !== 'admin-dashboard'
-  })
-
-  if (currentRouteName && currentRouteName !== 'admin-dashboard') {
+  if (currentRouteName && breadcrumbConfig[currentRouteName]) {
     const currentConfig = breadcrumbConfig[currentRouteName]
     
-    if (currentConfig) {
-      // 如果有父级，先添加父级
-      if (currentConfig.parent) {
+    // 如果有父级，添加父级
+    if (currentConfig.parent) {
+      // 检查是否是虚拟父级（菜单分组）
+      if (virtualParents[currentConfig.parent]) {
+        const virtualParent = virtualParents[currentConfig.parent]
+        items.push({
+          title: virtualParent.title,
+          icon: virtualParent.icon,
+          path: virtualParent.path,
+          clickable: false // 虚拟父级不可点击
+        })
+      } else {
+        // 真实的父级页面
         const parentConfig = breadcrumbConfig[currentConfig.parent]
         if (parentConfig) {
           items.push({
@@ -134,15 +158,23 @@ const breadcrumbItems = computed(() => {
           })
         }
       }
-      
-      // 添加当前页面
-      items.push({
-        title: currentConfig.title,
-        icon: currentConfig.icon,
-        path: currentConfig.path,
-        clickable: false
-      })
     }
+    
+    // 添加当前页面
+    items.push({
+      title: currentConfig.title,
+      icon: currentConfig.icon,
+      path: currentConfig.path,
+      clickable: false
+    })
+  } else {
+    // 默认显示仪表盘
+    items.push({
+      title: '仪表盘',
+      icon: GridOutline,
+      path: '/admin',
+      clickable: false
+    })
   }
 
   return items
