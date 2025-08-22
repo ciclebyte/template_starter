@@ -129,7 +129,8 @@ func (s *sProfile) ChangePassword(ctx context.Context, req *profile.ChangePasswo
 	}
 
 	// 验证原密码
-	if !libPassword.CheckPassword(req.OldPassword, user.PasswordHash) {
+	match, err := libPassword.VerifyPassword(req.OldPassword, user.PasswordHash)
+	if err != nil || !match {
 		return nil, errors.New("原密码不正确")
 	}
 
@@ -175,7 +176,8 @@ func (s *sProfile) UpdateEmail(ctx context.Context, req *profile.UpdateEmailReq)
 		return nil, errors.New("用户不存在")
 	}
 
-	if !libPassword.CheckPassword(req.Password, user.PasswordHash) {
+	match, err := libPassword.VerifyPassword(req.Password, user.PasswordHash)
+	if err != nil || !match {
 		return nil, errors.New("密码不正确")
 	}
 
@@ -307,7 +309,7 @@ func (s *sProfile) GetLoginHistory(ctx context.Context, req *profile.GetLoginHis
 		list = append(list, profile.LoginHistory{
 			Id:        session.Id,
 			LoginAt:   session.CreatedAt,
-			LoginIp:   session.LoginIp,
+			LoginIp:   session.IpAddress,
 			UserAgent: session.UserAgent,
 			Location:  "", // 暂时为空，后续可以根据IP获取地理位置
 			Status:    "成功", // 暂时硬编码，后续可以添加登录状态

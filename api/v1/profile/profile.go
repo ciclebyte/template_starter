@@ -120,7 +120,7 @@ type GetLoginHistoryReq struct {
 }
 
 type LoginHistory struct {
-	Id        int64       `json:"id" dc:"记录ID"`
+	Id        string      `json:"id" dc:"记录ID"`
 	LoginAt   *gtime.Time `json:"loginAt" dc:"登录时间"`
 	LoginIp   string      `json:"loginIp" dc:"登录IP"`
 	UserAgent string      `json:"userAgent" dc:"用户代理"`
